@@ -1,0 +1,4 @@
+v1.4 Changes:
+- Now targets Android 16 (API 36) for continued Google Play compatibility
+- Fixed preview settings not being applied immediately (#9)
+- Fixed the back button closing the app instead of leaving a settings screen

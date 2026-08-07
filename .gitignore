@@ -20,6 +20,7 @@ testdata/
 *.db
 *.iml
 *.apk
+*.aab
 *.ap_
 
 local.properties
@@ -29,3 +30,10 @@ uninstall.bat
 *.keystore
 *.jks
 signing.properties
+
+# Registration token shipped in the app assets - keep out of this public repo
+app/src/main/assets/adi-registration.properties
+
+# Local development notes, not part of the app
+CLAUDE.md
+.claude/
