@@ -1,0 +1,96 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdk 36
+    compileOptions.encoding = 'UTF-8'
+
+    // Verwijder DEPENDENCY_INFO_BLOCK uit APK (vereist door IzzyOnDroid/F-Droid)
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    // For release signing, create a file 'signing.properties' in project root with:
+    // storeFile=path/to/keystore
+    // storePassword=your_password
+    // keyAlias=your_alias
+    // keyPassword=your_password
+    // Then uncomment the signingConfigs section below
+
+    signingConfigs {
+        release {
+            def signingPropsFile = rootProject.file('signing.properties')
+            if (signingPropsFile.exists()) {
+                def signingProps = new Properties()
+                signingProps.load(new FileInputStream(signingPropsFile))
+                storeFile file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.linkedcamera.app"
+        minSdkVersion 21
+        targetSdkVersion 36
+        versionCode 5
+        versionName "1.4"
+
+        testApplicationId "com.linkedcamera.app.test"
+        //testInstrumentationRunner "android.test.InstrumentationTestRunner"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+
+    // needed to use android.test package (ActivityInstrumentationTestCase2 etc) when targetting sdk 28 (Android 9) -
+    // see https://developer.android.com/training/testing/set-up-project
+    useLibrary 'android.test.runner'
+    useLibrary 'android.test.base'
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+    namespace 'com.linkedcamera.app'
+    buildFeatures {
+    }
+    //useLibrary 'android.test.mock'
+}
+
+dependencies {
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+
+    //implementation 'androidx.activity:activity:1.9.3' // needed for EdgeToEdge.enable(this)
+
+    // appcompat version must be 1.4.0 or later to satisfy emoji policy!
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+
+    // needed to fix errors since upgrading to appcompat:1.7.0, see https://stackoverflow.com/questions/75263047/duplicate-class-in-kotlin-android
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.9.0"))
+
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+    implementation 'androidx.exifinterface:exifinterface:1.4.1'
+
+    testImplementation 'junit:junit:4.13.2'
+
+    // newer AndroidJUnit4 InstrumentedTest
+    androidTestImplementation "androidx.test:runner:1.7.0"
+    androidTestImplementation "androidx.test:rules:1.7.0"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
