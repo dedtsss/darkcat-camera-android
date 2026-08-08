@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.DarkCatCamera" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/darkcat_accent</item>
+        <item name="android:navigationBarColor">@color/darkcat_black</item>
+        <item name="android:statusBarColor">@color/darkcat_black</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -1,0 +1,11 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/darkcat_black">
+    <ImageView android:id="@+id/image_view" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="Captured image" android:scaleType="fitCenter" />
+    <TextView android:id="@+id/info_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="top" android:background="@color/darkcat_panel" android:padding="12dp" android:textColor="@color/darkcat_text" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:background="@color/darkcat_panel" android:gravity="center">
+        <Button android:id="@+id/back_button" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Back" />
+        <Button android:id="@+id/edit_button" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Edit" />
+    </LinearLayout>
+</FrameLayout>
