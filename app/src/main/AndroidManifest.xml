@@ -30,6 +30,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- DarkCat capture/upload integration. Camera and microphone remain upstream capabilities. -->
+
     <uses-feature android:name="android.hardware.camera" />
     <uses-feature android:name="android.hardware.microphone" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
@@ -101,6 +103,10 @@
                 <action android:name="android.media.action.VIDEO_CAPTURE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="ru.darkcat.camera.action.CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <activity
@@ -109,6 +115,23 @@
             android:exported="false"
         >
         </activity>
+        <activity
+            android:name="ru.darkcat.camera.ui.DarkCatSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.VaultActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name="ru.darkcat.camera.ui.EditorActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name="ru.darkcat.camera.ui.MediaViewerActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
 
         <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
         <activity

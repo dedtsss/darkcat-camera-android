@@ -1,11 +1,11 @@
-package net.sourceforge.opencamera.test;
+package com.linkedcamera.app.test;
 
 import android.os.Build;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
-import net.sourceforge.opencamera.TestUtils;
+import com.linkedcamera.app.TestUtils;
 
 public class OldDeviceTests {
     // Small set of tests to run on very old devices.

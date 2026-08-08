@@ -32,13 +32,13 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.linkedcamera.app"
+        applicationId "ru.darkcat.camera"
         minSdkVersion 21
         targetSdkVersion 36
-        versionCode 5
-        versionName "1.4"
+        versionCode 6
+        versionName "0.2.0-linked"
 
-        testApplicationId "com.linkedcamera.app.test"
+        testApplicationId "ru.darkcat.camera.test"
         //testInstrumentationRunner "android.test.InstrumentationTestRunner"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -80,6 +80,10 @@ dependencies {
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
     implementation 'androidx.exifinterface:exifinterface:1.4.1'
+
+    // DarkCat vertical slice: persistent retryable work and a maintained MIT editor.
+    implementation 'androidx.work:work-runtime:2.10.1'
+    implementation 'com.burhanrashid52:photoeditor:3.1.0'
 
     testImplementation 'junit:junit:4.13.2'
 

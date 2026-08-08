@@ -1,4 +1,8 @@
-# Linked Camera
+# DarkCat Camera
+
+This branch is the DarkCat Camera GPLv3 fork of Linked Camera v1.4. It keeps the mature Linked Camera/Open Camera camera core and adds optional DarkCat Secure Storage, an AES-256-GCM protected gallery, persistent encrypted upload queue, EDIT mode and CRM CaptureContext. DarkCat Camera remains an independent APK with applicationId `ru.darkcat.camera`.
+
+The original Linked Camera documentation and attribution below are retained as upstream project material. See `docs/LICENSE_STRATEGY.md`, `docs/UPSTREAM_LINKED_CAMERA.md` and `THIRD_PARTY_NOTICES.md` before redistributing.
 
 <div align="center">
 

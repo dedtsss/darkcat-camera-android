@@ -1,4 +1,4 @@
-package net.sourceforge.opencamera;
+package com.linkedcamera.app;
 
 import static org.junit.Assert.*;
 
@@ -25,7 +25,7 @@ import android.view.View;
 
 import androidx.exifinterface.media.ExifInterface;
 
-import net.sourceforge.opencamera.preview.Preview;
+import com.linkedcamera.app.preview.Preview;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -767,17 +767,17 @@ public class TestUtils {
 
     public static void waitForTakePhotoChecks(MainActivity activity, long time_s) {
         Preview preview = activity.getPreview();
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        //View flashButton = activity.findViewById(net.sourceforge.opencamera.R.id.flash);
-        //View focusButton = activity.findViewById(net.sourceforge.opencamera.R.id.focus_mode);
-        View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        //View flashButton = activity.findViewById(com.linkedcamera.app.R.id.flash);
+        //View focusButton = activity.findViewById(com.linkedcamera.app.R.id.focus_mode);
+        View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity);
         boolean is_focus_bracketing = activity.supportsFocusBracketing() && sharedPreferences.getString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std").equals("preference_photo_mode_focus_bracketing");
         boolean is_panorama = activity.supportsPanorama() && sharedPreferences.getString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std").equals("preference_photo_mode_panorama");
@@ -1250,15 +1250,15 @@ public class TestUtils {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity);
         boolean has_audio_control_button = !sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none").equals("none");
 
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
 
         // trash/share only shown when preview is paused after taking a photo
         boolean pause_preview =  sharedPreferences.getBoolean(PreferenceKeys.PausePreviewPreferenceKey, false);
@@ -1319,17 +1319,17 @@ public class TestUtils {
 
         boolean has_audio_control_button = !sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none").equals("none");
 
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        //View flashButton = activity.findViewById(net.sourceforge.opencamera.R.id.flash);
-        //View focusButton = activity.findViewById(net.sourceforge.opencamera.R.id.focus_mode);
-        View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        //View flashButton = activity.findViewById(com.linkedcamera.app.R.id.flash);
+        //View focusButton = activity.findViewById(com.linkedcamera.app.R.id.focus_mode);
+        View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
         assertEquals(switchCameraButton.getVisibility(), (immersive_mode ? View.GONE : (activity.getPreview().getCameraControllerManager().getNumberOfCameras() > 1 ? View.VISIBLE : View.GONE)));
         assertEquals(switchMultiCameraButton.getVisibility(), (immersive_mode ? View.GONE : (activity.showSwitchMultiCamIcon() ? View.VISIBLE : View.GONE)));
         assertEquals(switchVideoButton.getVisibility(), (immersive_mode ? View.GONE : View.VISIBLE));
@@ -1517,30 +1517,30 @@ public class TestUtils {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity);
         boolean has_audio_control_button = !sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none").equals("none");
 
-        View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
-        View pauseVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.pause_video);
-        View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
+        View pauseVideoButton = activity.findViewById(com.linkedcamera.app.R.id.pause_video);
+        View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
 
         if( preview.isVideo() ) {
-            assertEquals((int) (Integer) takePhotoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_video_selector);
-            assertEquals((int) (Integer) switchVideoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_photo);
-            assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.start_video));
-            assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.pause_video));
-            assertEquals(switchVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.switch_to_photo));
+            assertEquals((int) (Integer) takePhotoButton.getTag(), com.linkedcamera.app.R.drawable.take_video_selector);
+            assertEquals((int) (Integer) switchVideoButton.getTag(), com.linkedcamera.app.R.drawable.take_photo);
+            assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.start_video));
+            assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.pause_video));
+            assertEquals(switchVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.switch_to_photo));
         }
         else {
-            assertEquals((int) (Integer) takePhotoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_photo_selector);
-            assertEquals((int) (Integer) switchVideoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_video);
-            assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.take_photo));
-            assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.pause_video));
-            assertEquals(switchVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.switch_to_video));
+            assertEquals((int) (Integer) takePhotoButton.getTag(), com.linkedcamera.app.R.drawable.take_photo_selector);
+            assertEquals((int) (Integer) switchVideoButton.getTag(), com.linkedcamera.app.R.drawable.take_video);
+            assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.take_photo));
+            assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.pause_video));
+            assertEquals(switchVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.switch_to_video));
         }
         assertEquals(pauseVideoButton.getVisibility(), View.GONE);
         assertEquals(takePhotoVideoButton.getVisibility(), View.GONE);
@@ -1557,23 +1557,23 @@ public class TestUtils {
     public static void takeVideoRecordingChecks(MainActivity activity, boolean immersive_mode, int exposureVisibility, int exposureLockVisibility) {
         Preview preview = activity.getPreview();
 
-        View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
-        View pauseVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.pause_video);
-        View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
+        View pauseVideoButton = activity.findViewById(com.linkedcamera.app.R.id.pause_video);
+        View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
 
-        assertEquals((int) (Integer) takePhotoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_video_recording);
-        assertEquals((int) (Integer) switchVideoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_photo);
-        assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.stop_video));
-        assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.pause_video));
+        assertEquals((int) (Integer) takePhotoButton.getTag(), com.linkedcamera.app.R.drawable.take_video_recording);
+        assertEquals((int) (Integer) switchVideoButton.getTag(), com.linkedcamera.app.R.drawable.take_photo);
+        assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.stop_video));
+        assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.pause_video));
         if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.N )
             assertEquals(pauseVideoButton.getVisibility(), View.VISIBLE);
         else
@@ -1635,18 +1635,18 @@ public class TestUtils {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(activity);
         boolean has_audio_control_button = !sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none").equals("none");
 
-        View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
-        View pauseVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.pause_video);
-        View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
-        View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
-        View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
-        View switchMultiCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_multi_camera);
-        View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
-        View audioControlButton = activity.findViewById(net.sourceforge.opencamera.R.id.audio_control);
-        View popupButton = activity.findViewById(net.sourceforge.opencamera.R.id.popup);
-        View trashButton = activity.findViewById(net.sourceforge.opencamera.R.id.trash);
-        View shareButton = activity.findViewById(net.sourceforge.opencamera.R.id.share);
+        View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
+        View pauseVideoButton = activity.findViewById(com.linkedcamera.app.R.id.pause_video);
+        View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
+        View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
+        View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
+        View switchMultiCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_multi_camera);
+        View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
+        View audioControlButton = activity.findViewById(com.linkedcamera.app.R.id.audio_control);
+        View popupButton = activity.findViewById(com.linkedcamera.app.R.id.popup);
+        View trashButton = activity.findViewById(com.linkedcamera.app.R.id.trash);
+        View shareButton = activity.findViewById(com.linkedcamera.app.R.id.share);
 
         if( !max_filesize ) {
             // if doing restart on max filesize, we may have already restarted by now (on Camera2 API at least)
@@ -1664,10 +1664,10 @@ public class TestUtils {
         assertEquals(shareButton.getVisibility(), View.GONE);
 
         assertFalse( preview.isVideoRecording() );
-        assertEquals((int) (Integer) takePhotoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_video_selector);
-        assertEquals((int) (Integer) switchVideoButton.getTag(), net.sourceforge.opencamera.R.drawable.take_photo);
-        assertEquals( takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.start_video) );
-        assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.pause_video));
+        assertEquals((int) (Integer) takePhotoButton.getTag(), com.linkedcamera.app.R.drawable.take_video_selector);
+        assertEquals((int) (Integer) switchVideoButton.getTag(), com.linkedcamera.app.R.drawable.take_photo);
+        assertEquals( takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.start_video) );
+        assertEquals(pauseVideoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.pause_video));
         Log.d(TAG, "pauseVideoButton.getVisibility(): " + pauseVideoButton.getVisibility());
         assertEquals(pauseVideoButton.getVisibility(), View.GONE);
         assertEquals(takePhotoVideoButton.getVisibility(), View.GONE);

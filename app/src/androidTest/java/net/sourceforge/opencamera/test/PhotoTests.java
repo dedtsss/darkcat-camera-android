@@ -1,9 +1,9 @@
-package net.sourceforge.opencamera.test;
+package com.linkedcamera.app.test;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
-import net.sourceforge.opencamera.TestUtils;
+import com.linkedcamera.app.TestUtils;
 
 public class PhotoTests {
     // Tests related to taking photos; note that tests to do with photo mode that don't take photos are still part of MainTests

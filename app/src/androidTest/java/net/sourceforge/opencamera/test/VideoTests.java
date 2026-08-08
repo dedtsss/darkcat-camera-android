@@ -1,9 +1,9 @@
-package net.sourceforge.opencamera.test;
+package com.linkedcamera.app.test;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
-import net.sourceforge.opencamera.TestUtils;
+import com.linkedcamera.app.TestUtils;
 
 public class VideoTests {
     // Tests related to video recording; note that tests to do with video mode that don't record are still part of MainTests

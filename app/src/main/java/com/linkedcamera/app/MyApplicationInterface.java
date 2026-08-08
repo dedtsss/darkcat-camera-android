@@ -63,6 +63,8 @@ import android.widget.ImageButton;
 
 import androidx.annotation.RequiresApi;
 
+import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
+
 /** Our implementation of ApplicationInterface, see there for details.
  */
 public class MyApplicationInterface extends BasicApplicationInterface {
@@ -2479,6 +2481,11 @@ public class MyApplicationInterface extends BasicApplicationInterface {
             subtitleVideoTimerTask = null;
         }
 
+        if( DarkCatCaptureCoordinator.interceptVideoAsync(main_activity, uri, filename, isVideoCaptureIntent()) ) {
+            // Leave MediaStore items pending and keep file-method media out of the public gallery.
+            return;
+        }
+
         completeVideo(video_method, uri);
         boolean done = broadcastVideo(video_method, uri, filename);
         if( MyDebug.LOG )
@@ -2586,6 +2593,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
             Log.d(TAG, "uri " + uri);
             Log.d(TAG, "filename " + filename);
         }
+        if( DarkCatCaptureCoordinator.interceptVideoAsync(main_activity, uri, filename, isVideoCaptureIntent()) ) return;
         completeVideo(video_method, uri);
         broadcastVideo(video_method, uri, filename);
 

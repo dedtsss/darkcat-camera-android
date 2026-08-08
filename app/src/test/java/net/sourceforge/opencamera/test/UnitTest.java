@@ -1,20 +1,20 @@
-package net.sourceforge.opencamera.test;
+package com.linkedcamera.app.test;
 
 import android.media.CamcorderProfile;
 
-import net.sourceforge.opencamera.MainActivity;
-import net.sourceforge.opencamera.MyApplicationInterface;
-import net.sourceforge.opencamera.cameracontroller.CameraController;
-import net.sourceforge.opencamera.cameracontroller.CameraController2;
-import net.sourceforge.opencamera.HDRProcessor;
-import net.sourceforge.opencamera.ImageSaver;
-import net.sourceforge.opencamera.LocationSupplier;
-import net.sourceforge.opencamera.preview.Preview;
-import net.sourceforge.opencamera.preview.VideoQualityHandler;
-import net.sourceforge.opencamera.TextFormatter;
-import net.sourceforge.opencamera.ui.DrawPreview;
-import net.sourceforge.opencamera.ui.MainUI;
-import net.sourceforge.opencamera.ui.PopupView;
+import com.linkedcamera.app.MainActivity;
+import com.linkedcamera.app.MyApplicationInterface;
+import com.linkedcamera.app.cameracontroller.CameraController;
+import com.linkedcamera.app.cameracontroller.CameraController2;
+import com.linkedcamera.app.HDRProcessor;
+import com.linkedcamera.app.ImageSaver;
+import com.linkedcamera.app.LocationSupplier;
+import com.linkedcamera.app.preview.Preview;
+import com.linkedcamera.app.preview.VideoQualityHandler;
+import com.linkedcamera.app.TextFormatter;
+import com.linkedcamera.app.ui.DrawPreview;
+import com.linkedcamera.app.ui.MainUI;
+import com.linkedcamera.app.ui.PopupView;
 
 import org.junit.Test;
 

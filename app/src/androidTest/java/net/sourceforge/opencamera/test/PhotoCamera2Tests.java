@@ -1,4 +1,4 @@
-package net.sourceforge.opencamera.test;
+package com.linkedcamera.app.test;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;

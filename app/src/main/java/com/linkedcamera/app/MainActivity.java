@@ -396,6 +396,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
         // set up the camera and its preview
         preview = new Preview(applicationInterface, (this.findViewById(R.id.preview)));
+        ru.darkcat.camera.ui.DarkCatUi.install(this);
         if( MyDebug.LOG )
             Log.d(TAG, "onCreate: time after creating preview: " + (System.currentTimeMillis() - debug_time));
 
@@ -4931,6 +4932,10 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     public void clickedGallery(View view) {
         if( MyDebug.LOG )
             Log.d(TAG, "clickedGallery");
+        if( ru.darkcat.camera.data.DarkCatSettings.isSecureMode(this) ) {
+            startActivity(new Intent(this, ru.darkcat.camera.ui.VaultActivity.class));
+            return;
+        }
         openGallery();
     }
 

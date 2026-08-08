@@ -1,4 +1,4 @@
-package net.sourceforge.opencamera;
+package com.linkedcamera.app;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
@@ -30,10 +30,10 @@ import androidx.test.espresso.matcher.ViewMatchers;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import net.sourceforge.opencamera.cameracontroller.CameraController;
-import net.sourceforge.opencamera.preview.Preview;
-import net.sourceforge.opencamera.ui.DrawPreview;
-import net.sourceforge.opencamera.ui.PopupView;
+import com.linkedcamera.app.cameracontroller.CameraController;
+import com.linkedcamera.app.preview.Preview;
+import com.linkedcamera.app.ui.DrawPreview;
+import com.linkedcamera.app.ui.PopupView;
 
 import org.junit.After;
 import org.junit.Before;
@@ -340,13 +340,13 @@ public class InstrumentedTest {
         Log.d(TAG, "start iso: "+ iso);
         if( iso != required_iso ) {
             mActivityRule.getScenario().onActivity(activity -> {
-                View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-                View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_container);
+                View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+                View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.exposure_container);
                 assertEquals(exposureContainer.getVisibility(), View.GONE);
                 clickView(exposureButton);
             });
             mActivityRule.getScenario().onActivity(activity -> {
-                View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_container);
+                View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.exposure_container);
                 assertEquals(exposureContainer.getVisibility(), View.VISIBLE);
                 View isoButton = activity.getUIButton("TEST_ISO_" + required_iso);
                 assertNotNull(isoButton);
@@ -362,8 +362,8 @@ public class InstrumentedTest {
             iso = getActivityValue(activity -> activity.getPreview().getCameraController().getISO());
             Log.d(TAG, "changed iso to: "+ iso);
             mActivityRule.getScenario().onActivity(activity -> {
-                View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-                View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_container);
+                View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+                View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.exposure_container);
                 clickView(exposureButton);
                 assertEquals(exposureContainer.getVisibility(), View.GONE);
             });
@@ -6434,7 +6434,7 @@ public class InstrumentedTest {
 
         if( !single_tap_photo && !double_tap_photo ) {
             mActivityRule.getScenario().onActivity(activity -> {
-                View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
+                View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
                 assertFalse( activity.hasThumbnailAnimation() );
                 Log.d(TAG, "about to click take photo");
                 clickView(takePhotoButton);
@@ -6667,7 +6667,7 @@ public class InstrumentedTest {
             Log.d(TAG, "test front camera");
             mActivityRule.getScenario().onActivity(activity -> {
                 Log.d(TAG, "switch camera");
-                View switchCameraButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_camera);
+                View switchCameraButton = activity.findViewById(com.linkedcamera.app.R.id.switch_camera);
                 clickView(switchCameraButton);
             });
             waitUntilCameraOpened();
@@ -6776,8 +6776,8 @@ public class InstrumentedTest {
 
         mActivityRule.getScenario().onActivity(activity -> {
             // open exposure UI
-            View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-            View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.manual_exposure_container);
+            View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+            View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.manual_exposure_container);
             assertEquals(exposureButton.getVisibility(), View.VISIBLE);
             assertEquals(exposureContainer.getVisibility(), View.GONE);
 
@@ -6785,10 +6785,10 @@ public class InstrumentedTest {
         });
         AtomicReference<Long> chosen_exposureRef = new AtomicReference<>();
         mActivityRule.getScenario().onActivity(activity -> {
-            View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-            View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.manual_exposure_container);
-            SeekBar isoSeekBar = activity.findViewById(net.sourceforge.opencamera.R.id.iso_seekbar);
-            SeekBar exposureTimeSeekBar = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_time_seekbar);
+            View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+            View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.manual_exposure_container);
+            SeekBar isoSeekBar = activity.findViewById(com.linkedcamera.app.R.id.iso_seekbar);
+            SeekBar exposureTimeSeekBar = activity.findViewById(com.linkedcamera.app.R.id.exposure_time_seekbar);
             assertEquals(exposureButton.getVisibility(), View.VISIBLE);
             assertEquals(exposureContainer.getVisibility(), View.VISIBLE);
             assertEquals(isoSeekBar.getVisibility(), View.VISIBLE);
@@ -6811,12 +6811,12 @@ public class InstrumentedTest {
             assertEquals(activity.getPreview().getCameraController().getExposureTime(), chosen_exposure);
 
             // close the exposure UI
-            View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
+            View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
             clickView(exposureButton);
         });
         mActivityRule.getScenario().onActivity(activity -> {
-            View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
-            View exposureContainer = activity.findViewById(net.sourceforge.opencamera.R.id.manual_exposure_container);
+            View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
+            View exposureContainer = activity.findViewById(com.linkedcamera.app.R.id.manual_exposure_container);
             assertEquals(exposureButton.getVisibility(), View.VISIBLE);
             assertEquals(exposureContainer.getVisibility(), View.GONE);
         });
@@ -6918,7 +6918,7 @@ public class InstrumentedTest {
         // go to settings
         assertFalse(getActivityValue(activity -> activity.isCameraInBackground()));
         mActivityRule.getScenario().onActivity(activity -> {
-            View settingsButton = activity.findViewById(net.sourceforge.opencamera.R.id.settings);
+            View settingsButton = activity.findViewById(com.linkedcamera.app.R.id.settings);
             clickView(settingsButton);
         });
         assertTrue(getActivityValue(activity -> activity.isCameraInBackground()));
@@ -6958,7 +6958,7 @@ public class InstrumentedTest {
             TestUtils.preTakeVideoChecks(activity, immersive_mode);
 
             if( !activity.getPreview().isVideo() ) {
-                View switchVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.switch_video);
+                View switchVideoButton = activity.findViewById(com.linkedcamera.app.R.id.switch_video);
                 clickView(switchVideoButton);
             }
         });
@@ -6978,17 +6978,17 @@ public class InstrumentedTest {
 
         // store status to compare with later
         int exposureVisibility = getActivityValue(activity -> {
-            View exposureButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure);
+            View exposureButton = activity.findViewById(com.linkedcamera.app.R.id.exposure);
             return exposureButton.getVisibility();
         });
         int exposureLockVisibility = getActivityValue(activity -> {
-            View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
+            View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
             return exposureLockButton.getVisibility();
         });
 
         mActivityRule.getScenario().onActivity(activity -> {
             Log.d(TAG, "about to click take video");
-            View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
+            View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
             clickView(takePhotoButton);
             Log.d(TAG, "done clicking take video");
         });
@@ -7060,7 +7060,7 @@ public class InstrumentedTest {
                     mActivityRule.getScenario().onActivity(activity -> {
                         Log.d(TAG, "test exposure lock");
                         assertFalse(activity.getPreview().getCameraController().getAutoExposureLock());
-                        View exposureLockButton = activity.findViewById(net.sourceforge.opencamera.R.id.exposure_lock);
+                        View exposureLockButton = activity.findViewById(com.linkedcamera.app.R.id.exposure_lock);
                         clickView(exposureLockButton);
                     });
                     getInstrumentation().waitForIdleSync();
@@ -7075,7 +7075,7 @@ public class InstrumentedTest {
                     TestUtils.takeVideoRecordingChecks(activity, immersive_mode, exposureVisibility, exposureLockVisibility);
 
                     Log.d(TAG, "about to click stop video");
-                    View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
+                    View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
                     clickView(takePhotoButton);
                     Log.d(TAG, "done clicking stop video");
                 });
@@ -7088,7 +7088,7 @@ public class InstrumentedTest {
                 mActivityRule.getScenario().onActivity(activity -> {
                     if( activity.getPreview().isVideoRecording() ) {
                         Log.d(TAG, "about to click stop video");
-                        View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
+                        View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
                         clickView(takePhotoButton);
                         Log.d(TAG, "done clicking stop video");
                     }
@@ -7191,7 +7191,7 @@ public class InstrumentedTest {
         Log.d(TAG, "subTestTakeVideoSnapshot");
 
         mActivityRule.getScenario().onActivity(activity -> {
-            View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
+            View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
             assertEquals(takePhotoVideoButton.getVisibility(), View.GONE);
         });
 
@@ -7207,9 +7207,9 @@ public class InstrumentedTest {
                     fail();
                 }
                 mActivityRule.getScenario().onActivity(activity -> {
-                    View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
-                    View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
-                    assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.stop_video));
+                    View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
+                    View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
+                    assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.stop_video));
                     assertEquals(takePhotoVideoButton.getVisibility(), View.VISIBLE);
                     assertTrue( activity.getPreview().isVideoRecording() );
                     assertFalse(activity.getPreview().isVideoRecordingPaused());
@@ -7225,7 +7225,7 @@ public class InstrumentedTest {
                 waitForTakePhoto();
 
                 mActivityRule.getScenario().onActivity(activity -> {
-                    View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
+                    View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
                     assertEquals(takePhotoVideoButton.getVisibility(), View.VISIBLE);
                     assertTrue( activity.getPreview().isVideoRecording() );
                     assertFalse(activity.getPreview().isVideoRecordingPaused());
@@ -7240,9 +7240,9 @@ public class InstrumentedTest {
                     fail();
                 }
                 mActivityRule.getScenario().onActivity(activity -> {
-                    View takePhotoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo);
-                    View takePhotoVideoButton = activity.findViewById(net.sourceforge.opencamera.R.id.take_photo_when_video_recording);
-                    assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(net.sourceforge.opencamera.R.string.stop_video));
+                    View takePhotoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo);
+                    View takePhotoVideoButton = activity.findViewById(com.linkedcamera.app.R.id.take_photo_when_video_recording);
+                    assertEquals(takePhotoButton.getContentDescription(), activity.getResources().getString(com.linkedcamera.app.R.string.stop_video));
                     assertEquals(takePhotoVideoButton.getVisibility(), View.VISIBLE);
                     assertTrue( activity.getPreview().isVideoRecording() );
 

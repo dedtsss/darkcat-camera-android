@@ -1,4 +1,4 @@
-package net.sourceforge.opencamera;
+package com.linkedcamera.app;
 
 import org.junit.experimental.categories.Categories;
 import org.junit.runner.RunWith;

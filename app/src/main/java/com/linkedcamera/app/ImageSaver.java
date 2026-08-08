@@ -27,6 +27,9 @@ import java.util.TimeZone;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import ru.darkcat.camera.data.DarkCatSettings;
+import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -4192,7 +4195,8 @@ public class ImageSaver extends Thread {
                 storageUtils.broadcastFile(picFile, true, false, raw_only, hasnoexifdatetime, null);
             }
             else if( use_media_store ) {
-                if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ) {
+                boolean darkcatIntercepted = !raw_only && DarkCatSettings.isSecureMode(main_activity) && DarkCatCaptureCoordinator.interceptUri(main_activity, saveUri, false);
+                if( !darkcatIntercepted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ) {
                     contentValues.clear();
                     contentValues.put(MediaStore.Images.Media.IS_PENDING, 0);
                     main_activity.getContentResolver().update(saveUri, contentValues, null, null);
@@ -4234,9 +4238,9 @@ public class ImageSaver extends Thread {
                 // in theory this is pointless, as announceUri no longer does anything on Android 7+,
                 // and mediastore method is only used on Android 10+, but keep this just in case
                 // announceUri does something in future
-                storageUtils.announceUri(saveUri, true, false);
+                if( !darkcatIntercepted ) storageUtils.announceUri(saveUri, true, false);
 
-                if( raw_only ) {
+                if( !darkcatIntercepted && raw_only ) {
                     // we also want to save the uri - we can use the media uri directly, rather than having to scan it
                     storageUtils.setLastMediaScanned(saveUri, true, hasnoexifdatetime, saveUri);
                 }

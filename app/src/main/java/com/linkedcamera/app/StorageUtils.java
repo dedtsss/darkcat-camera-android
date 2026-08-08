@@ -39,6 +39,8 @@ import android.system.Os;
 import android.system.StructStatVfs;
 import android.util.Log;
 
+import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
+
 /** Provides access to the filesystem. Supports both standard and Storage
  *  Access Framework.
  */
@@ -259,6 +261,10 @@ public class StorageUtils {
      *    call this function for DNGs, so that they show up on MTP.
      */
     public void broadcastFile(final File file, final boolean is_new_picture, final boolean is_new_video, final boolean set_last_scanned, final boolean hasnoexifdatetime, final Uri saf_uri) {
+        if ((is_new_picture || is_new_video) && DarkCatCaptureCoordinator.interceptFile(context, file, is_new_video)) {
+            // Secure Mode owns the file lifecycle. Do not scan it into DCIM/Pictures/Movies.
+            return;
+        }
         if( MyDebug.LOG ) {
             Log.d(TAG, "broadcastFile: " + file.getAbsolutePath());
             Log.d(TAG, "saf_uri: " + saf_uri);
