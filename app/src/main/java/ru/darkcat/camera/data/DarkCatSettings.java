@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
+import ru.darkcat.camera.crypto.SecureCredentialStore;
+
 public final class DarkCatSettings {
     public static final String MODE_FAST = "fast";
     public static final String MODE_EDIT = "edit";
@@ -28,7 +30,7 @@ public final class DarkCatSettings {
     public static String provider(Context context) { return prefs(context).getString("darkcat_provider", PROVIDER_LOCAL); }
     public static String remoteFolder(Context context) { return prefs(context).getString("darkcat_remote_folder", "DarkCat Camera"); }
     public static String baseUrl(Context context) { return prefs(context).getString("darkcat_webdav_base", ""); }
-    public static String nextcloudShare(Context context) { return prefs(context).getString("darkcat_nextcloud_share", ""); }
+    public static String nextcloudShare(Context context) { return SecureCredentialStore.get(context, "nextcloud_share"); }
 
     public static void set(Context context, String key, Object value) {
         SharedPreferences.Editor editor = prefs(context).edit();
