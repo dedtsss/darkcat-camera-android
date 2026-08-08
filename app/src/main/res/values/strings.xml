@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">DarkCat Camera</string>
+    <string name="camera_permission_message">Camera access is required to capture evidence.</string>
+    <string name="microphone_permission_message">Microphone access adds audio to video. Video can continue without audio.</string>
+    <string name="location_permission_message">Location is optional. Photos are captured even when no location fix is available.</string>
+</resources>

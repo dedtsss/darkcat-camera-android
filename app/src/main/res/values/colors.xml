@@ -1,0 +1,7 @@
+<resources>
+    <color name="darkcat_black">#090A0D</color>
+    <color name="darkcat_panel">#CC101319</color>
+    <color name="darkcat_accent">#FFB000</color>
+    <color name="darkcat_text">#FFF7E0</color>
+    <color name="darkcat_muted">#B8B2A4</color>
+</resources>
