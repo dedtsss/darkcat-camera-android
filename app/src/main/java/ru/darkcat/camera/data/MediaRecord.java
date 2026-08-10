@@ -10,7 +10,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class MediaRecord {
-    public enum UploadStatus { ENCRYPTED, QUEUED, UPLOADING, UPLOADED, VERIFIED, FAILED_RETRYABLE, FAILED_PERMANENT, LOCAL_DELETE_PENDING, LOCAL_DELETED }
+    /**
+     * Durable media lifecycle values. They are stored as TEXT, so adding values does not require a
+     * schema migration and remains compatible with the version-1 database.
+     */
+    public enum UploadStatus {
+        CAPTURED,
+        RECOVERY_PENDING,
+        ENCRYPTED,
+        QUEUED,
+        UPLOADING,
+        UPLOADED,
+        VERIFIED,
+        FAILED_RETRYABLE,
+        FAILED_PERMANENT,
+        LOCAL_DELETE_PENDING,
+        LOCAL_DELETED
+    }
     public final String id;
     public final int sequenceNumber;
     public final String mimeType;
@@ -41,8 +57,10 @@ public final class MediaRecord {
             object.put("mimeType", mimeType);
             object.put("latitude", location == null ? JSONObject.NULL : location.getLatitude());
             object.put("longitude", location == null ? JSONObject.NULL : location.getLongitude());
-            object.put("accuracy", location == null ? JSONObject.NULL : location.getAccuracy());
-            object.put("altitude", location == null ? JSONObject.NULL : location.getAltitude());
+            object.put("accuracy", location == null || !location.hasAccuracy()
+                    ? JSONObject.NULL : location.getAccuracy());
+            object.put("altitude", location == null || !location.hasAltitude()
+                    ? JSONObject.NULL : location.getAltitude());
             object.put("crosshairStamped", crosshairStamped);
             object.put("tags", new JSONArray(tags == null ? new ArrayList<>() : tags));
             object.put("captureContext", context == null ? CaptureContext.empty().toJson() : context.toJson());

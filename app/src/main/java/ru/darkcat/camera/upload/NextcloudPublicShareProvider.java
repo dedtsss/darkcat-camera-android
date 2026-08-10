@@ -18,6 +18,12 @@ public final class NextcloudPublicShareProvider implements UploadProvider {
         String target = WebDavClient.appendPath(base + "/public.php/webdav", DarkCatSettings.remoteFolder(context), encryptedFile.getName());
         UploadResult result = WebDavClient.put(target, token, SecureCredentialStore.get(context, "nextcloud_password"), "application/octet-stream", encryptedFile);
         if (!result.accepted) return result;
-        return new UploadResult(true, WebDavClient.verify(target, token, SecureCredentialStore.get(context, "nextcloud_password"), encryptedFile.length()), result.message);
+        try {
+            return new UploadResult(true, WebDavClient.verify(target, token,
+                    SecureCredentialStore.get(context, "nextcloud_password"),
+                    encryptedFile.length()), result.message);
+        } catch (Exception verificationUnavailable) {
+            return new UploadResult(true, false, "Upload accepted; verification unavailable");
+        }
     }
 }

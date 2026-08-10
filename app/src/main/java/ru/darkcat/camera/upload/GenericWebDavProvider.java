@@ -13,6 +13,13 @@ public final class GenericWebDavProvider implements UploadProvider {
         String target = WebDavClient.appendPath(DarkCatSettings.baseUrl(context), DarkCatSettings.remoteFolder(context), encryptedFile.getName());
         UploadResult result = WebDavClient.put(target, SecureCredentialStore.get(context, "webdav_user"), SecureCredentialStore.get(context, "webdav_password"), "application/octet-stream", encryptedFile);
         if (!result.accepted) return result;
-        return new UploadResult(true, WebDavClient.verify(target, SecureCredentialStore.get(context, "webdav_user"), SecureCredentialStore.get(context, "webdav_password"), encryptedFile.length()), result.message);
+        try {
+            return new UploadResult(true, WebDavClient.verify(target,
+                    SecureCredentialStore.get(context, "webdav_user"),
+                    SecureCredentialStore.get(context, "webdav_password"),
+                    encryptedFile.length()), result.message);
+        } catch (Exception verificationUnavailable) {
+            return new UploadResult(true, false, "Upload accepted; verification unavailable");
+        }
     }
 }

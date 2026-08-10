@@ -9,6 +9,9 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.util.ArrayList;
 import java.util.List;
 
+import ru.darkcat.camera.upload.UploadQueueSummary;
+import ru.darkcat.camera.upload.UploadStateMachine;
+
 /** Structured durable media/queue state. The encrypted file is never represented by a Set in preferences. */
 public final class DarkCatDatabase extends SQLiteOpenHelper {
     private static final String NAME = "darkcat.db";
@@ -54,13 +57,52 @@ public final class DarkCatDatabase extends SQLiteOpenHelper {
     }
 
     public synchronized int queueCount() {
-        Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM media WHERE status NOT IN ('VERIFIED','LOCAL_DELETED','FAILED_PERMANENT')", null);
-        try { return c.moveToFirst() ? c.getInt(0) : 0; } finally { c.close(); }
+        return queueSummary().pending;
     }
 
-    public synchronized void updateStatus(String id, MediaRecord.UploadStatus status, String error, int retryCount) {
+    public synchronized UploadQueueSummary queueSummary() {
+        Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT "
+                        + "SUM(CASE WHEN status<>? THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status=? THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status=? THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status=? THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status IN (?,?,?) THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status IN (?,?) THEN 1 ELSE 0 END),"
+                        + "SUM(CASE WHEN status IN (?,?,?) THEN 1 ELSE 0 END) FROM media",
+                new String[]{
+                        MediaRecord.UploadStatus.LOCAL_DELETED.name(),
+                        MediaRecord.UploadStatus.QUEUED.name(),
+                        MediaRecord.UploadStatus.UPLOADING.name(),
+                        MediaRecord.UploadStatus.UPLOADED.name(),
+                        MediaRecord.UploadStatus.VERIFIED.name(),
+                        MediaRecord.UploadStatus.LOCAL_DELETE_PENDING.name(),
+                        MediaRecord.UploadStatus.LOCAL_DELETED.name(),
+                        MediaRecord.UploadStatus.FAILED_RETRYABLE.name(),
+                        MediaRecord.UploadStatus.FAILED_PERMANENT.name(),
+                        MediaRecord.UploadStatus.QUEUED.name(),
+                        MediaRecord.UploadStatus.UPLOADING.name(),
+                        MediaRecord.UploadStatus.FAILED_RETRYABLE.name()
+                });
+        try {
+            if (!cursor.moveToFirst()) return UploadQueueSummary.fromCounts(0, 0, 0, 0, 0, 0, 0);
+            return UploadQueueSummary.fromCounts(cursor.getInt(0), cursor.getInt(1), cursor.getInt(2),
+                    cursor.getInt(3), cursor.getInt(4), cursor.getInt(5), cursor.getInt(6));
+        } finally {
+            cursor.close();
+        }
+    }
+
+    /** The only runtime path for changing a persisted lifecycle state. */
+    public synchronized MediaRecord transitionStatus(String id, MediaRecord.UploadStatus status, String error, int retryCount) {
+        MediaRecord current = get(id);
+        if (current == null) throw new IllegalArgumentException("Unknown media id: " + id);
+        UploadStateMachine.requireTransition(current.status, status);
+        if (retryCount < 0) throw new IllegalArgumentException("retryCount must be non-negative");
         ContentValues v = new ContentValues(); v.put("status", status.name()); v.put("last_error", error); v.put("retry_count", retryCount);
-        getWritableDatabase().update("media", v, "id=?", new String[]{id});
+        int changed = getWritableDatabase().update("media", v, "id=? AND status=?", new String[]{id, current.status.name()});
+        if (changed != 1) throw new IllegalStateException("Concurrent media state update: " + id);
+        return get(id);
     }
 
     public synchronized void delete(String id) { getWritableDatabase().delete("media", "id=?", new String[]{id}); }

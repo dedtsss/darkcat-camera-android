@@ -1,7 +1,5 @@
 package ru.darkcat.camera.crypto;
 
-import android.util.Base64;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -11,11 +9,10 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
+import java.security.GeneralSecurityException;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
@@ -29,28 +26,53 @@ public final class AuthenticatedFileCipher {
     public AuthenticatedFileCipher(SecretKey key) { this.key = key; }
 
     public Result encrypt(File source, File destination) throws Exception {
-        byte[] iv = new byte[IV_LENGTH]; new SecureRandom().nextBytes(iv);
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         try (InputStream input = new BufferedInputStream(new FileInputStream(source));
              FileOutputStream file = new FileOutputStream(destination);
              DigestOutput output = new DigestOutput(new BufferedOutputStream(file), digest)) {
-            output.write(MAGIC); output.write(iv);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            try (CipherOutputStream encrypted = new CipherOutputStream(output, cipher)) {
-                copy(input, encrypted);
+            // Android Keystore randomized-encryption keys reject a caller-provided IV.
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            byte[] iv = cipher.getIV();
+            if (iv == null || iv.length != IV_LENGTH) throw new GeneralSecurityException("AES-GCM provider returned an unsupported IV");
+            output.write(MAGIC); output.write(iv);
+            byte[] buffer = new byte[BUFFER];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                byte[] encrypted = cipher.update(buffer, 0, count);
+                if (encrypted != null && encrypted.length > 0) output.write(encrypted);
             }
+            byte[] finalBlock = cipher.doFinal();
+            if (finalBlock != null && finalBlock.length > 0) output.write(finalBlock);
+            // A successful return means the authenticated header, ciphertext and GCM tag have
+            // reached the filesystem, rather than merely a userspace BufferedOutputStream.
+            output.flush();
+            file.getFD().sync();
             return new Result(destination.length(), hex(digest.digest()));
         }
     }
 
     public void decrypt(File source, File destination) throws Exception {
-        try (InputStream file = new BufferedInputStream(new FileInputStream(source));
-             FileOutputStream output = new FileOutputStream(destination)) {
-            byte[] magic = readFully(file, MAGIC.length); if (!java.util.Arrays.equals(magic, MAGIC)) throw new SecurityException("Invalid DarkCat vault header");
-            byte[] iv = readFully(file, IV_LENGTH);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            try (CipherInputStream decrypted = new CipherInputStream(file, cipher)) { copy(decrypted, output); }
+        File parent = destination.getAbsoluteFile().getParentFile();
+        File temporary = File.createTempFile(".darkcat-decrypt-", ".tmp", parent);
+        boolean authenticated = false;
+        try {
+            try (InputStream file = new BufferedInputStream(new FileInputStream(source));
+                 FileOutputStream output = new FileOutputStream(temporary)) {
+                byte[] magic = readFully(file, MAGIC.length); if (!java.util.Arrays.equals(magic, MAGIC)) throw new SecurityException("Invalid DarkCat vault header");
+                byte[] iv = readFully(file, IV_LENGTH);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
+                try (CipherInputStream decrypted = new CipherInputStream(file, cipher)) { copy(decrypted, output); }
+                output.getFD().sync();
+            }
+            authenticated = true;
+            if (destination.exists() && !destination.delete()) throw new java.io.IOException("Unable to replace decrypted destination");
+            if (!temporary.renameTo(destination)) throw new java.io.IOException("Unable to commit decrypted destination");
+        } finally {
+            // Unauthenticated plaintext is never exposed at the requested destination.
+            if (!authenticated || temporary.exists()) { //noinspection ResultOfMethodCallIgnored
+                temporary.delete();
+            }
         }
     }
 

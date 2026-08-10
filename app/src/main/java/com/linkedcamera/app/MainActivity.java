@@ -113,7 +113,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 /** The main Activity for Open Camera.
  */
-public class MainActivity extends AppCompatActivity implements PreferenceFragment.OnPreferenceStartFragmentCallback {
+public class MainActivity extends AppCompatActivity implements PreferenceFragment.OnPreferenceStartFragmentCallback,
+        ru.darkcat.camera.field.FieldCaptureBridge.Target {
     private static final String TAG = "MainActivity";
 
     private static int activity_count = 0;
@@ -136,6 +137,14 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     //private SpeechControl speechControl;
 
     private Preview preview;
+    private ru.darkcat.camera.capture.MotionSampler darkCatMotionSampler;
+    private ru.darkcat.camera.capture.BestFrameMonitor darkCatBestFrameMonitor;
+    private ru.darkcat.camera.haptic.CaptureHapticController darkCatHaptics;
+    private boolean darkCatFieldCameraKeptWarm;
+    private boolean darkCatSharpCapturePending;
+    private long darkCatLastExternalTriggerElapsedMs;
+    private volatile ru.darkcat.camera.location.LocationFix darkCatPendingCaptureFix;
+    private volatile long darkCatPendingCaptureWallTime;
     private OrientationEventListener orientationEventListener;
     private View.OnLayoutChangeListener layoutChangeListener;
     private int large_heap_memory;
@@ -327,6 +336,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         mainUI = new MainUI(this);
         manualSeekbars = new ManualSeekbars();
         applicationInterface = new MyApplicationInterface(this, savedInstanceState);
+        darkCatMotionSampler = new ru.darkcat.camera.capture.MotionSampler(this);
+        darkCatHaptics = new ru.darkcat.camera.haptic.CaptureHapticController(
+                new ru.darkcat.camera.haptic.AndroidCaptureHaptics(this));
+        ru.darkcat.camera.field.FieldCaptureBridge.attach(this);
+        ru.darkcat.camera.vault.DarkCatCaptureCoordinator.resumePending(this);
         if( MyDebug.LOG )
             Log.d(TAG, "onCreate: time after creating application interface: " + (System.currentTimeMillis() - debug_time));
         textFormatter = new TextFormatter(this);
@@ -347,6 +361,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             // must be done after initCamera2Support()
             setDeviceDefaults();
         }
+        applyDarkCatProductDefaults(sharedPreferences);
 
         boolean settings_is_open = settingsIsOpen();
         if( MyDebug.LOG )
@@ -396,6 +411,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
         // set up the camera and its preview
         preview = new Preview(applicationInterface, (this.findViewById(R.id.preview)));
+        darkCatBestFrameMonitor = new ru.darkcat.camera.capture.BestFrameMonitor(
+                preview.getView(), darkCatMotionSampler);
         ru.darkcat.camera.ui.DarkCatUi.install(this);
         if( MyDebug.LOG )
             Log.d(TAG, "onCreate: time after creating preview: " + (System.currentTimeMillis() - debug_time));
@@ -913,6 +930,30 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
     }
 
+    /** Applies the small, opinionated DarkCat product surface once per installation/update.
+     *  The full upstream controls remain available from Advanced settings. */
+    private void applyDarkCatProductDefaults(SharedPreferences sharedPreferences) {
+        if( sharedPreferences.getBoolean("darkcat_product_defaults_v3", false) )
+            return;
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        if( supports_camera2 )
+            editor.putString(PreferenceKeys.CameraAPIPreferenceKey, "preference_camera_api_camera2");
+        editor.putString(PreferenceKeys.QualityPreferenceKey, "100");
+        editor.putString(PreferenceKeys.OptimiseFocusPreferenceKey, "preference_photo_optimise_focus_latency");
+        editor.putString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std");
+        editor.putString(PreferenceKeys.RawPreferenceKey, "preference_raw_no");
+        editor.putString(PreferenceKeys.StampPreferenceKey, "preference_stamp_no");
+        editor.putBoolean(PreferenceKeys.PausePreviewPreferenceKey, false);
+        editor.putBoolean(PreferenceKeys.ShowWhenLockedPreferenceKey, false);
+        editor.putBoolean(PreferenceKeys.LocationPreferenceKey, true);
+        editor.putBoolean(PreferenceKeys.RequireLocationPreferenceKey, false);
+        editor.putBoolean(PreferenceKeys.MultiCamButtonPreferenceKey, true);
+        // DarkCat handles only Volume+ itself so Volume- remains normal volume control.
+        editor.putString(PreferenceKeys.VolumeKeysPreferenceKey, "volume_nothing");
+        editor.putBoolean("darkcat_product_defaults_v3", true);
+        editor.apply();
+    }
+
     /** Switches modes if required, if called from a relevant intent/tile.
      */
     private void setModeFromIntents(Bundle savedInstanceState) {
@@ -1253,6 +1294,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             Log.d(TAG, "onDestroy");
             Log.d(TAG, "size of preloaded_bitmap_resources: " + preloaded_bitmap_resources.size());
         }
+        ru.darkcat.camera.field.FieldCaptureBridge.detach(this);
+        if( darkCatMotionSampler != null )
+            darkCatMotionSampler.stop();
+        if( darkCatBestFrameMonitor != null )
+            darkCatBestFrameMonitor.close();
         activity_count--;
         if( MyDebug.LOG )
             Log.d(TAG, "activity_count: " + activity_count);
@@ -1396,6 +1442,16 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if( MyDebug.LOG )
             Log.d(TAG, "onKeyDown: " + keyCode);
+        if( (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+                && ru.darkcat.camera.data.DarkCatSettings.volumeShutterEnabled(this) ) {
+            if( keyCode == KeyEvent.KEYCODE_VOLUME_DOWN )
+                return super.onKeyDown(keyCode, event);
+            if( event == null || event.getRepeatCount() == 0 ) {
+                if( !requestFieldCapture() )
+                    onDarkCatPreCaptureRejected("Камера недоступна");
+            }
+            return true;
+        }
         if( camera_in_background ) {
             // don't allow keys such as volume keys for taking photo when camera in background!
             if( MyDebug.LOG )
@@ -1535,6 +1591,31 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
         super.onResume();
         this.app_is_paused = false; // must be set before initLocation() at least
+        ru.darkcat.camera.field.FieldCaptureBridge.attach(this);
+        if( darkCatMotionSampler != null )
+            darkCatMotionSampler.start();
+        if( darkCatBestFrameMonitor != null )
+            darkCatBestFrameMonitor.start();
+        if( ru.darkcat.camera.data.DarkCatSettings.fieldModeEnabled(this)
+                && !ru.darkcat.camera.field.FieldModeState.isRunning()
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ) {
+            try {
+                // Legal recovery point: the user has brought the Activity back to foreground.
+                ru.darkcat.camera.field.FieldModeService.startFromVisibleActivity(this);
+            }
+            catch(RuntimeException deniedByPlatform) {
+                Log.e(TAG, "Unable to restore Field Mode from visible Activity", deniedByPlatform);
+            }
+        }
+        if( ru.darkcat.camera.data.DarkCatSettings.gpsLockerEnabled(this)
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ) {
+            try {
+                ru.darkcat.camera.location.GpsLockerService.startFromVisibleContext(this);
+            }
+            catch(RuntimeException deniedByPlatform) {
+                Log.e(TAG, "Unable to restore GPS Locker from visible Activity", deniedByPlatform);
+            }
+        }
 
         // this is intentionally true, not false, as the uncovering happens in DrawPreview when we receive frames from the camera after it's opened
         // (this should already have been set from the call in onPause(), but we set it here again just in case)
@@ -1629,10 +1710,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
         applicationInterface.reset(false); // should be called before opening the camera in preview.onResume()
 
-        if( !camera_in_background ) {
+        if( !camera_in_background && !(darkCatFieldCameraKeptWarm && preview.getCameraController() != null) ) {
             // don't restart camera if we're showing a dialog or settings
             preview.onResume();
         }
+        darkCatFieldCameraKeptWarm = false;
 
         {
             // show a toast for the camera if it's not the first for front of back facing (otherwise on multi-front/back camera
@@ -1718,6 +1800,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
         super.onPause(); // docs say to call this before freeing other things
         this.app_is_paused = true;
+        darkCatFieldCameraKeptWarm = ru.darkcat.camera.data.DarkCatSettings.fieldModeEnabled(this)
+                && ru.darkcat.camera.field.FieldModeState.isRunning()
+                && preview != null && preview.getCameraController() != null && !isFinishing();
 
         mainUI.destroyPopup(); // important as user could change/reset settings from Android settings when pausing
         if( this.switch_multi_camera_dialog != null ) {
@@ -1739,12 +1824,25 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         applicationInterface.getLocationSupplier().freeLocationListeners();
         applicationInterface.stopPanorama(true); // in practice not needed as we should stop panorama when camera is closed, but good to do it explicitly here, before disabling the gyro sensors
         applicationInterface.getGyroSensor().disableSensors();
-        applicationInterface.getImageSaver().onPause();
+        if( !darkCatFieldCameraKeptWarm )
+            applicationInterface.getImageSaver().onPause();
         soundPoolManager.releaseSound();
         applicationInterface.clearLastImages(); // this should happen when pausing the preview, but call explicitly just to be safe
         applicationInterface.getDrawPreview().clearGhostImage();
-        preview.onPause();
-        applicationInterface.getDrawPreview().setCoverPreview(true); // must be after we've closed the preview (otherwise risk that further frames from preview will unset the cover_preview flag in DrawPreview)
+        if( darkCatFieldCameraKeptWarm ) {
+            // The visible Activity remains the owner of Linked Camera's session. The user-started
+            // camera FGS and wake lock keep this process eligible while the real lockscreen is up.
+            // If Android destroys the Activity, onDestroy closes the camera and the notification
+            // changes to the explicit reopen/recovery state.
+        }
+        else {
+            if( darkCatMotionSampler != null )
+                darkCatMotionSampler.stop();
+            if( darkCatBestFrameMonitor != null )
+                darkCatBestFrameMonitor.stop();
+            preview.onPause();
+            applicationInterface.getDrawPreview().setCoverPreview(true); // must be after we've closed the preview (otherwise risk that further frames from preview will unset the cover_preview flag in DrawPreview)
+        }
 
         if( applicationInterface.getImageSaver().getNImagesToSave() > 0) {
             createImageSavingNotification();
@@ -5624,6 +5722,91 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         if( MyDebug.LOG )
             Log.d(TAG, "takePicture");
 
+        final boolean photoRequest = photo_snapshot || !preview.isVideo();
+        if( preview.getCameraController() == null || preview.isOpeningCamera() || preview.isTakingPhoto() ) {
+            onDarkCatPreCaptureRejected("Камера пока не готова");
+            return;
+        }
+        if( photoRequest && !applicationInterface.canTakeNewPhoto() ) {
+            onDarkCatPreCaptureRejected("Очередь камеры занята; повторите кадр");
+            return;
+        }
+
+        if( photoRequest ) {
+            if( ru.darkcat.camera.data.DarkCatSettings.storageBlocked(this) ) {
+                if( ru.darkcat.camera.vault.RecoveryCapacity.recoverStorageHealth(this) )
+                    ru.darkcat.camera.data.DarkCatSettings.set(this, "darkcat_storage_blocked", false);
+                else {
+                    onDarkCatPreCaptureRejected("Хранилище недоступно; предыдущий кадр требует проверки");
+                    return;
+                }
+            }
+            if( ru.darkcat.camera.data.DarkCatSettings.isSecureMode(this)
+                    && !ru.darkcat.camera.vault.RecoveryCapacity.hasCaptureCapacity(this) ) {
+                onDarkCatPreCaptureRejected("Недостаточно места для защищённого снимка");
+                return;
+            }
+            ru.darkcat.camera.location.CaptureDecision gpsDecision =
+                    ru.darkcat.camera.location.GpsLockerService.captureDecision(this);
+            if( !gpsDecision.isAllowed() ) {
+                String message;
+                switch( gpsDecision.getBlockReason() ) {
+                    case GPS_PERMISSION_DENIED: message = "Нет разрешения на точную геолокацию"; break;
+                    case LOCATION_DISABLED: message = "Геолокация выключена"; break;
+                    case STALE_FIX: message = "Координаты устарели"; break;
+                    case ACCURACY_TOO_LOW:
+                        message = "Точность GPS недостаточна: " + gpsDecision.getGpsState().getAccuracyLabel();
+                        break;
+                    case NO_FIX: message = "GPS ещё не получил координаты"; break;
+                    default: message = "GPS не готов"; break;
+                }
+                onDarkCatPreCaptureRejected(message);
+                return;
+            }
+
+            ru.darkcat.camera.capture.CaptureMode mode =
+                    ru.darkcat.camera.capture.CaptureMode.fromPreference(
+                            ru.darkcat.camera.data.DarkCatSettings.captureMode(this));
+            double motion = darkCatMotionSampler == null ? 0.0 : darkCatMotionSampler.angularSpeedRadPerSecond();
+            long shutterTime = android.os.SystemClock.elapsedRealtimeNanos();
+            ru.darkcat.camera.capture.FrameCandidate bestCandidate = darkCatBestFrameMonitor == null
+                    ? null : darkCatBestFrameMonitor.best(shutterTime);
+            boolean goodCandidate = bestCandidate != null
+                    && bestCandidate.sharpness >= 40.0
+                    && bestCandidate.angularSpeedRadPerSecond
+                    < ru.darkcat.camera.capture.CaptureDecisionEngine.MOTION_DELAY_THRESHOLD_RAD_S
+                    && ru.darkcat.camera.capture.DarkCatCameraState.latest().focusAcceptable();
+            ru.darkcat.camera.capture.CaptureDecisionEngine.Decision decision =
+                    ru.darkcat.camera.capture.CaptureDecisionEngine.decide(mode, motion, goodCandidate);
+            if( !decision.isImmediate() ) {
+                if( darkCatSharpCapturePending ) {
+                    onDarkCatPreCaptureRejected("Ожидание короткого окна стабилизации");
+                    return;
+                }
+                darkCatSharpCapturePending = true;
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    darkCatSharpCapturePending = false;
+                    ru.darkcat.camera.location.CaptureDecision delayedGps =
+                            ru.darkcat.camera.location.GpsLockerService.captureDecision(MainActivity.this);
+                    if( !delayedGps.isAllowed() ) {
+                        onDarkCatPreCaptureRejected("GPS перестал соответствовать порогу");
+                        return;
+                    }
+                    if( preview.getCameraController() == null || preview.isTakingPhoto() ) {
+                        onDarkCatPreCaptureRejected("Камера недоступна");
+                        return;
+                    }
+                    takePictureAfterDarkCatGate(photo_snapshot);
+                }, decision.delayMillis);
+                return;
+            }
+        }
+
+        takePictureAfterDarkCatGate(photo_snapshot);
+    }
+
+    private void takePictureAfterDarkCatGate(boolean photo_snapshot) {
+
         if( applicationInterface.getPhotoMode() == MyApplicationInterface.PhotoMode.Panorama ) {
             if( preview.isTakingPhoto() ) {
                 if( MyDebug.LOG )
@@ -5648,7 +5831,89 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             }
         }
 
+        boolean photoRequest = photo_snapshot || !preview.isVideo();
+        if( photoRequest ) {
+            darkCatPendingCaptureFix = ru.darkcat.camera.location.CaptureLocationSelector.select(
+                    ru.darkcat.camera.location.GpsLockerService.currentState(this));
+            darkCatPendingCaptureWallTime = System.currentTimeMillis();
+        }
+        else {
+            darkCatPendingCaptureFix = null;
+            darkCatPendingCaptureWallTime = 0L;
+        }
         this.takePicturePressed(photo_snapshot, false);
+    }
+
+    private void onDarkCatPreCaptureRejected(String message) {
+        if( darkCatHaptics != null )
+            darkCatHaptics.onPreCaptureRejected();
+        if( preview != null )
+            preview.showToast(null, message);
+    }
+
+    /** Called only from a low-level camera success callback, before JPEG processing/storage. */
+    public ru.darkcat.camera.data.PhotoCaptureTicket onDarkCatCameraCaptureSucceeded() {
+        if( darkCatHaptics != null )
+            darkCatHaptics.onCameraCaptureSucceeded();
+        try {
+            ru.darkcat.camera.location.LocationFix captureFix = darkCatPendingCaptureFix;
+            captureFix = ru.darkcat.camera.location.CaptureLocationSelector.validateAtCapture(
+                    captureFix, android.os.SystemClock.elapsedRealtimeNanos(),
+                    ru.darkcat.camera.data.DarkCatSettings.locationStaleMs(this));
+            long capturedAt = darkCatPendingCaptureWallTime;
+            darkCatPendingCaptureFix = null;
+            darkCatPendingCaptureWallTime = 0L;
+            return ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(
+                    this, capturedAt > 0L ? capturedAt : System.currentTimeMillis(), captureFix);
+        }
+        catch(RuntimeException sequenceFailure) {
+            Log.e(TAG, "Unable to reserve DarkCat sequence; capture remains successful", sequenceFailure);
+            return null;
+        }
+    }
+
+    /** Camera failures are distinct from post-capture storage/sync failures. */
+    public void onDarkCatCameraCaptureFailed() {
+        darkCatPendingCaptureFix = null;
+        darkCatPendingCaptureWallTime = 0L;
+        if( darkCatHaptics != null )
+            darkCatHaptics.onCameraCaptureFailed();
+    }
+
+    @Override
+    public boolean requestFieldCapture() {
+        if( preview == null || preview.getCameraController() == null || preview.isOpeningCamera() )
+            return false;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if( darkCatLastExternalTriggerElapsedMs != 0L
+                && now - darkCatLastExternalTriggerElapsedMs < 300L )
+            return true;
+        darkCatLastExternalTriggerElapsedMs = now;
+        if( Looper.myLooper() == Looper.getMainLooper() )
+            takePicture(false);
+        else
+            runOnUiThread(() -> takePicture(false));
+        return true;
+    }
+
+    @Override
+    public boolean isFieldCaptureReady() {
+        return preview != null && preview.getCameraController() != null
+                && !preview.isOpeningCamera();
+    }
+
+    @Override
+    public void stopFieldCaptureSession() {
+        runOnUiThread(() -> {
+            if( !app_is_paused || preview == null || preview.getCameraController() == null )
+                return;
+            darkCatFieldCameraKeptWarm = false;
+            if( darkCatMotionSampler != null ) darkCatMotionSampler.stop();
+            if( darkCatBestFrameMonitor != null ) darkCatBestFrameMonitor.stop();
+            applicationInterface.getImageSaver().onPause();
+            preview.onPause();
+            applicationInterface.getDrawPreview().setCoverPreview(true);
+        });
     }
 
     /** Returns whether the last photo operation was a continuous fast burst.

@@ -28,6 +28,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 import ru.darkcat.camera.data.DarkCatSettings;
+import ru.darkcat.camera.data.CaptureContext;
+import ru.darkcat.camera.data.PhotoCaptureTicket;
+import ru.darkcat.camera.tags.TagRepository;
 import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
 
 import android.annotation.SuppressLint;
@@ -3040,6 +3043,56 @@ public class ImageSaver extends Thread {
             Log.d(TAG, "extension: " + extension);
 
         main_activity.savingImage(true);
+
+        // Secure photo mode writes the camera JPEG straight to a durable app-private recovery
+        // target. It deliberately bypasses MediaStore/DCIM and all expensive post-processing;
+        // stamping, encryption, thumbnails, DB and sync continue asynchronously from that file.
+        // This is the critical no-plaintext/no-lost-callback vertical slice for normal JPEG mode.
+        boolean darkCatDirectCapture = DarkCatSettings.isSecureMode(main_activity) && !raw_only
+                && !request.image_capture_intent
+                && request.image_format == Request.ImageFormat.STD
+                && request.process_type == Request.ProcessType.NORMAL
+                && bitmap == null;
+        // Advanced secure modes are intercepted later by StorageUtils after their upstream
+        // processing. Leave their ticket in the FIFO so that fallback keeps the same sequence,
+        // capture timestamp and location. Non-secure/intent requests consume it here.
+        PhotoCaptureTicket darkCatTicket = share_image
+                && (darkCatDirectCapture || !DarkCatSettings.isSecureMode(main_activity)
+                || request.image_capture_intent)
+                ? DarkCatCaptureCoordinator.claimPhotoCaptureTicket() : null;
+        if( darkCatDirectCapture ) {
+            try {
+                String displayName = storageUtils.createMediaFilename(StorageUtils.MEDIA_TYPE_IMAGE,
+                        filename_suffix, 0, ".jpg", request.current_date);
+                CaptureContext base = CaptureContext.fromIntent(main_activity.getIntent());
+                List<String> tags = new ArrayList<>(base.customTags);
+                for( String tag : new TagRepository(main_activity).active() )
+                    if( !tags.contains(tag) ) tags.add(tag);
+                ru.darkcat.camera.location.LocationFix captureFix = darkCatTicket == null
+                        ? null : darkCatTicket.locationFix;
+                CaptureContext durableContext = base.withTagsAndLocation(tags, captureFix);
+                int fallbackSequence = 0;
+                if( darkCatTicket == null ) {
+                    try { fallbackSequence = DarkCatCaptureCoordinator.reservePhotoSequence(main_activity); }
+                    catch(RuntimeException ignored) { /* keep the captured material with sequence disabled */ }
+                }
+                DarkCatCaptureCoordinator.RecoveryTarget target = darkCatTicket != null
+                        ? DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
+                                "image/jpeg", darkCatTicket, durableContext)
+                        : DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
+                                "image/jpeg", fallbackSequence, durableContext);
+                DarkCatCaptureCoordinator.writeRecoveryBytesAndAccept(main_activity, target, data);
+                main_activity.savingImage(false);
+                return true;
+            }
+            catch(Exception error) {
+                MyDebug.logStackTrace(TAG, "failed to stage private DarkCat recovery image", error);
+                main_activity.getPreview().showToast(null,
+                        "Кадр сделан, но ожидает восстановления хранилища");
+                main_activity.savingImage(false);
+                return false;
+            }
+        }
 
         // If using SAF or image_capture_intent is true, or using scoped storage, only saveUri is non-null
         // Otherwise, only picFile is non-null

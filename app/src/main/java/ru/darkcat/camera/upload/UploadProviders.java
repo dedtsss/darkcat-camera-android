@@ -10,7 +10,10 @@ public final class UploadProviders {
             case DarkCatSettings.PROVIDER_NEXTCLOUD: return new NextcloudPublicShareProvider();
             case DarkCatSettings.PROVIDER_WEBDAV: return new GenericWebDavProvider();
             case DarkCatSettings.PROVIDER_DARKCAT_API: return new DarkCatApiProvider();
-            default: return new LocalFakeProvider();
+            // Kept only for tests and compatibility with an explicitly stored old debug setting.
+            case DarkCatSettings.PROVIDER_LOCAL: return new LocalFakeProvider();
+            case DarkCatSettings.PROVIDER_OFF:
+            default: return new DisabledUploadProvider();
         }
     }
     private UploadProviders() { }

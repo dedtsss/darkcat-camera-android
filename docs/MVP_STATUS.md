@@ -1,16 +1,76 @@
-# MVP status
+# Статус DarkCat Camera 0.3 Field
 
-This PR is the Linked Camera integration vertical slice, not a release sign-off.
+PR #2 — архитектурно-рефакторинговый vertical slice на базе Linked Camera/Open Camera. Это hardware-ready сборка для проверки, а не production sign-off. PR должен оставаться OPEN/DRAFT и не должен быть merged до аппаратного теста.
 
-Implemented:
+Primary target: Google Pixel 7 / актуальная пользовательская GrapheneOS. Аппаратный тест: **NO**.
 
-- Linked Camera v1.4 camera base and DarkCat applicationId/branding.
-- AES-256-GCM streaming vault, Keystore key, encrypted thumbnail, random UUID names and recovery-pending lifecycle.
-- FAST and working EDIT flow. Editor uses MIT PhotoEditor 3.1.0 for pinch/zoom, text, freehand/shapes, undo/redo; DarkCat adds crop and rotate controls. Stickers and a richer marker palette remain follow-up work.
-- Crosshair OFF/PREVIEW/STAMP, default OFF, with configurable color/size/thickness.
-- SQLite structured media state and WorkManager retry queue.
-- Nextcloud Public Share, Generic WebDAV, Local/Fake and DarkCat API stub providers. Remote verification is HEAD/content-length best effort.
-- Photo metadata includes capture time, best-effort last-known GPS fields, tags and CaptureContext. Linked Camera EXIF/GPS handling remains intact.
-- Protected gallery/viewer, open/edit/delete/retry actions and secure-window flags.
+## Реализовано в коде
 
-Not yet hardware-validated: camera/photo/video behavior on a real device, MediaStore edge cases, camera-quality parity on individual devices and remote WebDAV server variations.
+- `applicationId` `ru.darkcat.camera`, версия `0.3.0-field`, Camera2-first product defaults с Camera1 compatibility fallback в Advanced.
+- Существующий Linked/Open Camera Camera2 engine, logical/physical camera support и capability-based fallback сохранены.
+- Continuous-picture AF и latency-oriented shutter path без обязательного многосекундного autofocus на каждом кадре; tap focus остаётся upstream-функцией.
+- Runtime tracking Camera2 AF/AE/AWB state без блокирующего ожидания.
+- Max Speed и Sharp Priority decision core; гироскопический motion sampler, hard maximum дополнительной задержки 200 ms.
+- Best Frame core и advisory runtime monitor: уменьшенный TextureView preview, variance-of-Laplacian, motion/3A/time score и bounded metadata ring.
+- Camera2 ZSL request/fallback и diagnostics reprocessing capability report.
+- GPS Locker на Android `LocationManager.GPS_PROVIDER`, location FGS, live accuracy, GREEN/YELLOW/RED, strict 7 m default и monotonic stale policy.
+- Field Mode foundation: user-started camera FGS, private notification/actions, wake lock, Activity camera bridge и MediaSession/VolumeProvider adapter.
+- Два разных haptic: 35 ms success и короткий двухимпульсный fail; post-capture error не даёт fail haptic.
+- Sequence reservation после успешного camera callback, отдельная video sequence, FIFO photo capture tickets.
+- Русская product camera chrome скрывает наложенные upstream controls; обычные настройки сгруппированы по съёмке, геолокации, меткам, хранилищу, синхронизации, полевому режиму, видео и Advanced.
+- Persisted tags/active tags UI; выбранные tags добавляются к durable CaptureContext и metadata.
+- Чёрный технический stamp block справа снизу для coordinates/accuracy/sequence/tags/custom text; final flatten использует JPEG quality 100.
+- Crosshair OFF/PREVIEW/STAMP с настройкой цвета/размера/толщины; STAMP re-encode использует JPEG quality 100.
+- AES-256-GCM vault, random provider-generated IV, Android Keystore, UUID filenames, encrypted thumbnails и credential-store IV crash fix.
+- Прямой atomic recovery handoff стандартного secure JPEG из camera callback (`tmp`/`fsync`/rename), app-private journal без TTL, restart resume и serial asynchronous post-capture executor.
+- Durable external-reference journal для завершённого secure-видео: большой private copy возобновляется после process death по стабильному ID, а upstream fallback сохраняет материал при невозможности записать journal.
+- Идемпотентный Vault commit по recovery identity, ciphertext `fsync`, sampled 512 px thumbnails и lifecycle cleanup decrypted viewer cache.
+- Storage preflight и реальный private emergency reserve 64 МиБ: при неожиданном disk-full резерв освобождается для одной повторной atomic recovery-write; persistent storage-blocked снимается только после capacity check и `fsync` probe.
+- Валидируемая upload state machine, WorkManager queue, provider Off/Nextcloud Public Share/Generic WebDAV/DarkCat API stub и KEEP LOCAL default.
+- WebDAV verification hardening: HEAD без точного Content-Length остаётся UPLOADED, а не VERIFIED.
+- Protected Vault/Viewer и camera capability diagnostics JSON без media/coordinates.
+- Object-based русский editor: interactive crop, freehand, line/rectangle/oval/arrow/text, reselect, move, pinch scale/rotate, color/stroke, delete и bounded undo/redo; recovery-safe JPEG 100 Save.
+- Unit tests для crypto, corruption, GPS, sequence/tickets, tags/formatting, upload transitions/verification/retention, recovery и capture scoring/decision logic.
+
+## Реализовано частично
+
+| Область | Фактическая граница |
+| --- | --- |
+| Field Mode | FGS и тёплый Activity-owned bridge существуют. Service сам не владеет CameraDevice/session. После process recreation требуется открыть Activity и reopen camera. |
+| Screen off / real lock | Архитектура не обходит lockscreen и сохраняет visible FGS. Фактическое удержание camera session политикой Pixel/GrapheneOS не проверено. |
+| Bluetooth Volume+ | Visible Activity key path и Field MediaSession/remote VolumeProvider adapter существуют. Обычный HID Volume+ не гарантирован как media button; locked routing требует Pixel test. |
+| Sharp Priority | Очень короткое motion-based окно реализуется без AF wait. Результат по резкости требует A/B на устройстве. |
+| Best Frame | Scoring/ring/capability/fallback есть, но выбранный Camera2 JPEG ещё не заменяется кадром из YUV/PRIVATE reprocessing ring. |
+| ZSL | Engine выставляет `CONTROL_ENABLE_ZSL` в совместимом обычном Camera2 still path. Реальное HAL/ZSL поведение не подтверждено. |
+| Wide/ultrawide | Используется upstream physical-ID architecture. Понятное соответствие 0.5×/1× и доступность Pixel 7 должны быть подтверждены diagnostics/hardware test. |
+| Technical stamp | Чёрный block и выбранные строки подключены; shutter-time non-stale LocationFix проходит через photo ticket и durable sidecar. Без такого fix координаты остаются пустыми, а более поздняя точка не подставляется. Геометрию/читаемость нужно проверить на Pixel. |
+| Product UI | Русская оболочка и task-oriented settings существуют. Lens button пока делегирует upstream physical-camera chooser и не гарантирует понятные `0.5×/1×` labels до Pixel capability mapping. |
+| EDIT | Object operations и интерактивный crop реализованы в first-party Canvas layer. Gesture ergonomics, rotation/state restoration и full-resolution memory/performance на Pixel не проверены; bitmap decode остаётся memory-sensitive. |
+| Sync UX | Русский экран counters/records, время последней принятой отправки, «Отправить сейчас», повтор ошибок и подтверждение metered override реализованы; весь flow требует server/network проверки. |
+| Advanced secure/video recovery | Основной standard JPEG пишет recovery напрямую; завершённое видео получает durable external-reference до async copy/restart resume. Скрытые multi-frame/RAW combinations и video source deletion на разных OEM MediaStore требуют fault-injection/hardware теста; production-гарантия каждой комбинации не заявляется. |
+
+## Не заявляется готовым
+
+- Pixel 7/GrapheneOS hardware behavior;
+- Bluetooth Volume+ capture при настоящей блокировке;
+- camera session survival после screen off/lock/process pressure;
+- автоматический выбор итогового JPEG из Best Frame window;
+- PRIVATE/YUV reprocessing на Pixel;
+- object-editor gesture/memory behavior на реальном Pixel;
+- remote Nextcloud/WebDAV interoperability на реальном сервере;
+- production security audit;
+- release signing или публикация.
+
+## Проверки перед handoff
+
+Обязательные команды:
+
+```bash
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+./gradlew lintDebug
+```
+
+Upstream lint backlog может оставаться неблокирующим, но новые DarkCat-файлы не должны добавлять необъяснённых ошибок. Точный результат команд, commit, APK path/SHA-256 и CI status фиксируются в итоговом отчёте, а не предполагаются этим документом.
+
+Следующий gate — пройти [PIXEL7_TEST.md](PIXEL7_TEST.md), приложить diagnostics JSON и только затем уточнить claims Field Mode, physical ultrawide, ZSL и Bluetooth remote.

@@ -21,7 +21,7 @@ The imported camera core remains responsible for Camera2/legacy camera handling,
 DarkCat adds an adapter at the completed-media boundary rather than replacing the camera engine:
 
 1. Secure Mode intercepts completed photo files and MediaStore items before gallery publication, copies them to a recovery-pending app-private file, streams AES-256-GCM encryption into a UUID vault file, commits SQLite metadata and only then removes the source.
-2. Secure video capture keeps MediaStore output pending or skips the public file scan while a background stream copy/encryption runs. Video is not passed through the photo editor.
+2. Secure video capture first writes an app-private durable external-source journal, then keeps MediaStore output pending or skips the public file scan while a restartable background copy/encryption runs. Video is not passed through the photo editor.
 3. FAST and EDIT workflows, a protected gallery/viewer, the crosshair overlay/stamp, CRM CaptureContext and persistent upload state are added.
 4. The existing upstream Nextcloud path remains available in the camera core; the new provider abstraction handles DarkCat encrypted media through Nextcloud Public Share, Generic WebDAV, a local fake provider and a documented DarkCat API stub.
 

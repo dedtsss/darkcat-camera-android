@@ -63,6 +63,8 @@ import android.widget.ImageButton;
 
 import androidx.annotation.RequiresApi;
 
+import ru.darkcat.camera.data.DarkCatSettings;
+import ru.darkcat.camera.data.PhotoCaptureTicket;
 import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
 
 /** Our implementation of ApplicationInterface, see there for details.
@@ -439,6 +441,12 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public String getFocusPref(boolean is_video) {
+        if( !is_video ) {
+            String darkCatMode = DarkCatSettings.captureMode(main_activity);
+            if( DarkCatSettings.CAPTURE_MAX_SPEED.equals(darkCatMode)
+                    || DarkCatSettings.CAPTURE_SHARP.equals(darkCatMode) )
+                return "focus_mode_continuous_picture";
+        }
         if( getPhotoMode() == PhotoMode.FocusBracketing && !main_activity.getPreview().isVideo() ) {
             if( isFocusBracketingSourceAutoPref() ) {
                 return "focus_mode_continuous_picture";
@@ -1918,6 +1926,10 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public boolean optimiseFocusForLatency() {
+        String darkCatMode = ru.darkcat.camera.data.DarkCatSettings.captureMode(main_activity);
+        if( ru.darkcat.camera.data.DarkCatSettings.CAPTURE_MAX_SPEED.equals(darkCatMode)
+                || ru.darkcat.camera.data.DarkCatSettings.CAPTURE_SHARP.equals(darkCatMode) )
+            return main_activity.supportsOptimiseFocusLatency();
         String pref = sharedPreferences.getString(PreferenceKeys.OptimiseFocusPreferenceKey, "preference_photo_optimise_focus_latency");
         return pref.equals("preference_photo_optimise_focus_latency") && main_activity.supportsOptimiseFocusLatency();
     }
@@ -2785,17 +2797,20 @@ public class MyApplicationInterface extends BasicApplicationInterface {
 
     @Override
     public void onFailedStartPreview() {
+        main_activity.onDarkCatCameraCaptureFailed();
         main_activity.getPreview().showToast(null, R.string.failed_to_start_camera_preview);
         main_activity.enablePausePreviewOnBackPressedCallback(false); // reenable standard back button behaviour (in case preview was paused due to option to pause preview after taking a photo)
     }
 
     @Override
     public void onCameraError() {
+        main_activity.onDarkCatCameraCaptureFailed();
         main_activity.getPreview().showToast(null, R.string.camera_error);
     }
 
     @Override
     public void onPhotoError() {
+        main_activity.onDarkCatCameraCaptureFailed();
         main_activity.getPreview().showToast(null, R.string.failed_to_take_picture);
     }
 
@@ -3705,9 +3720,36 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         if( MyDebug.LOG )
             Log.d(TAG, "onPictureTaken");
 
+        // Product success is the camera callback itself. Haptic/sequence happen before any
+        // stamp, encryption, database or upload work.
+        PhotoCaptureTicket darkCatTicket = main_activity.onDarkCatCameraCaptureSucceeded();
         n_capture_images++;
         if( MyDebug.LOG )
             Log.d(TAG, "n_capture_images is now " + n_capture_images);
+
+        // The standard secure product path becomes durable before entering ImageSaver's RAM
+        // queue. Success haptic already happened above and does not wait for this disk handoff.
+        if( DarkCatSettings.isSecureMode(main_activity)
+                && getPhotoMode() == PhotoMode.Standard
+                && getImageFormatPref() == ImageSaver.Request.ImageFormat.STD
+                && !isImageCaptureIntent() ) {
+            try {
+                if( darkCatTicket != null
+                        && !DarkCatCaptureCoordinator.consumePhotoCaptureTicket(darkCatTicket) )
+                    Log.e(TAG, "DarkCat capture ticket was already consumed; staging current JPEG anyway");
+                DarkCatCaptureCoordinator.stageCapturedJpeg(
+                        main_activity, data, darkCatTicket, current_date);
+                DarkCatSettings.set(main_activity, "darkcat_storage_blocked", false);
+            }
+            catch(Exception storageFailure) {
+                DarkCatSettings.set(main_activity, "darkcat_storage_blocked", true);
+                MyDebug.logStackTrace(TAG, "DarkCat durable camera handoff failed", storageFailure);
+                main_activity.getPreview().showToast(null,
+                        "Кадр сделан, но защищённое сохранение не завершено");
+            }
+            // Camera capture remains successful even if post-capture storage reported a problem.
+            return true;
+        }
 
         List<byte []> images = new ArrayList<>();
         images.add(data);
@@ -3725,6 +3767,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         if( MyDebug.LOG )
             Log.d(TAG, "onBurstPictureTaken: received " + images.size() + " images");
 
+        main_activity.onDarkCatCameraCaptureSucceeded();
         boolean success;
         PhotoMode photo_mode = getPhotoMode();
         if( main_activity.getPreview().isVideo() ) {

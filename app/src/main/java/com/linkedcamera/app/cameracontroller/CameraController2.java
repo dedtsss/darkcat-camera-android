@@ -8837,7 +8837,12 @@ public class CameraController2 extends CameraController {
             }*/
             // CONTROL_AE_STATE can be null on some devices, so as with af_state, use Integer
             Integer ae_state = result.get(CaptureResult.CONTROL_AE_STATE);
-            /*Integer awb_state = result.get(CaptureResult.CONTROL_AWB_STATE);
+            Integer awb_state = result.get(CaptureResult.CONTROL_AWB_STATE);
+            // DarkCat keeps the latest 3A state as advisory capture-readiness metadata. This is
+            // deliberately lock-free and never turns into an unbounded pre-capture wait.
+            ru.darkcat.camera.capture.DarkCatCameraState.update(
+                    af_state, ae_state, awb_state, android.os.SystemClock.elapsedRealtimeNanos());
+            /*
             if( MyDebug.LOG ) {
                 if( awb_state == null )
                     Log.d(TAG, "CONTROL_AWB_STATE is null");

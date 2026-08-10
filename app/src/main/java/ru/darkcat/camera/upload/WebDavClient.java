@@ -20,13 +20,16 @@ final class WebDavClient {
         if (username != null && !username.isEmpty()) connection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString((username + ":" + (password == null ? "" : password)).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
         try (InputStream input = new FileInputStream(file); java.io.OutputStream output = connection.getOutputStream()) { byte[] buffer = new byte[64 * 1024]; int n; while ((n = input.read(buffer)) != -1) output.write(buffer, 0, n); }
         int code = connection.getResponseCode(); boolean accepted = code >= 200 && code < 300;
-        return new UploadProvider.UploadResult(accepted, accepted, "HTTP " + code);
+        // A successful PUT proves acceptance only. Verification is a separate remote read.
+        return new UploadProvider.UploadResult(accepted, false, "HTTP " + code);
     }
     static boolean verify(String url, String username, String password, long expectedLength) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection(); connection.setRequestMethod("HEAD"); connection.setConnectTimeout(10_000); connection.setReadTimeout(10_000);
         if (username != null && !username.isEmpty()) connection.setRequestProperty("Authorization", "Basic " + Base64.encodeToString((username + ":" + (password == null ? "" : password)).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
-        int code = connection.getResponseCode(); if (code < 200 || code >= 300) return false;
-        long length = connection.getHeaderFieldLong("Content-Length", -1); return length < 0 || expectedLength < 0 || length == expectedLength;
+        int code = connection.getResponseCode();
+        long length = connection.getHeaderFieldLong("Content-Length", -1);
+        // Missing/unknown Content-Length is not evidence. Leave the item UPLOADED, not VERIFIED.
+        return WebDavVerification.hasExactLength(code, length, expectedLength);
     }
     static String appendPath(String base, String folder, String file) {
         StringBuilder value = new StringBuilder(base == null ? "" : base.replaceAll("/+$", ""));
