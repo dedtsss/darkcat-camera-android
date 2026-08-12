@@ -56,6 +56,6 @@ public final class GpsState {
 
     /** Compact Russian label suitable for the preview and conservative notification. */
     public String getAccuracyLabel() {
-        return hasAccuracy() ? "±" + Math.round(accuracyMeters) + " м" : "±— м";
+        return LiveAccuracyFormatter.format(accuracyMeters);
     }
 }

@@ -23,6 +23,7 @@ import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.data.MediaRecord;
 import ru.darkcat.camera.upload.UploadQueueSummary;
 import ru.darkcat.camera.upload.UploadScheduler;
+import ru.darkcat.camera.upload.SyncDiagnostics;
 
 /** Simple offline-first queue view. Upload state never gates camera capture. */
 public final class SyncActivity extends Activity {
@@ -30,8 +31,6 @@ public final class SyncActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE);
         setTitle("Синхронизация");
         render();
     }
@@ -70,13 +69,22 @@ public final class SyncActivity extends Activity {
         long lastSuccess = DarkCatSettings.lastSuccessfulSync(this);
         counters.addView(text("Последняя успешная связь: " + (lastSuccess > 0L
                 ? DateFormat.getDateTimeInstance().format(new Date(lastSuccess)) : "—"), 15f));
+        SyncDiagnostics.Snapshot diagnostics = SyncDiagnostics.snapshot(this);
+        counters.addView(text("Последний запуск worker: " + (diagnostics.lastStart > 0L
+                ? DateFormat.getDateTimeInstance().format(new Date(diagnostics.lastStart)) : "—"), 15f));
+        counters.addView(text("Следующая попытка: " + (diagnostics.nextRetry > 0L
+                ? DateFormat.getDateTimeInstance().format(new Date(diagnostics.nextRetry)) : "—"), 15f));
+        if (diagnostics.lastError != null && !diagnostics.lastError.trim().isEmpty()) {
+            TextView diagnosticError = text("Последняя ошибка worker: " + diagnostics.lastError, 14f);
+            diagnosticError.setTextColor(0xffb71c1c); counters.addView(diagnosticError);
+        }
         content.addView(counters, match());
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER);
         Button send = button("Отправить сейчас", v -> withNetworkPolicyConfirmation(this::enqueueAll));
         Button retry = button("Повторить ошибки", v -> withNetworkPolicyConfirmation(this::enqueueErrors));
-        Button settings = button("Настройки", v -> startActivity(new Intent(this, DarkCatSettingsActivity.class)));
+        Button settings = button("Настройки", v -> startActivity(new Intent(this, DarkCatSettingsRootActivity.class)));
         actions.addView(send, weight());
         actions.addView(retry, weight());
         actions.addView(settings, weight());

@@ -16,6 +16,8 @@ import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import android.util.Log;
 
+import ru.darkcat.camera.location.LocationRepository;
+
 /** Handles listening for GPS location (both coarse and fine).
  */
 public class LocationSupplier {
@@ -65,6 +67,8 @@ public class LocationSupplier {
         else {
             cached_location = new Location(location);
             cached_location_ms = System.currentTimeMillis();
+            // Both upstream EXIF and DarkCat product surfaces now observe the same best fix.
+            LocationRepository.publishCameraLocation(location);
         }
     }
 
@@ -242,6 +246,7 @@ public class LocationSupplier {
                 if( MyDebug.LOG )
                     Log.d(TAG, "don't have a GPS_PROVIDER");
             }
+            LocationRepository.setCameraTracking(true);
         }
         else if( !store_location ) {
             freeLocationListeners();
@@ -279,6 +284,7 @@ public class LocationSupplier {
                 locationListeners[i] = null;
             }
             locationListeners = null;
+            LocationRepository.setCameraTracking(false);
             if( MyDebug.LOG )
                 Log.d(TAG, "location listeners now freed");
         }

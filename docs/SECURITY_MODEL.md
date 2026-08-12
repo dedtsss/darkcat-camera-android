@@ -16,7 +16,7 @@ DarkCat Camera использует настоящий системный locksc
 - не публикует thumbnails, tags, адреса или координаты в lockscreen notification;
 - не делает background camera невидимой: Field Mode всегда сопровождается foreground notification.
 
-Field/GPS notifications имеют `VISIBILITY_PRIVATE` и консервативную public version. Vault, Viewer, Editor и Sync используют `FLAG_SECURE`; DarkCat Settings намеренно остаётся screenshot-разрешённым для WYSIWYG/configuration support, а переход к чувствительным экранам из camera UI проходит через штатный keyguard challenge. Приложение сохраняет `allowBackup="false"`.
+Field/GPS notifications имеют `VISIBILITY_PRIVATE` и консервативную public version. В 0.5 `FLAG_SECURE` удалён со всех DarkCat activities: пользователь может сознательно сделать screenshot или использовать системный Share. Это не меняет Vault encryption, `allowBackup="false"`, user-visible foreground services или запрет на обход реального lockscreen.
 
 ## Ключи и форматы
 
@@ -60,7 +60,7 @@ Plaintext recovery — сознательный компромисс между 
 
 Vault commit использует стабильный ID recovery path: повтор после уже созданной DB-записи завершает только cleanup, не создавая дубль. Ciphertext вместе с GCM tag проходит `fsync`; pre-DB orphan artifacts очищаются, а исходный recovery остаётся. Полноразмерный decrypted viewer cache создаётся под уникальным session-именем, удаляется при закрытии и scavenged после process restart.
 
-Открытие уже зашифрованного media для Viewer/Editor создаёт временный decrypted cache file. UI защищён `FLAG_SECURE`, но cache не является отдельным encrypted filesystem. Его жизненный цикл и очистку требуется дополнительно проверить на реальном Android/при process death.
+Открытие уже зашифрованного media для Viewer/Editor создаёт временный decrypted cache file. В 0.5 `FLAG_SECURE` намеренно отсутствует, поэтому пользователь может сделать системный screenshot или explicit Share; cache при этом не является отдельным encrypted filesystem. Его жизненный цикл и очистку требуется дополнительно проверить на реальном Android/при process death.
 
 ## App-private metadata
 

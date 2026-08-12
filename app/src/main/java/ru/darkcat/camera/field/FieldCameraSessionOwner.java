@@ -18,12 +18,18 @@ import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 
+import androidx.core.content.ContextCompat;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import ru.darkcat.camera.capture.PhotoResolutionPolicy;
 
 /**
  * Camera2 owner for Field Mode while the Activity is backgrounded or the real lockscreen is up.
@@ -89,7 +95,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
 
     private void openIfNeeded() {
         if (!started || ready || camera != null) return;
-        if (cameraManager == null || context.checkSelfPermission(Manifest.permission.CAMERA)
+        if (cameraManager == null || ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "camera permission/manager unavailable");
             scheduleRetry();
@@ -295,13 +301,12 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         Size[] sizes = map == null ? null : map.getOutputSizes(ImageFormat.JPEG);
         if (sizes == null || sizes.length == 0) return new Size(1920, 1080);
-        Size best = null;
+        List<PhotoResolutionPolicy.SizeValue> choices = new ArrayList<>();
         for (Size size : sizes) {
-            long pixels = (long) size.getWidth() * size.getHeight();
-            long bestPixels = best == null ? -1L : (long) best.getWidth() * best.getHeight();
-            if (pixels <= MAX_JPEG_PIXELS && pixels > bestPixels) best = size;
+            choices.add(new PhotoResolutionPolicy.SizeValue(size.getWidth(), size.getHeight()));
         }
-        return best == null ? sizes[0] : best;
+        PhotoResolutionPolicy.SizeValue selected = PhotoResolutionPolicy.chooseDefault(choices, MAX_JPEG_PIXELS);
+        return selected == null ? sizes[0] : new Size(selected.width, selected.height);
     }
 
     private static Size choosePreviewSize(CameraCharacteristics characteristics) {

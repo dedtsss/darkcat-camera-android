@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Owns the app-private vault commit. All encrypted media is written as an opaque UUID filename. */
 public final class VaultRepository {
     private static final String DIR = "darkcat-vault";
+    private static final String SHARE_CACHE_DIR = "darkcat-share";
     private static final int THUMBNAIL_MAX_DIMENSION = 512;
     private static final Object COMMIT_LOCK = new Object();
     private static final AtomicBoolean CACHE_SCAVENGED = new AtomicBoolean();
@@ -277,7 +278,7 @@ public final class VaultRepository {
 
     public File decryptToCache(MediaRecord record) throws Exception {
         File cache = File.createTempFile(".darkcat-decrypted-" + record.id + "-",
-                extension(record.displayName, record.mimeType), context.getCacheDir());
+                extension(record.displayName, record.mimeType), shareCacheDir());
         try {
             new AuthenticatedFileCipher(DarkCatKeyStore.vaultKey()).decrypt(
                     vaultFile(record.vaultFileName), cache);
@@ -311,8 +312,9 @@ public final class VaultRepository {
     public void cleanupDecryptedCache(File cacheFile) throws IOException {
         if (cacheFile == null) return;
         File cacheRoot = context.getCacheDir().getCanonicalFile();
+        File shareRoot = new File(cacheRoot, SHARE_CACHE_DIR).getCanonicalFile();
         File candidate = cacheFile.getCanonicalFile();
-        if (!cacheRoot.equals(candidate.getParentFile())
+        if ((!cacheRoot.equals(candidate.getParentFile()) && !shareRoot.equals(candidate.getParentFile()))
                 || !candidate.getName().startsWith(".darkcat-decrypted-")) {
             throw new IOException("refusing to delete a non-session cache file");
         }
@@ -325,7 +327,12 @@ public final class VaultRepository {
 
     private void scavengePreviousProcessCache() {
         if (!CACHE_SCAVENGED.compareAndSet(false, true)) return;
-        File[] files = context.getCacheDir().listFiles();
+        scavengeCacheDirectory(context.getCacheDir());
+        scavengeCacheDirectory(new File(context.getCacheDir(), SHARE_CACHE_DIR));
+    }
+
+    private void scavengeCacheDirectory(File directory) {
+        File[] files = directory.listFiles();
         if (files == null) return;
         for (File file : files) {
             String name = file.getName();
@@ -336,6 +343,13 @@ public final class VaultRepository {
                 deleteBestEffort(file);
             }
         }
+    }
+
+    private File shareCacheDir() throws IOException {
+        File directory = new File(context.getCacheDir(), SHARE_CACHE_DIR);
+        if (!directory.exists() && !directory.mkdirs())
+            throw new IOException("unable to create share cache directory");
+        return directory;
     }
 
     /** Returns false and preserves the row if either encrypted core file cannot be deleted. */

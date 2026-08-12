@@ -1,6 +1,6 @@
-# Архитектура DarkCat Camera 0.4
+# Архитектура DarkCat Camera 0.5
 
-DarkCat Camera — отдельное Android-приложение с `applicationId` `ru.darkcat.camera`. Версия 0.4 сохраняет Linked Camera v1.4/Open Camera как видимую камеру и добавляет service-owned locked capture, GPS Locker, WYSIWYG overlay и shooting points. CameraX не является основной камерой и в этот vertical slice не добавлялся.
+DarkCat Camera — отдельное Android-приложение с `applicationId` `ru.darkcat.camera`. Версия 0.5 сохраняет Linked Camera v1.4/Open Camera как видимую камеру и добавляет service-owned locked capture, GPS Locker, WYSIWYG overlay, shooting points и две явные destination модели: Vault и MediaStore Gallery. CameraX не является основной камерой и в этот vertical slice не добавлялся.
 
 Основная цель текущей итерации — подготовить приложение к полевой проверке на Google Pixel 7 с GrapheneOS. Это не заявление об аппаратной совместимости: Pixel 7/GrapheneOS ещё не тестировался.
 
@@ -37,7 +37,9 @@ shutter / Volume+
        -> короткий haptic НЕМЕДЛЕННО
        -> durable photo sequence reservation
        -> immutable capture ticket с capture-time LocationFix
-  -> standard secure JPEG: app-private .tmp -> fsync -> atomic rename -> durable sidecar
+  -> standard JPEG destination selected at capture time:
+       Vault: app-private .tmp -> fsync -> atomic rename -> durable sidecar
+       Gallery: scoped MediaStore Pictures/DarkCat -> local Gallery index
   -> асинхронные stamp/edit, AES-GCM, vault, DB и sync queue
 ```
 
@@ -83,9 +85,11 @@ GPS отделён от камеры. `GpsLockerService` — foreground service 
 
 После boot можно пытаться восстановить только GPS Locker, и только если пользователь ранее включил его и выдал fine/background location. Отказ платформы безопасно оставляет восстановление до открытия приложения. Camera service на boot не запускается.
 
-## Durable recovery и Vault
+## Durable recovery, Vault и MediaStore Gallery
 
-Secure Mode по умолчанию включён на API 23+. Стандартный JPEG из camera callback сразу пишется через игнорируемый `.tmp`, `fsync` и atomic rename в app-private `recovery-pending`, после чего получает sidecar-журнал. Только затем начинается editor/stamp/encryption pipeline. Очередь post-processing сериализована: это даёт bounded backpressure без хранения полного JPEG в её задачах.
+Режим хранения выбирается только между Vault и MediaStore Gallery; auto-editor не является capture mode. Vault по умолчанию включён на API 23+. Его стандартный JPEG из camera callback сразу пишется через игнорируемый `.tmp`, `fsync` и atomic rename в app-private `recovery-pending`, после чего получает sidecar-журнал. Только затем начинается editor/stamp/encryption pipeline. Очередь post-processing сериализована: это даёт bounded backpressure без хранения полного JPEG в её задачах.
+
+В обычной Gallery JPEG получает тот же immutable capture ticket и WYSIWYG stamp, после чего публикуется через scoped MediaStore в `Pictures/DarkCat` с `IS_PENDING` на API 29+. Локальный `gallery_media` index хранит URI, sequence и безопасную capture metadata для единого presentation layer. Ошибка публикации не выдаётся за Vault success; исходный capture callback уже остаётся отдельным от storage UX. MediaStore-оригиналы не копируются молча в encrypted sync queue.
 
 Перед shutter выполняется консервативный `StatFs` preflight: при наличии заранее записанного аварийного файла требуется не менее 64 МиБ свободного рабочего пространства. В private vault поддерживается реальный (не sparse) резерв 64 МиБ. Если recovery-write неожиданно получает `ENOSPC`, резерв освобождается и атомарная запись повторяется один раз; после успешного pipeline резерв создаётся заново. Переживающий restart флаг storage-blocked не снимается, пока не пройдут новый capacity check и маленькая `fsync`-проба.
 

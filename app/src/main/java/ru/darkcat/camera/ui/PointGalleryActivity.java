@@ -15,8 +15,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import ru.darkcat.camera.data.DarkCatDatabase;
-import ru.darkcat.camera.data.MediaRecord;
+import ru.darkcat.camera.gallery.GalleryItem;
+import ru.darkcat.camera.gallery.GalleryRepository;
 import ru.darkcat.camera.point.PointClusterer;
 import ru.darkcat.camera.point.PointMedia;
 import ru.darkcat.camera.point.ShootingPoint;
@@ -39,7 +39,7 @@ public final class PointGalleryActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(18), dp(16), dp(18), dp(28));
         List<PointMedia> media = new ArrayList<>();
-        for (MediaRecord record : DarkCatDatabase.get(this).list()) {
+        for (GalleryItem record : new GalleryRepository(this).list()) {
             PointMedia item = toPointMedia(record);
             if (item != null) media.add(item);
         }
@@ -79,7 +79,7 @@ public final class PointGalleryActivity extends Activity {
         content.addView(card, params);
     }
 
-    private static PointMedia toPointMedia(MediaRecord record) {
+    private static PointMedia toPointMedia(GalleryItem record) {
         try {
             JSONObject object = new JSONObject(record.metadataJson);
             Double latitude = number(object, "latitude");

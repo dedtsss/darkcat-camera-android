@@ -7,8 +7,6 @@ import android.preference.PreferenceManager;
 import ru.darkcat.camera.crypto.SecureCredentialStore;
 
 public final class DarkCatSettings {
-    public static final String MODE_FAST = "fast";
-    public static final String MODE_EDIT = "edit";
     public static final String CAPTURE_MAX_SPEED = "max_speed";
     public static final String CAPTURE_SHARP = "sharp_priority";
     public static final String CROSSHAIR_OFF = "off";
@@ -20,9 +18,32 @@ public final class DarkCatSettings {
     public static final String PROVIDER_WEBDAV = "webdav";
     public static final String PROVIDER_DARKCAT_API = "darkcat_api";
 
+    public static StorageMode storageMode(Context context) {
+        return storageMode(prefs(context));
+    }
+    static StorageMode storageMode(SharedPreferences preferences) {
+        if (preferences.contains("darkcat_storage_mode")) {
+            return StorageMode.fromPreference(preferences.getString("darkcat_storage_mode", null));
+        }
+        return preferences.getBoolean("darkcat_secure_mode", true)
+                ? StorageMode.VAULT : StorageMode.MEDIASTORE;
+    }
+    public static void setStorageMode(Context context, StorageMode mode) {
+        StorageMode checked = mode == null ? StorageMode.VAULT : mode;
+        prefs(context).edit()
+                .putString("darkcat_storage_mode", checked.preferenceValue())
+                // Compatibility for pre-0.5 code paths and recovery after an interrupted upgrade.
+                .putBoolean("darkcat_secure_mode", checked == StorageMode.VAULT)
+                .apply();
+    }
+    public static boolean isVaultMode(Context context) { return storageMode(context) == StorageMode.VAULT; }
+    public static boolean isMediaStoreMode(Context context) { return storageMode(context) == StorageMode.MEDIASTORE; }
+
     private static SharedPreferences prefs(Context context) { return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext()); }
-    public static boolean isSecureMode(Context context) { return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && prefs(context).getBoolean("darkcat_secure_mode", true); }
-    public static String workflow(Context context) { return prefs(context).getString("darkcat_workflow", MODE_FAST); }
+    /** Legacy alias retained for the encrypted Vault pipeline. */
+    public static boolean isSecureMode(Context context) {
+        return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && isVaultMode(context);
+    }
     public static String captureMode(Context context) { return prefs(context).getString("darkcat_capture_mode", CAPTURE_MAX_SPEED); }
     public static boolean gpsLockerEnabled(Context context) { return prefs(context).getBoolean("darkcat_gps_locker", false); }
     public static boolean strictGps(Context context) { return prefs(context).getBoolean("darkcat_strict_gps", true); }
@@ -66,6 +87,9 @@ public final class DarkCatSettings {
     public static boolean watermarkTiled(Context context) { return prefs(context).getBoolean("darkcat_watermark_tiled", false); }
     public static float watermarkTileStep(Context context) { return floatValue(context, "darkcat_watermark_tile_step", .32f); }
     public static float watermarkAngle(Context context) { return floatValue(context, "darkcat_watermark_angle", 0f); }
+    public static String hapticSuccess(Context context) { return prefs(context).getString("darkcat_haptic_success", "MEDIUM"); }
+    public static String hapticFailure(Context context) { return prefs(context).getString("darkcat_haptic_failure", "MEDIUM"); }
+    public static boolean nightMode(Context context) { return prefs(context).getBoolean("darkcat_night_mode", false); }
 
     public static void set(Context context, String key, Object value) {
         SharedPreferences.Editor editor = prefs(context).edit();

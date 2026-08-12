@@ -65,6 +65,7 @@ import androidx.annotation.RequiresApi;
 
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.data.PhotoCaptureTicket;
+import ru.darkcat.camera.capture.PhotoResolutionPolicy;
 import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
 
 /** Our implementation of ApplicationInterface, see there for details.
@@ -290,7 +291,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
      */
     @Override
     public Location getLocation() {
-        return locationSupplier.getLocation();
+        return ru.darkcat.camera.location.LocationRepository.asAndroidLocation();
     }
 
     /** If adding extra calls to this, consider whether explicit user permission is required, and whether
@@ -298,7 +299,8 @@ public class MyApplicationInterface extends BasicApplicationInterface {
      *  Returns null if location not available.
      */
     public Location getLocation(LocationSupplier.LocationInfo locationInfo) {
-        return locationSupplier.getLocation(locationInfo);
+        // The DarkCat repository is authoritative. LocationInfo remains for inherited API parity.
+        return ru.darkcat.camera.location.LocationRepository.asAndroidLocation();
     }
 
     @Override
@@ -634,6 +636,18 @@ public class MyApplicationInterface extends BasicApplicationInterface {
             }
         }
 
+        // New installs get a readable 4:3 default derived from this camera's actual stream list.
+        // A user-selected upstream resolution remains authoritative.
+        if (result == null && photo_mode == PhotoMode.Standard) {
+            List<CameraController.Size> sizes = main_activity.getPreview().getSupportedPictureSizes(false);
+            ArrayList<PhotoResolutionPolicy.SizeValue> options = new ArrayList<>();
+            if (sizes != null) for (CameraController.Size size : sizes) {
+                options.add(new PhotoResolutionPolicy.SizeValue(size.width, size.height));
+            }
+            PhotoResolutionPolicy.SizeValue selected = PhotoResolutionPolicy.chooseDefault(options,
+                    Long.MAX_VALUE);
+            if (selected != null) result = new Pair<>(selected.width, selected.height);
+        }
         return result;
     }
 
@@ -3727,9 +3741,10 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         if( MyDebug.LOG )
             Log.d(TAG, "n_capture_images is now " + n_capture_images);
 
-        // The standard secure product path becomes durable before entering ImageSaver's RAM
+        // Vault remains durable before ImageSaver's RAM queue. Gallery mode is handled by
+        // ImageSaver's scoped MediaStore writer, using the same capture ticket/context.
         // queue. Success haptic already happened above and does not wait for this disk handoff.
-        if( DarkCatSettings.isSecureMode(main_activity)
+        if( DarkCatSettings.isVaultMode(main_activity)
                 && getPhotoMode() == PhotoMode.Standard
                 && getImageFormatPref() == ImageSaver.Request.ImageFormat.STD
                 && !isImageCaptureIntent() ) {

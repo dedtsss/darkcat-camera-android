@@ -29,6 +29,8 @@ import com.linkedcamera.app.R;
 
 import ru.darkcat.camera.data.DarkCatDatabase;
 import ru.darkcat.camera.data.DarkCatSettings;
+import ru.darkcat.camera.data.CaptureContext;
+import ru.darkcat.camera.gallery.MediaStoreCaptureStore;
 import ru.darkcat.camera.haptic.AndroidCaptureHaptics;
 import ru.darkcat.camera.haptic.CaptureHapticController;
 import ru.darkcat.camera.location.CaptureDecision;
@@ -36,6 +38,7 @@ import ru.darkcat.camera.location.GpsIssue;
 import ru.darkcat.camera.location.GpsState;
 import ru.darkcat.camera.location.GpsLockerService;
 import ru.darkcat.camera.location.LocationFix;
+import ru.darkcat.camera.tags.TagRepository;
 import ru.darkcat.camera.upload.UploadScheduler;
 
 import java.io.File;
@@ -212,7 +215,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
 
     private void updateRuntimeState() {
         FieldModeState.updateDiagnostics(
-                FieldCaptureBridge.isCameraBridgeReady()
+                cameraOwner != null && cameraOwner.isReady()
                         ? FieldModeState.ACTIVE
                         : FieldModeState.DEGRADED,
                 DarkCatSettings.volumeShutterEnabled(this));
@@ -290,10 +293,9 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         }
         if (!gpsDecision.isAllowed()) gps += " · съёмка заблокирована";
         int queue = includeQueue ? DarkCatDatabase.get(this).queueCount() : 0;
-        String state = DarkCatSettings.storageBlocked(this)
-                ? "Ошибка хранилища · съёмка заблокирована"
-                : FieldCaptureBridge.isCameraBridgeReady()
-                        ? "Камера готова" : "Откройте камеру для восстановления";
+        boolean ownerReady = cameraOwner != null && cameraOwner.isReady();
+        String state = FieldNotificationStatus.cameraState(
+                DarkCatSettings.storageBlocked(this), ownerReady, activityVisible);
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), immutableUpdate());
         PendingIntent stop = PendingIntent.getService(this, 1,
                 new Intent(this, FieldModeService.class).setAction(ACTION_STOP), immutableUpdate());
@@ -387,10 +389,22 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                 ru.darkcat.camera.data.PhotoCaptureTicket ticket =
                         ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(
                                 this, capturedAt, shutterLocation);
-                ru.darkcat.camera.vault.DarkCatCaptureCoordinator.stageCapturedJpeg(
-                        this, jpeg, ticket, new Date(capturedAt));
+                if (DarkCatSettings.isVaultMode(this)) {
+                    ru.darkcat.camera.vault.DarkCatCaptureCoordinator.stageCapturedJpeg(
+                            this, jpeg, ticket, new Date(capturedAt));
+                } else {
+                    CaptureContext base = CaptureContext.empty();
+                    java.util.ArrayList<String> tags = new java.util.ArrayList<>(base.customTags);
+                    for (String tag : new TagRepository(this).active()) if (!tags.contains(tag)) tags.add(tag);
+                    CaptureContext context = base.withTagsAndLocation(tags, shutterLocation);
+                    new MediaStoreCaptureStore().saveJpeg(this, jpeg,
+                            "DarkCat-Field-" + capturedAt + ".jpg", ticket.sequenceNumber,
+                            ticket.capturedAt, context);
+                }
+                DarkCatSettings.set(this, "darkcat_storage_blocked", false);
                 if (!durableJpeg.delete()) Log.w("DarkCatFieldCamera", "unable to delete staged JPEG");
             } catch (Exception failure) {
+                DarkCatSettings.set(this, "darkcat_storage_blocked", true);
                 Log.e("DarkCatFieldCamera", "field JPEG remains for recovery", failure);
             }
         });
@@ -407,10 +421,16 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         artifactExecutor.execute(() -> {
             for (File file : pending) {
                 try {
-                    if (DarkCatSettings.isSecureMode(this)) {
+                    if (DarkCatSettings.isVaultMode(this)) {
                         ru.darkcat.camera.vault.DarkCatCaptureCoordinator.interceptFile(this, file, false);
+                    } else {
+                        ru.darkcat.camera.data.PhotoCaptureTicket ticket =
+                                ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(this);
+                        new MediaStoreCaptureStore().saveJpeg(this, readBytes(file), file.getName(),
+                                ticket.sequenceNumber, ticket.capturedAt, CaptureContext.empty());
+                        if (!file.delete()) Log.w("DarkCatFieldCamera", "unable to delete recovered JPEG");
                     }
-                } catch (RuntimeException failure) {
+                } catch (Exception failure) {
                     Log.e("DarkCatFieldCamera", "durable field JPEG recovery deferred", failure);
                 }
             }

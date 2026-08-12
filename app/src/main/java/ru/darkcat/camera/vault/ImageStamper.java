@@ -101,8 +101,7 @@ public final class ImageStamper {
         Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
         text.setColor(Color.WHITE);
         text.setTextSize(textSize);
-        text.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF,
-                android.graphics.Typeface.NORMAL));
+        text.setTypeface(android.graphics.Typeface.MONOSPACE);
         float width = 0f;
         for (String line : lines) width = Math.max(width, text.measureText(line));
         float right = bitmap.getWidth() - padding;

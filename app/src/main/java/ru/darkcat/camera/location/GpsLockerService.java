@@ -49,17 +49,11 @@ public final class GpsLockerService extends Service implements GpsLockerControll
     }
 
     public static GpsState currentState(Context context) {
-        GpsLockerController value = activeController;
-        if (value != null) return value.getState();
-        GpsPolicy policy = policy(context);
-        return new GpsStateEvaluator().evaluate(GpsSnapshot.stopped(), android.os.SystemClock.elapsedRealtimeNanos(), policy);
+        return LocationRepository.currentState(context);
     }
 
     public static CaptureDecision captureDecision(Context context) {
-        GpsLockerController value = activeController;
-        if (value != null) return value.getCaptureDecision();
-        GpsPolicy policy = policy(context);
-        return new GpsCapturePolicy().evaluate(GpsSnapshot.stopped(), android.os.SystemClock.elapsedRealtimeNanos(), policy);
+        return LocationRepository.captureDecision(context);
     }
 
     public static GpsPolicy policy(Context context) {
@@ -98,7 +92,7 @@ public final class GpsLockerService extends Service implements GpsLockerControll
             }
         } catch (RuntimeException promotionDenied) {
             DarkCatSettings.set(this, "darkcat_gps_locker", false);
-            LocationSnapshotStore.setLockerRunning(false);
+            LocationRepository.publishLockerSnapshot(GpsSnapshot.stopped(), false);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -107,7 +101,7 @@ public final class GpsLockerService extends Service implements GpsLockerControll
             controller.start();
         } catch (RuntimeException locationUnavailable) {
             DarkCatSettings.set(this, "darkcat_gps_locker", false);
-            LocationSnapshotStore.setLockerRunning(false);
+            LocationRepository.publishLockerSnapshot(GpsSnapshot.stopped(), false);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -146,8 +140,8 @@ public final class GpsLockerService extends Service implements GpsLockerControll
                         + (decision.isAllowed()
                         ? state.getIssue() == GpsIssue.AGING_FIX
                                 ? " · fix стареет"
-                                : " · уточнение"
-                        : " · съёмка заблокирована");
+                                : " · точность вне допуска"
+                        : " · точность вне допуска");
                 break;
             default:
                 status = decision.isAllowed()

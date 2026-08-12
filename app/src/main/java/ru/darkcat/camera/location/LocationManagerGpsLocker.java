@@ -76,7 +76,7 @@ public final class LocationManagerGpsLocker implements GpsLocker, LocationListen
             started = true;
             starting = true;
         }
-        LocationSnapshotStore.setLockerRunning(false);
+        LocationRepository.publishLockerSnapshot(snapshot, false);
 
         if (!hasFineLocationPermission()) {
             finishFailedStart();
@@ -114,7 +114,7 @@ public final class LocationManagerGpsLocker implements GpsLocker, LocationListen
                 locationManager.removeUpdates(this);
                 return;
             }
-            LocationSnapshotStore.setLockerRunning(true);
+            LocationRepository.publishLockerSnapshot(snapshot, true);
             callbackHandler.removeCallbacks(ageTicker);
             callbackHandler.postDelayed(ageTicker, UPDATE_INTERVAL_MILLIS);
         } catch (SecurityException denied) {
@@ -142,7 +142,6 @@ public final class LocationManagerGpsLocker implements GpsLocker, LocationListen
             registered = false;
         }
         callbackHandler.removeCallbacks(ageTicker);
-        LocationSnapshotStore.setLockerRunning(false);
         if (shouldUnregister) {
             try {
                 locationManager.removeUpdates(this);
@@ -253,7 +252,7 @@ public final class LocationManagerGpsLocker implements GpsLocker, LocationListen
 
     private void publish(GpsSnapshot next) {
         snapshot = Objects.requireNonNull(next, "next");
-        LocationSnapshotStore.update(next.getFix());
+        LocationRepository.publishLockerSnapshot(next, isStarted());
         dispatchSnapshot(next);
     }
 
@@ -261,7 +260,7 @@ public final class LocationManagerGpsLocker implements GpsLocker, LocationListen
         synchronized (lock) {
             starting = false;
         }
-        LocationSnapshotStore.setLockerRunning(false);
+        LocationRepository.publishLockerSnapshot(snapshot, false);
     }
 
     private void publishStartFailure(GpsSourceStatus status) {

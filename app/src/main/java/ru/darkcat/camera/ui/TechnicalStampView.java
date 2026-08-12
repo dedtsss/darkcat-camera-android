@@ -10,6 +10,7 @@ import java.util.List;
 
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.location.GpsLockerService;
+import ru.darkcat.camera.location.LocationRepository;
 import ru.darkcat.camera.location.GpsState;
 import ru.darkcat.camera.stamp.TechnicalStampFormatter;
 import ru.darkcat.camera.tags.TagRepository;
@@ -18,6 +19,8 @@ import ru.darkcat.camera.tags.TagRepository;
 public final class TechnicalStampView extends View {
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint background = new Paint();
+    private int outputWidth = 4, outputHeight = 3;
+    private final LocationRepository.Listener locationListener = ignored -> postInvalidate();
 
     public TechnicalStampView(Context context) {
         super(context);
@@ -25,7 +28,16 @@ public final class TechnicalStampView extends View {
         setClickable(false);
         background.setColor(0xee000000);
         text.setColor(Color.WHITE);
+        text.setTypeface(android.graphics.Typeface.MONOSPACE);
     }
+
+    public void setOutputSize(int width, int height) {
+        if (width > 0 && height > 0 && (width != outputWidth || height != outputHeight)) {
+            outputWidth = width; outputHeight = height; invalidate();
+        }
+    }
+    @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); LocationRepository.addListener(locationListener); }
+    @Override protected void onDetachedFromWindow() { LocationRepository.removeListener(locationListener); super.onDetachedFromWindow(); }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -43,17 +55,18 @@ public final class TechnicalStampView extends View {
                 DarkCatSettings.stampSequence(getContext()), DarkCatSettings.stampTags(getContext()),
                 DarkCatSettings.stampCustomText(getContext()));
         if (lines.isEmpty()) return;
-        float size = Math.max(12f, Math.min(getWidth(), getHeight()) * .026f);
+        CaptureOverlayGeometry.Frame frame = CaptureOverlayGeometry.fitOutputInViewport(getWidth(), getHeight(), outputWidth, outputHeight);
+        float size = Math.max(12f, Math.min(frame.width, frame.height) * .026f);
         float padding = Math.max(7f, size * .55f);
         float lineHeight = size * 1.28f;
         text.setTextSize(size);
         float width = 0f;
         for (String line : lines) width = Math.max(width, text.measureText(line));
-        float right = getWidth() - padding;
-        float bottom = getHeight() - padding;
-        float left = Math.max(padding, right - width - padding * 2f);
-        float top = Math.max(padding, bottom - lines.size() * lineHeight - padding * 2f);
-        canvas.drawRect(left, top, getWidth(), getHeight(), background);
+        float right = frame.right() - padding;
+        float bottom = frame.bottom() - padding;
+        float left = Math.max(frame.left + padding, right - width - padding * 2f);
+        float top = Math.max(frame.top + padding, bottom - lines.size() * lineHeight - padding * 2f);
+        canvas.drawRect(left, top, frame.right(), frame.bottom(), background);
         float y = top + padding - text.ascent();
         for (String line : lines) {
             canvas.drawText(line, left + padding, y, text);

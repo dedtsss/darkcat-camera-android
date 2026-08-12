@@ -18,12 +18,14 @@ public final class WatermarkView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private Bitmap bitmap;
     private String loadedUri;
+    private int outputWidth = 4, outputHeight = 3;
 
     public WatermarkView(Context context) {
         super(context);
         setClickable(false);
         setWillNotDraw(false);
     }
+    public void setOutputSize(int width, int height) { if (width > 0 && height > 0 && (width != outputWidth || height != outputHeight)) { outputWidth = width; outputHeight = height; invalidate(); } }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -34,12 +36,13 @@ public final class WatermarkView extends View {
         if (bitmap == null) return;
         WatermarkConfig config = config(uri);
         paint.setAlpha(Math.round(config.opacity * 255f));
-        for (WatermarkLayout.Box box : WatermarkLayout.boxes(getWidth(), getHeight(),
+        CaptureOverlayGeometry.Frame frame = CaptureOverlayGeometry.fitOutputInViewport(getWidth(), getHeight(), outputWidth, outputHeight);
+        for (WatermarkLayout.Box box : WatermarkLayout.boxes(Math.round(frame.width), Math.round(frame.height),
                 bitmap.getWidth(), bitmap.getHeight(), config)) {
             canvas.save();
             if (config.angleDegrees != 0f)
-                canvas.rotate(config.angleDegrees, (box.left + box.right) / 2f, (box.top + box.bottom) / 2f);
-            canvas.drawBitmap(bitmap, null, new RectF(box.left, box.top, box.right, box.bottom), paint);
+                canvas.rotate(config.angleDegrees, frame.left + (box.left + box.right) / 2f, frame.top + (box.top + box.bottom) / 2f);
+            canvas.drawBitmap(bitmap, null, new RectF(frame.left + box.left, frame.top + box.top, frame.left + box.right, frame.top + box.bottom), paint);
             canvas.restore();
         }
         postInvalidateDelayed(1_000L);

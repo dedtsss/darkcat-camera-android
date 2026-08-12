@@ -35,8 +35,8 @@ android {
         applicationId "ru.darkcat.camera"
         minSdkVersion 21
         targetSdkVersion 36
-        versionCode 8
-        versionName "0.4.0-field"
+        versionCode 9
+        versionName "0.5.0-field"
 
         testApplicationId "ru.darkcat.camera.test"
         //testInstrumentationRunner "android.test.InstrumentationTestRunner"

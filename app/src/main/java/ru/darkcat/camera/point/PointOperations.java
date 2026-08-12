@@ -2,6 +2,8 @@ package ru.darkcat.camera.point;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,7 +13,11 @@ public final class PointOperations {
         requireMutable(first); requireMutable(second);
         ArrayList<PointMedia> media = new ArrayList<>(first.media());
         media.addAll(second.media());
-        media.sort((a, b) -> Long.compare(a.timestampMillis, b.timestampMillis));
+        Collections.sort(media, new Comparator<PointMedia>() {
+            @Override public int compare(PointMedia left, PointMedia right) {
+                return Long.compare(left.timestampMillis, right.timestampMillis);
+            }
+        });
         return new ShootingPoint(first.pointUuid(), first.displayNumber(), media, PointLifecycle.DRAFT,
                 null, null);
     }

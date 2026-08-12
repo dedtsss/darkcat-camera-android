@@ -8,6 +8,8 @@ import android.os.VibratorManager;
 
 import java.util.Objects;
 
+import ru.darkcat.camera.data.DarkCatSettings;
+
 /** Android vibrator implementation with immediate, distinguishable field-capture feedback. */
 public final class AndroidCaptureHaptics implements CaptureHaptics {
     public static final long SUCCESS_DURATION_MILLIS = 55L;
@@ -17,9 +19,11 @@ public final class AndroidCaptureHaptics implements CaptureHaptics {
     private static final int[] FAILURE_AMPLITUDES = {0, 220, 0, 255};
 
     private final Vibrator vibrator;
+    private final Context context;
 
     public AndroidCaptureHaptics(Context context) {
         Objects.requireNonNull(context, "context");
+        this.context = context.getApplicationContext();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             VibratorManager manager = context.getSystemService(VibratorManager.class);
             vibrator = manager == null ? null : manager.getDefaultVibrator();
@@ -36,14 +40,15 @@ public final class AndroidCaptureHaptics implements CaptureHaptics {
             return;
         }
         try {
+            HapticPreset preset = HapticPreset.fromPreference(DarkCatSettings.hapticSuccess(context));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createOneShot(
-                        SUCCESS_DURATION_MILLIS,
+                        preset.successDurationMillis,
                         vibrator.hasAmplitudeControl()
-                                ? SUCCESS_AMPLITUDE
+                                ? preset.successAmplitude
                                 : VibrationEffect.DEFAULT_AMPLITUDE));
             } else {
-                vibrateLegacy(SUCCESS_DURATION_MILLIS);
+                vibrateLegacy(preset.successDurationMillis);
             }
         } catch (SecurityException ignored) {
             // Capture must never fail because haptic permission/capability changed.
@@ -56,16 +61,17 @@ public final class AndroidCaptureHaptics implements CaptureHaptics {
             return;
         }
         try {
+            HapticPreset preset = HapticPreset.fromPreference(DarkCatSettings.hapticFailure(context));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 VibrationEffect effect = vibrator.hasAmplitudeControl()
                         ? VibrationEffect.createWaveform(
-                                FAILURE_PATTERN_MILLIS,
-                                FAILURE_AMPLITUDES,
+                                preset.failurePatternMillis,
+                                preset.failureAmplitudes,
                                 -1)
-                        : VibrationEffect.createWaveform(FAILURE_PATTERN_MILLIS, -1);
+                        : VibrationEffect.createWaveform(preset.failurePatternMillis, -1);
                 vibrator.vibrate(effect);
             } else {
-                vibrateLegacy(FAILURE_PATTERN_MILLIS);
+                vibrateLegacy(preset.failurePatternMillis);
             }
         } catch (SecurityException ignored) {
             // Feedback is best-effort and never changes capture/storage semantics.

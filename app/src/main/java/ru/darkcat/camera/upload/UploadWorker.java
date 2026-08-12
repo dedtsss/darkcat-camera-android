@@ -20,6 +20,7 @@ public final class UploadWorker extends Worker {
     }
 
     @NonNull @Override public Result doWork() {
+        SyncDiagnostics.recordStart(getApplicationContext());
         String id = getInputData().getString("media_id");
         if (id == null) return Result.failure();
         DarkCatDatabase database = DarkCatDatabase.get(getApplicationContext());
@@ -30,7 +31,7 @@ public final class UploadWorker extends Worker {
             return resumeLocalDeletion(database, record);
         }
         if (record.status == MediaRecord.UploadStatus.VERIFIED
-                || record.status == MediaRecord.UploadStatus.LOCAL_DELETED) return Result.success();
+                || record.status == MediaRecord.UploadStatus.LOCAL_DELETED) { SyncDiagnostics.recordSuccess(getApplicationContext()); return Result.success(); }
         if (!UploadStateMachine.canStartUpload(record.status)) return Result.failure();
 
         int attempt = record.retryCount + 1;
@@ -47,14 +48,15 @@ public final class UploadWorker extends Worker {
             record = database.transitionStatus(id, MediaRecord.UploadStatus.UPLOADED, upload.message, attempt);
             DarkCatSettings.set(getApplicationContext(), "darkcat_last_sync_success",
                     System.currentTimeMillis());
-            if (!upload.verified) return Result.success();
+            if (!upload.verified) { SyncDiagnostics.recordSuccess(getApplicationContext()); return Result.success(); }
 
             record = database.transitionStatus(id, MediaRecord.UploadStatus.VERIFIED, upload.message, attempt);
             if (!UploadStateMachine.shouldDeleteLocal(record.status,
-                    DarkCatSettings.deleteAfterVerified(getApplicationContext()))) return Result.success();
+                    DarkCatSettings.deleteAfterVerified(getApplicationContext()))) { SyncDiagnostics.recordSuccess(getApplicationContext()); return Result.success(); }
             record = database.transitionStatus(id, MediaRecord.UploadStatus.LOCAL_DELETE_PENDING, null, attempt);
             return resumeLocalDeletion(database, record);
         } catch (Exception error) {
+            SyncDiagnostics.recordFailure(getApplicationContext(), attempt, safeError(error));
             MediaRecord latest = database.get(id);
             if (latest != null && latest.status == MediaRecord.UploadStatus.LOCAL_DELETE_PENDING) {
                 try { database.transitionStatus(id, latest.status, safeError(error), latest.retryCount); }
@@ -85,6 +87,7 @@ public final class UploadWorker extends Worker {
     }
 
     private Result recordFailure(DarkCatDatabase database, String id, int attempt, String message) {
+        SyncDiagnostics.recordFailure(getApplicationContext(), attempt, message);
         MediaRecord.UploadStatus failure = UploadStateMachine.failureStatus(attempt);
         try { database.transitionStatus(id, failure, message, attempt); }
         catch (Exception ignored) { return Result.retry(); }

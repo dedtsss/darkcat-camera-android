@@ -29,16 +29,20 @@ import android.widget.Toast;
 
 import com.linkedcamera.app.PreferenceKeys;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import ru.darkcat.camera.crypto.SecureCredentialStore;
+import ru.darkcat.camera.data.DarkCatPreferencePolicy;
 import ru.darkcat.camera.data.DarkCatSettings;
+import ru.darkcat.camera.data.StorageMode;
 import ru.darkcat.camera.field.FieldModeService;
 import ru.darkcat.camera.field.FieldModeState;
 import ru.darkcat.camera.haptic.AndroidCaptureHaptics;
+import ru.darkcat.camera.haptic.HapticPreset;
 import ru.darkcat.camera.location.GpsLockerService;
 import ru.darkcat.camera.tags.TagRepository;
 import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
@@ -60,8 +64,9 @@ public final class DarkCatSettingsActivity extends Activity {
     private boolean binding;
     private boolean waitingBackgroundSettings;
     private boolean requestingBackgroundOnly;
+    private String selectedCategory;
+    private final ArrayList<SectionBoundary> sectionBoundaries = new ArrayList<>();
 
-    private Switch secure;
     private Switch pausePreview;
     private Switch recordLocation;
     private Switch gpsLocker;
@@ -81,9 +86,12 @@ public final class DarkCatSettingsActivity extends Activity {
     private Switch recordAudio;
     private Switch watermarkEnabled;
     private Switch watermarkTiled;
+    private Switch nightMode;
 
     private Spinner captureMode;
-    private Spinner workflow;
+    private Spinner storageMode;
+    private Spinner hapticSuccess;
+    private Spinner hapticFailure;
     private Spinner whiteBalance;
     private Spinner brightness;
     private Spinner coordinateFormat;
@@ -109,7 +117,8 @@ public final class DarkCatSettingsActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        setTitle("Настройки DarkCat Camera");
+        selectedCategory = getIntent().getStringExtra(DarkCatSettingsRootActivity.EXTRA_CATEGORY);
+        setTitle(selectedCategory == null ? "Настройки DarkCat Camera" : "Настройки · " + selectedCategory);
         upstream = android.preference.PreferenceManager.getDefaultSharedPreferences(this);
         binding = true;
 
@@ -123,9 +132,7 @@ public final class DarkCatSettingsActivity extends Activity {
         captureMode = spinner(content, "Режим съёмки",
                 new String[]{"Максимальная скорость", "Приоритет резкости"},
                 DarkCatSettings.CAPTURE_SHARP.equals(DarkCatSettings.captureMode(this)) ? 1 : 0);
-        workflow = spinner(content, "После кадра",
-                new String[]{"Сразу в защищённое хранилище", "Открыть редактор"},
-                DarkCatSettings.MODE_EDIT.equals(DarkCatSettings.workflow(this)) ? 1 : 0);
+        note(content, "После кадра: снимок остаётся в выбранном хранилище. Редактор открывается только из Viewer.");
         pausePreview = toggle(content, "Показывать снимок после съёмки",
                 upstream.getBoolean(PreferenceKeys.PausePreviewPreferenceKey, false));
         whiteBalance = spinner(content, "Баланс белого",
@@ -135,6 +142,8 @@ public final class DarkCatSettingsActivity extends Activity {
         brightness = spinner(content, "Яркость снимка",
                 new String[]{"Темнее", "Обычная", "Светлее"},
                 exposureIndex(upstream.getString(PreferenceKeys.ExposurePreferenceKey, "0")));
+        nightMode = toggle(content, "OEM Night (если камера заявляет capability)", DarkCatSettings.nightMode(this));
+        note(content, "Используется только официальный Camera2/OEM extension. При отсутствии capability остаётся обычная съёмка.");
 
         section(content, "ГЕОЛОКАЦИЯ", "GPS Locker держит свежий GNSS fix даже при выключенном экране");
         gpsLocker = toggle(content, "GPS Locker", DarkCatSettings.gpsLockerEnabled(this));
@@ -185,7 +194,7 @@ public final class DarkCatSettingsActivity extends Activity {
         customStamp = field(content, "Свой текст", false, false);
         customStamp.setText(DarkCatSettings.customStampText(this));
 
-        section(content, "ВОДЯНОЙ ЗНАК", "Один и тот же image-space слой на preview и JPEG");
+        subsection(content, "ВОДЯНОЙ ЗНАК", "Один и тот же image-space слой на preview и JPEG");
         watermarkEnabled = toggle(content, "Показывать watermark", DarkCatSettings.watermarkEnabled(this));
         watermarkTiled = toggle(content, "Повторять по всему кадру", DarkCatSettings.watermarkTiled(this));
         watermarkPosition = spinner(content, "Позиция", new String[]{"Слева сверху", "Справа сверху",
@@ -198,10 +207,9 @@ public final class DarkCatSettingsActivity extends Activity {
         });
         content.addView(chooseWatermark, match());
 
-        section(content, "ХРАНИЛИЩЕ", "AES-256-GCM · Android Keystore · случайные UUID-имена");
-        secure = toggle(content, "Защищённое хранилище", DarkCatSettings.isSecureMode(this));
-        Button vault = button("Открыть защищённую галерею", v -> startActivity(new Intent(this, VaultActivity.class)));
-        content.addView(vault, match());
+        section(content, "ХРАНИЛИЩЕ", "Vault шифрует оригинал; Gallery сохраняет в Pictures/DarkCat через MediaStore");
+        storageMode = spinner(content, "Куда сохранять", new String[]{"Vault · зашифрованное", "Галерея · MediaStore"},
+                DarkCatSettings.isVaultMode(this) ? 0 : 1);
         VaultRepository vaultRepository = new VaultRepository(this);
         TextView recovery = note(content, "Материалов на восстановлении: " + vaultRepository.recoveryPendingCount());
         Button retryRecovery = button("Продолжить обработку recovery", v -> {
@@ -209,6 +217,12 @@ public final class DarkCatSettingsActivity extends Activity {
             Toast.makeText(this, "Обработка recovery поставлена в очередь", Toast.LENGTH_SHORT).show();
         });
         content.addView(retryRecovery, match());
+
+        section(content, "ГАЛЕРЕЯ", "Единая лента Vault и MediaStore без импорта чужих фото");
+        Button gallery = button("Открыть галерею DarkCat", v -> startActivity(new Intent(this, GalleryActivity.class)));
+        content.addView(gallery, match());
+        Button points = button("Открыть точки съёмки", v -> startActivity(new Intent(this, PointGalleryActivity.class)));
+        content.addView(points, match());
 
         section(content, "СИНХРОНИЗАЦИЯ", "Сеть и облако никогда не блокируют съёмку");
         provider = spinner(content, "Провайдер",
@@ -244,6 +258,10 @@ public final class DarkCatSettingsActivity extends Activity {
         Button failHaptic = button("Тест: отказ", v -> new AndroidCaptureHaptics(this).signalCaptureFailure());
         haptics.addView(successHaptic, weight());
         haptics.addView(failHaptic, weight());
+        hapticSuccess = spinner(content, "Сила отклика: кадр", new String[]{"Слабый", "Средний", "Сильный"},
+                HapticPreset.fromPreference(DarkCatSettings.hapticSuccess(this)).ordinal());
+        hapticFailure = spinner(content, "Сила отклика: отказ", new String[]{"Слабый", "Средний", "Сильный"},
+                HapticPreset.fromPreference(DarkCatSettings.hapticFailure(this)).ordinal());
         fieldMode.setOnCheckedChangeListener((button, checked) -> {
             if (binding) return;
             if (checked) showFieldSafety();
@@ -282,8 +300,11 @@ public final class DarkCatSettingsActivity extends Activity {
         saveParams.topMargin = dp(24);
         content.addView(save, saveParams);
 
-        setContentView(scroll);
         updateProviderVisibility();
+        applyCategoryVisibility(content);
+        // Save is a shared footer rather than an Advanced-only control.
+        save.setVisibility(View.VISIBLE);
+        setContentView(scroll);
         binding = false;
     }
 
@@ -335,13 +356,15 @@ public final class DarkCatSettingsActivity extends Activity {
         }
     }
 
+    @SuppressLint("WrongConstant") // Intent returns a superset; only read/write URI grants are retained below.
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQUEST_WATERMARK || resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         try {
-            getContentResolver().takePersistableUriPermission(uri,
-                    data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+            int grantFlags = data.getFlags()
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            if (grantFlags != 0) getContentResolver().takePersistableUriPermission(uri, grantFlags);
         } catch (SecurityException ignored) { }
         DarkCatSettings.set(this, "darkcat_watermark_uri", uri.toString());
         if (watermarkPath != null) watermarkPath.setText(watermarkLabel());
@@ -541,11 +564,11 @@ public final class DarkCatSettingsActivity extends Activity {
             }
         }
 
-        DarkCatSettings.set(this, "darkcat_secure_mode", secure.isChecked());
+        DarkCatSettings.setStorageMode(this, storageMode.getSelectedItemPosition() == 0
+                ? StorageMode.VAULT : StorageMode.MEDIASTORE);
         DarkCatSettings.set(this, "darkcat_capture_mode", captureMode.getSelectedItemPosition() == 1
                 ? DarkCatSettings.CAPTURE_SHARP : DarkCatSettings.CAPTURE_MAX_SPEED);
-        DarkCatSettings.set(this, "darkcat_workflow", workflow.getSelectedItemPosition() == 1
-                ? DarkCatSettings.MODE_EDIT : DarkCatSettings.MODE_FAST);
+        DarkCatSettings.set(this, "darkcat_night_mode", nightMode.isChecked());
         DarkCatSettings.set(this, "darkcat_gps_max_accuracy", accuracy);
         DarkCatSettings.set(this, "darkcat_strict_gps", strictGps.isChecked());
         DarkCatSettings.set(this, "darkcat_sequence_enabled", sequenceEnabled.isChecked());
@@ -562,6 +585,8 @@ public final class DarkCatSettingsActivity extends Activity {
         DarkCatSettings.set(this, "darkcat_stamp_custom_text_enabled", stampCustom.isChecked());
         DarkCatSettings.set(this, "darkcat_stamp_custom_text", customStamp.getText().toString().trim());
         DarkCatSettings.set(this, "darkcat_volume_shutter", volumeShutter.isChecked());
+        DarkCatSettings.set(this, "darkcat_haptic_success", HapticPreset.values()[hapticSuccess.getSelectedItemPosition()].name());
+        DarkCatSettings.set(this, "darkcat_haptic_failure", HapticPreset.values()[hapticFailure.getSelectedItemPosition()].name());
         DarkCatSettings.set(this, "darkcat_watermark_enabled", watermarkEnabled.isChecked());
         DarkCatSettings.set(this, "darkcat_watermark_tiled", watermarkTiled.isChecked());
         DarkCatSettings.set(this, "darkcat_watermark_position", new String[]{"top_left", "top_right",
@@ -587,6 +612,7 @@ public final class DarkCatSettingsActivity extends Activity {
                 .putBoolean(PreferenceKeys.VideoStabilizationPreferenceKey, videoStabilization.isChecked())
                 .putBoolean(PreferenceKeys.RecordAudioPreferenceKey, recordAudio.isChecked())
                 .apply();
+        DarkCatPreferencePolicy.normalize(this);
         return true;
     }
 
@@ -720,6 +746,15 @@ public final class DarkCatSettingsActivity extends Activity {
     }
 
     private void section(LinearLayout parent, String title, String summary) {
+        sectionBoundaries.add(new SectionBoundary(categoryForSection(title), parent.getChildCount()));
+        addSectionHeading(parent, title, summary);
+    }
+
+    private void subsection(LinearLayout parent, String title, String summary) {
+        addSectionHeading(parent, title, summary);
+    }
+
+    private void addSectionHeading(LinearLayout parent, String title, String summary) {
         TextView heading = new TextView(this);
         heading.setText(title);
         heading.setTextColor(0xff1565c0);
@@ -730,6 +765,44 @@ public final class DarkCatSettingsActivity extends Activity {
         parent.addView(heading, params);
         TextView detail = note(parent, summary);
         detail.setTextColor(Color.DKGRAY);
+    }
+
+    /** Each category page is a view of one persisted settings model; hidden groups retain values. */
+    private void applyCategoryVisibility(LinearLayout content) {
+        if (selectedCategory == null || selectedCategory.trim().isEmpty()) return;
+        int first = -1;
+        int last = content.getChildCount();
+        for (SectionBoundary boundary : sectionBoundaries) {
+            if (first < 0 && selectedCategory.equals(boundary.category)) first = boundary.startIndex;
+            else if (first >= 0) { last = boundary.startIndex; break; }
+        }
+        if (first < 0) return;
+        for (int index = 0; index < content.getChildCount(); index++) {
+            content.getChildAt(index).setVisibility(index >= first && index < last
+                    ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private static String categoryForSection(String title) {
+        if ("СЪЁМКА".equals(title)) return "Съёмка";
+        if ("ГЕОЛОКАЦИЯ".equals(title)) return "GPS";
+        if ("МЕТКИ".equals(title)) return "Метки и штамп";
+        if ("ПОЛЕВОЙ РЕЖИМ".equals(title)) return "Полевой режим";
+        if ("ХРАНИЛИЩЕ".equals(title)) return "Хранилище";
+        if ("ГАЛЕРЕЯ".equals(title)) return "Галерея";
+        if ("СИНХРОНИЗАЦИЯ".equals(title)) return "Синхронизация";
+        if ("ВИДЕО".equals(title)) return "Видео";
+        if ("РАСШИРЕННЫЕ".equals(title)) return "Расширенные";
+        return title;
+    }
+
+    private static final class SectionBoundary {
+        final String category;
+        final int startIndex;
+        SectionBoundary(String category, int startIndex) {
+            this.category = category;
+            this.startIndex = startIndex;
+        }
     }
 
     private Switch toggle(LinearLayout parent, String text, boolean checked) {

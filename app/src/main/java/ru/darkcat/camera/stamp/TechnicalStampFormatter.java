@@ -11,11 +11,12 @@ public final class TechnicalStampFormatter {
                                      boolean includeSequence, boolean includeTags, boolean includeCustomText) {
         ArrayList<String> result = new ArrayList<>();
         if (includeCoordinates && latitude != null && longitude != null) {
-            String coordinates = String.format(Locale.US, "%.6f, %.6f", latitude, longitude);
-            if (includeAccuracy && accuracyMeters != null) coordinates += " ±" + Math.round(accuracyMeters) + " м";
+            String coordinates = String.format(Locale.US, "N %.6f   E %.6f", latitude, longitude);
+            if (includeAccuracy && accuracyMeters != null && !Float.isNaN(accuracyMeters)
+                    && !Float.isInfinite(accuracyMeters)) coordinates += String.format(Locale.US, "   ±%.1fm", accuracyMeters);
             result.add(coordinates);
         }
-        if (includeSequence && sequence != null) result.add(String.format(Locale.US, "№ %05d", sequence));
+        if (includeSequence && sequence != null) result.add(String.format(Locale.US, "№%05d", sequence));
         if (includeTags && tags != null && !tags.isEmpty()) result.add(join(tags));
         if (includeCustomText && customText != null && !customText.trim().isEmpty()) result.add(customText.trim());
         return result;

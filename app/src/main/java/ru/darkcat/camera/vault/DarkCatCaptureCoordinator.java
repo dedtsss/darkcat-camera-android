@@ -212,7 +212,7 @@ public final class DarkCatCaptureCoordinator {
         File file = new File(repository.recoveryDir(), UUID.randomUUID() + suffix);
         return new RecoveryTarget(file, sequence, displayName, mimeType, capturedAt,
                 (captureContext == null ? CaptureContext.empty() : captureContext).toJson().toString(),
-                !video && DarkCatSettings.MODE_EDIT.equals(DarkCatSettings.workflow(context)));
+                false);
     }
 
     /** Journal and dispatch a direct app-private target after upstream has fully closed it. */
@@ -343,7 +343,8 @@ public final class DarkCatCaptureCoordinator {
         List<String> tags = new ArrayList<>(baseContext.customTags);
         for (String tag : new TagRepository(context).active()) if (!tags.contains(tag)) tags.add(tag);
         CaptureContext captureContext = baseContext.withTagsAndLocation(tags, captureFix);
-        boolean editRequested = !video && DarkCatSettings.MODE_EDIT.equals(DarkCatSettings.workflow(context));
+        // 0.5 makes the editor an explicit Gallery action; background capture never launches UI.
+        boolean editRequested = false;
         RecoveryStore.PendingCapture pending = repository.recoveryStore().markPending(recovery, sequence,
                 source.displayName, source.mimeType, capturedAt, captureContext.toJson().toString(),
                 editRequested);

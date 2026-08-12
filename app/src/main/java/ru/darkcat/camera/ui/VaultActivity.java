@@ -34,8 +34,6 @@ public final class VaultActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         setTitle("Защищённое хранилище");
-        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE);
         repository = new VaultRepository(this);
         render();
     }
@@ -54,7 +52,7 @@ public final class VaultActivity extends Activity {
         TextView title = text("Защищённая галерея", 22f);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         list.addView(title);
-        TextView info = text("Материалы зашифрованы AES-256-GCM и хранятся под случайными UUID-именами. Содержимое экрана защищено от снимков.", 13f);
+        TextView info = text("Материалы зашифрованы AES-256-GCM и хранятся под случайными UUID-именами.", 13f);
         info.setPadding(0, dp(4), 0, dp(10));
         list.addView(info);
 

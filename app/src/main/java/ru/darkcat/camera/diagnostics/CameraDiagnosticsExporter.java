@@ -11,6 +11,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.location.LocationManager;
 import android.os.Build;
 import android.util.Size;
+import android.util.Range;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -28,6 +29,7 @@ import ru.darkcat.camera.field.FieldCaptureBridge;
 import ru.darkcat.camera.field.FieldModeState;
 import ru.darkcat.camera.field.FieldTriggerDiagnostics;
 import ru.darkcat.camera.location.LocationSnapshotStore;
+import ru.darkcat.camera.upload.SyncDiagnostics;
 
 /** Produces a media-free capability report suitable for Pixel hardware validation. */
 public final class CameraDiagnosticsExporter {
@@ -68,6 +70,13 @@ public final class CameraDiagnosticsExporter {
         triggerReport.put("lastKeyCode", trigger.lastKeyCode);
         triggerReport.put("lastElapsedRealtime", trigger.lastElapsedRealtime);
         root.put("fieldTriggerDiagnostics", triggerReport);
+        SyncDiagnostics.Snapshot sync = SyncDiagnostics.snapshot(context);
+        JSONObject syncReport = new JSONObject();
+        syncReport.put("lastWorkerStart", sync.lastStart);
+        syncReport.put("lastWorkerSuccess", sync.lastSuccess);
+        syncReport.put("nextRetry", sync.nextRetry);
+        syncReport.put("lastWorkerError", sync.lastError == null || sync.lastError.isEmpty() ? JSONObject.NULL : sync.lastError);
+        root.put("syncDiagnostics", syncReport);
 
         LocationSnapshotStore.Snapshot location = LocationSnapshotStore.latest();
         JSONObject gps = new JSONObject();
@@ -112,6 +121,7 @@ public final class CameraDiagnosticsExporter {
         camera.put("zslResultKeyAvailable", zslResultKey);
         camera.put("zslReprocessingCapable", privateReprocessing || yuvReprocessing);
         camera.put("zslRequestAvailable", zslRequestKey);
+        camera.put("night", nightCapabilities(manager, id, c));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             Set<String> physicalIds = c.getPhysicalCameraIds();
@@ -159,6 +169,7 @@ public final class CameraDiagnosticsExporter {
         camera.put("sensorPhysicalSizeMm", String.valueOf(c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)));
         camera.put("afModes", array(c.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)));
         camera.put("oisModes", array(c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)));
+        camera.put("night", nightCapabilities(manager, id, c));
         StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         if (map != null) {
             JSONObject streams = new JSONObject();
@@ -194,6 +205,49 @@ public final class CameraDiagnosticsExporter {
             }
         }
         return result;
+    }
+
+    private static JSONObject nightCapabilities(CameraManager manager, String id,
+                                                CameraCharacteristics c) throws Exception {
+        JSONObject night = new JSONObject();
+        night.put("officialExtensionApiAvailable", Build.VERSION.SDK_INT >= Build.VERSION_CODES.S);
+        boolean extensionAvailable = false;
+        JSONArray extensions = new JSONArray();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                CameraExtensionCharacteristics extension = manager.getCameraExtensionCharacteristics(id);
+                for (Integer mode : extension.getSupportedExtensions()) {
+                    extensions.put(mode);
+                    if (mode != null && mode == CameraExtensionCharacteristics.EXTENSION_NIGHT) extensionAvailable = true;
+                }
+            } catch (RuntimeException unavailable) { }
+        }
+        night.put("supportedExtensionModes", extensions);
+        night.put("officialOemNightExtensionAvailable", extensionAvailable);
+        night.put("exposureTimeRangeNs", range(c.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)));
+        night.put("sensitivityRangeIso", range(c.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)));
+        night.put("aeModes", array(c.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES)));
+        night.put("oisModes", array(c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)));
+        night.put("lowLightBoostAvailable", lowLightBoostAvailable(c));
+        night.put("customMultiFrameImplemented", false);
+        return night;
+    }
+
+    private static JSONObject range(Range<?> range) throws org.json.JSONException {
+        JSONObject value = new JSONObject();
+        if (range == null) { value.put("lower", JSONObject.NULL); value.put("upper", JSONObject.NULL); }
+        else { value.put("lower", range.getLower()); value.put("upper", range.getUpper()); }
+        return value;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object lowLightBoostAvailable(CameraCharacteristics characteristics) {
+        try {
+            java.lang.reflect.Field field = CameraCharacteristics.class.getField("CONTROL_LOW_LIGHT_BOOST_INFO_AVAILABLE");
+            Object candidate = field.get(null);
+            if (candidate instanceof CameraCharacteristics.Key) return characteristics.get((CameraCharacteristics.Key) candidate);
+        } catch (Exception ignored) { }
+        return JSONObject.NULL;
     }
 
     private static boolean contains(int[] values, int wanted) {

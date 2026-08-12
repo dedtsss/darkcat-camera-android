@@ -4,7 +4,7 @@
 
 Полевой режим — явно включаемый пользователем режим готовности камеры и GPS при background/screen off/штатном lockscreen. Он не является скрытой камерой и не имитирует блокировку.
 
-Текущий статус — **0.4 implementation complete, hardware validation pending**. Camera foreground service, независимая Camera2 session, notification, wake lock, GPS gate и trigger adapters реализованы. Удержание session и Bluetooth Volume+ на целевых устройствах ещё не подтверждены аппаратно.
+Текущий статус — **0.5 implementation complete, hardware validation pending**. Camera foreground service, независимая Camera2 session, notification, wake lock, GPS gate и trigger adapters реализованы. Удержание session и Bluetooth Volume+ на целевых устройствах ещё не подтверждены аппаратно.
 
 ## Пользовательский сценарий
 
@@ -45,7 +45,7 @@ Safety screen должен явно сообщать: camera/GPS продолж�
 - Activity/process живы — обычный engine сохраняет полный UI, physical-lens и advanced compatibility surface;
 - Activity в background/при screen off — service-owned session продолжает готовность к capture без View/Activity;
 - process death не теряет уже записанный service JPEG: при следующем service start оставшийся durable файл повторно передаётся в secure recovery;
-- notification показывает «Камера готова» только когда service-owned session действительно configured, иначе просит открыть камеру;
+- notification показывает фактическое service-owned состояние: «Камера готова», «Камера запускается», «Камера используется экраном» либо честную ошибку; готовая service session не просит открыть Activity «для восстановления»;
 - service-owned fallback intentionally использует Camera2 rear logical camera; выбор lens/quality остаётся за visible Linked/Open Camera UI.
 
 ### `GpsLockerService`
@@ -89,7 +89,7 @@ Sync не живёт в camera service и не блокирует shutter. Notif
 
 Разрешённые данные:
 
-- «Камера готова» либо просьба открыть камеру для восстановления;
+- фактическое состояние service-owned камеры: «Камера готова», «Камера запускается», «Камера используется экраном» либо ошибка;
 - GPS `±N м` или «поиск/заблокирована»;
 - размер очереди.
 

@@ -30,6 +30,7 @@ import java.util.concurrent.BlockingQueue;
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.data.CaptureContext;
 import ru.darkcat.camera.data.PhotoCaptureTicket;
+import ru.darkcat.camera.gallery.MediaStoreCaptureStore;
 import ru.darkcat.camera.tags.TagRepository;
 import ru.darkcat.camera.vault.DarkCatCaptureCoordinator;
 
@@ -3044,21 +3045,20 @@ public class ImageSaver extends Thread {
 
         main_activity.savingImage(true);
 
-        // Secure photo mode writes the camera JPEG straight to a durable app-private recovery
-        // target. It deliberately bypasses MediaStore/DCIM and all expensive post-processing;
-        // stamping, encryption, thumbnails, DB and sync continue asynchronously from that file.
-        // This is the critical no-plaintext/no-lost-callback vertical slice for normal JPEG mode.
-        boolean darkCatDirectCapture = DarkCatSettings.isSecureMode(main_activity) && !raw_only
+        // DarkCat owns the simple JPEG path for both destinations. Vault first writes an atomic
+        // private recovery file; Gallery writes one scoped MediaStore item under Pictures/DarkCat.
+        // Advanced upstream modes deliberately retain their existing processing path.
+        boolean darkCatDirectCapture = !raw_only
                 && !request.image_capture_intent
                 && request.image_format == Request.ImageFormat.STD
                 && request.process_type == Request.ProcessType.NORMAL
                 && bitmap == null;
-        // Advanced secure modes are intercepted later by StorageUtils after their upstream
-        // processing. Leave their ticket in the FIFO so that fallback keeps the same sequence,
-        // capture timestamp and location. Non-secure/intent requests consume it here.
-        PhotoCaptureTicket darkCatTicket = share_image
-                && (darkCatDirectCapture || !DarkCatSettings.isSecureMode(main_activity)
-                || request.image_capture_intent)
+        // Vault's non-simple modes retain the upstream interception path. Gallery has no such
+        // interception, so it must claim the callback ticket even when upstream owns a special
+        // mode; otherwise that ticket would be applied to a later ordinary capture.
+        boolean darkCatClaimsTicket = !DarkCatSettings.isVaultMode(main_activity)
+                || darkCatDirectCapture;
+        PhotoCaptureTicket darkCatTicket = share_image && darkCatClaimsTicket
                 ? DarkCatCaptureCoordinator.claimPhotoCaptureTicket() : null;
         if( darkCatDirectCapture ) {
             try {
@@ -3076,19 +3076,31 @@ public class ImageSaver extends Thread {
                     try { fallbackSequence = DarkCatCaptureCoordinator.reservePhotoSequence(main_activity); }
                     catch(RuntimeException ignored) { /* keep the captured material with sequence disabled */ }
                 }
-                DarkCatCaptureCoordinator.RecoveryTarget target = darkCatTicket != null
-                        ? DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
-                                "image/jpeg", darkCatTicket, durableContext)
-                        : DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
-                                "image/jpeg", fallbackSequence, durableContext);
-                DarkCatCaptureCoordinator.writeRecoveryBytesAndAccept(main_activity, target, data);
+                int sequence = darkCatTicket == null ? fallbackSequence : darkCatTicket.sequenceNumber;
+                long capturedAt = darkCatTicket == null ? (request.current_date == null
+                        ? System.currentTimeMillis() : request.current_date.getTime())
+                        : darkCatTicket.capturedAt;
+                if (DarkCatSettings.isVaultMode(main_activity)) {
+                    DarkCatCaptureCoordinator.RecoveryTarget target = darkCatTicket != null
+                            ? DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
+                                    "image/jpeg", darkCatTicket, durableContext)
+                            : DarkCatCaptureCoordinator.newRecoveryTarget(main_activity, false, displayName,
+                                    "image/jpeg", fallbackSequence, durableContext);
+                    DarkCatCaptureCoordinator.writeRecoveryBytesAndAccept(main_activity, target, data);
+                } else {
+                    new MediaStoreCaptureStore().saveJpeg(main_activity, data, displayName, sequence,
+                            capturedAt, durableContext);
+                }
+                DarkCatSettings.set(main_activity, "darkcat_storage_blocked", false);
                 main_activity.savingImage(false);
                 return true;
             }
             catch(Exception error) {
-                MyDebug.logStackTrace(TAG, "failed to stage private DarkCat recovery image", error);
+                MyDebug.logStackTrace(TAG, "failed to store DarkCat owned JPEG", error);
                 main_activity.getPreview().showToast(null,
-                        "Кадр сделан, но ожидает восстановления хранилища");
+                        DarkCatSettings.isVaultMode(main_activity)
+                                ? "Кадр сделан, но ожидает восстановления хранилища"
+                                : "Кадр сделан, но запись в Галерею не завершена");
                 main_activity.savingImage(false);
                 return false;
             }

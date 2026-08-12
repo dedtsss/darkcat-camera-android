@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Full decrypted viewer/share sessions are isolated from unrelated cache files. -->
+    <cache-path name="darkcat_viewer_cache" path="darkcat-share/" />
+</paths>

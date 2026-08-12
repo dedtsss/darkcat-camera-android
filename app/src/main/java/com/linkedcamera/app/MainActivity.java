@@ -359,6 +359,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             // must be done after initCamera2Support()
             setDeviceDefaults();
         }
+        ru.darkcat.camera.data.DarkCatPreferencePolicy.normalize(this);
         applyDarkCatProductDefaults(sharedPreferences);
 
         boolean settings_is_open = settingsIsOpen();
@@ -1588,6 +1589,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
         super.onResume();
         this.app_is_paused = false; // must be set before initLocation() at least
+        ru.darkcat.camera.ui.DarkCatUi.reconcileNightMode(this);
         if( ru.darkcat.camera.data.DarkCatSettings.fieldModeEnabled(this)
                 && ru.darkcat.camera.field.FieldModeState.isRunning() ) {
             ru.darkcat.camera.field.FieldModeService.handoffToVisibleActivity(this);
@@ -5023,11 +5025,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     public void clickedGallery(View view) {
         if( MyDebug.LOG )
             Log.d(TAG, "clickedGallery");
-        if( ru.darkcat.camera.data.DarkCatSettings.isSecureMode(this) ) {
-            startActivity(new Intent(this, ru.darkcat.camera.ui.VaultActivity.class));
-            return;
-        }
-        openGallery();
+        startActivity(new Intent(this, ru.darkcat.camera.ui.GalleryActivity.class));
     }
 
     private void openGallery() {

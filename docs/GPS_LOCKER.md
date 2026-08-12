@@ -36,7 +36,7 @@ GrapheneOS-specific Google APIs не нужны. Системные location tog
 | YELLOW | provider работает, но идёт поиск; accuracy отсутствует/хуже threshold; либо точный fix стареет (`>5 000 ms` и `<=15 000 ms`) |
 | RED | locker остановлен, permission denied, location disabled, provider unavailable/error, monotonic clock mismatch или fix старше `15 000 ms` |
 
-Dynamic label строится из реального `Location.getAccuracy()`: `±23 м -> ±17 м -> ±6 м`. Если accuracy неизвестна, показывается `±— м`, а не выдуманное значение.
+Dynamic label строится из реального `Location.getAccuracy()`: до 10 м он сохраняет один десятичный знак (`±4.2 м -> ±6.6 м`), далее отображается без выдуманных ступеней. Если accuracy неизвестна, показывается `±— м`, а не выдуманное значение.
 
 ## Fresh / aging / stale
 

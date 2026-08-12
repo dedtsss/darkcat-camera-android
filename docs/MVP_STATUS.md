@@ -1,4 +1,4 @@
-# Статус DarkCat Camera 0.4 Field
+# Статус DarkCat Camera 0.5 Field
 
 PR #2 — архитектурно-рефакторинговый vertical slice на базе Linked Camera/Open Camera. Это hardware-ready сборка для проверки, а не production sign-off. PR должен оставаться OPEN/DRAFT и не должен быть merged до аппаратного теста.
 
@@ -6,7 +6,8 @@ Primary targets: Google Pixel 7 / актуальная пользователь�
 
 ## Реализовано в коде
 
-- `applicationId` `ru.darkcat.camera`, версия `0.4.0-field`, Camera2-first product defaults с Camera1 compatibility fallback в Advanced.
+- `applicationId` `ru.darkcat.camera`, версия `0.5.0-field`, Camera2-first product defaults с Camera1 compatibility fallback в Advanced.
+- 0.5 добавляет явные Vault/MediaStore Gallery destinations, quick shield toggle, unified Gallery/Viewer/explicit Editor, live GPS repository, configurable haptics, 4:3 capability default, physical-lens labels/zoom presets и Night capability study. Field Mode остаётся service-owned.
 - Существующий Linked/Open Camera Camera2 engine, logical/physical camera support и capability-based fallback сохранены.
 - Continuous-picture AF и latency-oriented shutter path без обязательного многосекундного autofocus на каждом кадре; tap focus остаётся upstream-функцией.
 - Runtime tracking Camera2 AF/AE/AWB state без блокирующего ожидания.
@@ -31,7 +32,7 @@ Primary targets: Google Pixel 7 / актуальная пользователь�
 - Storage preflight и реальный private emergency reserve 64 МиБ: при неожиданном disk-full резерв освобождается для одной повторной atomic recovery-write; persistent storage-blocked снимается только после capacity check и `fsync` probe.
 - Валидируемая upload state machine, WorkManager queue, provider Off/Nextcloud Public Share/Generic WebDAV/DarkCat API stub и KEEP LOCAL default.
 - WebDAV verification hardening: HEAD без точного Content-Length остаётся UPLOADED, а не VERIFIED.
-- Protected Vault/Viewer и camera capability diagnostics JSON без media/coordinates.
+- Vault/Gallery Viewer с deliberate screenshots, camera capability diagnostics JSON без media/coordinates и Night capability section.
 - Object-based русский editor: interactive crop, freehand, line/rectangle/oval/arrow/text, reselect, move, pinch scale/rotate, color/stroke, delete и bounded undo/redo; recovery-safe JPEG 100 Save.
 - Unit tests для crypto, corruption, GPS, sequence/tickets, tags/formatting, upload transitions/verification/retention, recovery и capture scoring/decision logic.
 

@@ -29,7 +29,11 @@ public final class PointClusterer {
     public List<ShootingPoint> cluster(List<PointMedia> input) {
         if (input == null || input.isEmpty()) return Collections.emptyList();
         ArrayList<PointMedia> sorted = new ArrayList<>(input);
-        sorted.sort(Comparator.comparingLong(item -> item.timestampMillis));
+        Collections.sort(sorted, new Comparator<PointMedia>() {
+            @Override public int compare(PointMedia left, PointMedia right) {
+                return Long.compare(left.timestampMillis, right.timestampMillis);
+            }
+        });
         ArrayList<List<PointMedia>> groups = new ArrayList<>();
         ArrayList<PointMedia> current = new ArrayList<>();
         ArrayList<Long> gaps = new ArrayList<>();

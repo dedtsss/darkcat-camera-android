@@ -34,6 +34,7 @@ public final class UploadScheduler {
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(UploadWorker.class).setInputData(new Data.Builder().putString("media_id", mediaId).build())
                 .setConstraints(constraints.build()).setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build();
         WorkManager.getInstance(context.getApplicationContext()).enqueueUniqueWork("darkcat-upload-" + mediaId, ExistingWorkPolicy.REPLACE, request);
+        SyncDiagnostics.recordEnqueued(context);
     }
     private UploadScheduler() { }
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="8"
-    android:versionName="0.4.0-field"
+    android:versionCode="9"
+    android:versionName="0.5.0-field"
     android:installLocation="auto"
     tools:ignore="GoogleAppIndexingWarning">
     <!-- ignore GoogleAppIndexingWarning as we don't want to implement that -->
@@ -127,6 +127,12 @@
             android:name="ru.darkcat.camera.ui.DarkCatSettingsActivity"
             android:exported="false" />
         <activity
+            android:name="ru.darkcat.camera.ui.DarkCatSettingsRootActivity"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.GalleryActivity"
+            android:exported="false" />
+        <activity
             android:name="ru.darkcat.camera.ui.VaultActivity"
             android:excludeFromRecents="true"
             android:exported="false"
@@ -152,6 +158,14 @@
             android:name="ru.darkcat.camera.ui.PointGalleryActivity"
             android:excludeFromRecents="true"
             android:exported="false" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/darkcat_file_paths" />
+        </provider>
 
         <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
         <activity

@@ -20,4 +20,12 @@ public final class CaptureOverlayGeometryTest {
         assertEquals(150f, right.x, .001f);
         assertEquals(50f, left.y, .001f);
     }
+
+    @Test public void fittedOutputExcludesLetterboxBars() {
+        CaptureOverlayGeometry.Frame frame = CaptureOverlayGeometry.fitOutputInViewport(1000, 1000, 4, 3);
+        assertEquals(0f, frame.left, .001f);
+        assertEquals(125f, frame.top, .001f);
+        assertEquals(1000f, frame.width, .001f);
+        assertEquals(750f, frame.height, .001f);
+    }
 }

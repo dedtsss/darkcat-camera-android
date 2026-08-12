@@ -1,4 +1,4 @@
-# DarkCat Camera 0.4 — ручная hardware-проверка
+# DarkCat Camera 0.5 — ручная hardware-проверка
 
 Статус документа: **NOT RUN**. Этот checklist не является подтверждением совместимости. Поля `PASS` заполняются только после реального прогона на устройстве.
 
@@ -10,7 +10,7 @@
 | OEM/build |  |
 | Android version / API |  |
 | Security patch |  |
-| DarkCat version | `0.4.0-field` |
+| DarkCat version | `0.5.0-field` |
 | APK SHA-256 |  |
 | Commit |  |
 | Debug/release signature |  |
@@ -32,7 +32,7 @@
 
 Для каждого пункта отмечать `PASS`, `FAIL`, `PARTIAL` или `N/A`, фактическое время/latency и короткую заметку. Crash/ANR требует stack trace и точных действий воспроизведения.
 
-## Обязательный checklist (41 пункт)
+## Обязательный checklist (54 пункта)
 
 1. **Запуск.** Статус: `____`. Cold start проходит без crash/ANR; preview появляется, основной DarkCat UI читаем и не налезает на upstream controls.
 
@@ -82,11 +82,11 @@
 
 24. **FAST workflow.** Статус: `____`. После camera callback сразу success haptic/готовность следующего кадра; recovery, stamp, encryption, DB и upload идут независимо.
 
-25. **EDIT workflow.** Статус: `____`. После callback сразу success haptic, recovery уже durable, открывается editor, Save создаёт vault item; закрытие/ошибка editor не теряет original recovery.
+25. **Explicit EDIT workflow.** Статус: `____`. После callback editor **не** открывается автоматически. Открыть последний кадр → «Редактировать» → добавить стрелку/круг/текст → Save; результат создаётся отдельно, закрытие/ошибка editor не теряет original.
 
 26. **Object editor.** Статус: `____`. Проверить crop, drawing, line, rectangle, ellipse, arrow, text, undo/redo; старую shape/text можно переизбрать, move/scale/rotate/recolor/restroke/delete. В текущем известном partial editor этот acceptance criterion ожидаемо не выполнен — фиксировать точные отсутствующие операции.
 
-27. **Secure Vault.** Статус: `____`. Secure Mode не оставляет plaintext в DCIM/MediaStore; Vault/thumbnail открываются после unlock, screenshot/recents скрыты, повреждённый encrypted file не decryptится.
+27. **Vault и screenshots.** Статус: `____`. Vault не оставляет plaintext в DCIM/MediaStore; Vault/thumbnail открываются после unlock, повреждённый encrypted file не decryptится. Screenshot/recents **не блокируются намеренно** во всех DarkCat экранах; не публиковать эти screenshots с чувствительными данными.
 
 28. **Screen OFF.** Статус: `____`. Включить Field Mode из видимой Activity, нажать power, подождать 1/5/15 min; notification остаётся, нет crash, камера/GPS состояние записать.
 
@@ -114,7 +114,33 @@
 
 40. **Recovery pending.** Статус: `____`. На тестовом кадре остановить процесс после success haptic/до vault commit; restart обнаруживает sidecar/media, не TTL-delete original и возобновляет non-EDIT processing либо показывает unresolved EDIT.
 
-41. **Diagnostics export.** Статус: `____`. JSON создаётся и содержит device/Android, all camera IDs, hardware level, physical IDs, focal lengths, AF/OIS, reprocessing/ZSL, streams/extensions, selected camera, service/GPS/volume state; media и точных координат нет.
+41. **Diagnostics export.** Статус: `____`. JSON создаётся и содержит device/Android, all camera IDs, hardware level, physical IDs, focal lengths, AF/OIS, reprocessing/ZSL, streams/extensions, выбранную камеру, service/GPS/volume state, Night-extension/Low-Light-Boost/exposure/ISO/AE capability и sync diagnostics; media и точных координат нет.
+
+42. **Storage shield.** Статус: `____`. Быстро переключить `Vault → Галерея → Vault`; feedback соответствует выбору, следующий кадр идёт только в выбранный backend, существующие originals не перемещаются.
+
+43. **MediaStore Gallery.** Статус: `____`. В Gallery mode JPEG появляется в `Pictures/DarkCat` и системной галерее; дата, sequence и shutter-time GPS совпадают с DarkCat Gallery/EXIF там, где OEM JPEG разрешает EXIF rewrite.
+
+44. **Last-shot / Viewer.** Статус: `____`. Thumbnail обновляется, открывает последний Vault и MediaStore кадр; swipe previous/next, Info, Share и Delete работают для обоих backends.
+
+45. **DarkCat Gallery.** Статус: `____`. Grid `Все` объединяет Vault и MediaStore без импорта чужих фото; multi-select, delete/share/edit и режим `По точкам` не теряют существующие shooting points.
+
+46. **Field storage routing.** Статус: `____`. Field Mode сохраняет один test JPEG в выбранный Vault либо MediaStore destination, durable file не удаляется до успешной destination routing.
+
+47. **Notification readiness.** Статус: `____`. Проверить `Камера готова`, `Камера запускается`, `Камера используется экраном` и ошибку по фактическому состоянию owner. Готовая session не показывает ложное «Откройте камеру для восстановления».
+
+48. **Haptic presets.** Статус: `____`. Для Слабый/Средний/Сильный протестировать success и fail; success остаётся коротким сразу после camera callback, fail длиннее/отличимее. Записать amplitude-support устройства.
+
+49. **WYSIWYG 4:3 viewport.** Статус: `____`. В portrait и landscape technical block/crosshair/watermark находятся в области будущего JPEG, не в letterbox/под controls; сравнить с final JPEG.
+
+50. **Physical lens selector.** Статус: `____`. Long press/popup выбора объектива показывает capability-derived readable labels и не делает слепой cycle raw IDs; записать фактические lenses и fallback.
+
+51. **Zoom presets.** Статус: `____`. Проверить только реально доступные values; `<1×` отсутствует без physical ultrawide и, если есть, переключает реальный wide/logical path, а не выдуманный crop.
+
+52. **OEM Night.** Статус: `____`. Export diagnostics до/после; при доступности включить `Ночь OEM`, проверить user hint «держите телефон неподвижно», fallback/disable в Field Mode и не заявлять качество без A/B notes.
+
+53. **Sync diagnostics.** Статус: `____`. Sync screen/export содержит pending, last worker start, last successful upload, last error и retry/next retry; выполнить длительный HyperOS/GrapheneOS background scenario отдельно.
+
+54. **No video ring buffer.** Статус: `____`. Убедиться, что включение видео не создаёт постоянную скрытую запись или расход хранилища вокруг photo shutter.
 
 ## Дополнительные доказательства
 
@@ -145,7 +171,7 @@ Latency table:
 
 ## Второй обязательный профиль: Xiaomi 12 Lite / Android 14 HyperOS 1
 
-Повторить пункты 1–41 на Xiaomi 12 Lite с Android 14 / HyperOS 1. Отдельно зафиксировать:
+Повторить пункты 1–54 на Xiaomi 12 Lite с Android 14 / HyperOS 1. Отдельно зафиксировать:
 
 1. Разрешение CAMERA/location/notifications и поведение HyperOS autostart/battery policy для обоих foreground services.
 2. Переживание screen off и настоящей блокировки; не считать открытый экран или только выключенный дисплей эквивалентом lockscreen.
