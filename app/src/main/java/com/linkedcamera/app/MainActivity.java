@@ -4410,9 +4410,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ) {
-            // we set this to prevent what's on the preview being used to show under the "recent apps" view - potentially useful
-            // for privacy reasons
-            setRecentsScreenshotEnabled(false);
+            // DarkCat deliberately allows screenshots and recents previews on every screen.
+            // Vault confidentiality is provided by encrypted storage, not by hiding the UI.
+            setRecentsScreenshotEnabled(true);
         }
 
         if( lock_to_landscape ) {

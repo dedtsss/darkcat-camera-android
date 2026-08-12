@@ -23,7 +23,7 @@ Primary targets: Google Pixel 7 / актуальная пользователь�
 - Чёрный технический stamp block справа снизу для coordinates/accuracy/sequence/tags/custom text; final flatten использует JPEG quality 100.
 - Crosshair OFF/PREVIEW/STAMP с настройкой цвета/размера/толщины; STAMP re-encode использует JPEG quality 100.
 - WYSIWYG geometry: center-crop mapping, preview/final crosshair alignment, technical stamp preview and PNG/WebP watermark with single/tiled layout.
-- Camera-style top/bottom UI with system-bar/display-cutout insets; DarkCat Settings остаётся screenshot-разрешённым, sensitive screens сохраняют защиту.
+- Camera-style top/bottom UI with system-bar/display-cutout insets; screenshots и recents намеренно разрешены на всех DarkCat экранах, а Vault encryption и lockscreen-safe FGS остаются защитой данных.
 - Shooting point domain model: spatial+temporal clustering, DRAFT/REVIEWED/UPLOADING/PUBLISHED/LOCKED lifecycle, merge/split guards, point batch metadata and point gallery.
 - AES-256-GCM vault, random provider-generated IV, Android Keystore, UUID filenames, encrypted thumbnails и credential-store IV crash fix.
 - Прямой atomic recovery handoff стандартного secure JPEG из camera callback (`tmp`/`fsync`/rename), app-private journal без TTL, restart resume и serial asynchronous post-capture executor.
