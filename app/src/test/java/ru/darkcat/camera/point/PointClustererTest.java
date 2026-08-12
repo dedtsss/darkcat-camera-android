@@ -35,6 +35,8 @@ public final class PointClustererTest {
 
     @Test public void publishedPointCannotBeAutomaticallyReclustered() {
         ShootingPoint point = ShootingPoint.draft(1, Arrays.asList(media("a", 1, 64d, 30d)))
+                .withLifecycle(PointLifecycle.REVIEWED)
+                .withLifecycle(PointLifecycle.UPLOADING)
                 .withLifecycle(PointLifecycle.PUBLISHED);
         assertTrue(!PointClusterer.canAutoRecluster(point));
     }
