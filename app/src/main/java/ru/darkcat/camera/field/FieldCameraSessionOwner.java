@@ -112,7 +112,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
             jpegReader.setOnImageAvailableListener(this::onJpegAvailable, cameraHandler);
             previewReader.setOnImageAvailableListener(reader -> closeLatest(reader), cameraHandler);
             cameraManager.openCamera(cameraId, stateCallback, cameraHandler);
-        } catch (RuntimeException failure) {
+        } catch (Exception failure) {
             Log.w(TAG, "open failed; will retry", failure);
             closeCamera();
             scheduleRetry();
@@ -167,7 +167,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                                 configured.setRepeatingRequest(preview.build(), null, cameraHandler);
                                 ready = true;
                                 Log.i(TAG, "service-owned Camera2 session ready id=" + cameraId);
-                            } catch (RuntimeException failure) {
+                            } catch (Exception failure) {
                                 Log.w(TAG, "repeating preview failed", failure);
                                 closeCamera();
                                 scheduleRetry();
@@ -182,7 +182,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                             scheduleRetry();
                         }
                     }, cameraHandler);
-        } catch (RuntimeException failure) {
+        } catch (Exception failure) {
             Log.w(TAG, "create session failed", failure);
             closeCamera();
             scheduleRetry();
@@ -205,7 +205,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                     finishFailure(callback);
                 }
             }, cameraHandler);
-        } catch (RuntimeException failure) {
+        } catch (Exception failure) {
             Log.w(TAG, "still capture failed to start", failure);
             finishFailure(callback);
         }
