@@ -16,7 +16,7 @@ DarkCat Camera использует настоящий системный locksc
 - не публикует thumbnails, tags, адреса или координаты в lockscreen notification;
 - не делает background camera невидимой: Field Mode всегда сопровождается foreground notification.
 
-Field/GPS notifications имеют `VISIBILITY_PRIVATE` и консервативную public version. Vault, Viewer, Editor, DarkCat Settings и Sync используют `FLAG_SECURE`; переход к чувствительным экранам из camera UI проходит через штатный keyguard challenge. Приложение сохраняет `allowBackup="false"`.
+Field/GPS notifications имеют `VISIBILITY_PRIVATE` и консервативную public version. Vault, Viewer, Editor и Sync используют `FLAG_SECURE`; DarkCat Settings намеренно остаётся screenshot-разрешённым для WYSIWYG/configuration support, а переход к чувствительным экранам из camera UI проходит через штатный keyguard challenge. Приложение сохраняет `allowBackup="false"`.
 
 ## Ключи и форматы
 
@@ -99,7 +99,7 @@ WebDAV Basic authentication допустим только поверх дове�
 
 1. Secure Mode требует Android Keystore AES-GCM (API 23+). Camera core продолжает поддерживать API 21/22, но этот путь не является проверенным secure vault.
 2. Pixel 7/GrapheneOS ещё не проверялся; нельзя заявлять, что камера останется открытой при screen off/lock или что Bluetooth Volume+ маршрутизируется service.
-3. Process recreation уничтожает Activity-owned camera session; требуется открыть Activity и восстановить camera bridge.
+3. Process recreation уничтожает service-owned camera session и MediaSession; требуется явный повторный запуск Field Mode. Уже fsync-нутый JPEG восстанавливается из app-private durable handoff, но shutter-time GPS metadata после process death может быть недоступна.
 4. Recovery plaintext защищён sandbox/device encryption, но не отдельным DarkCat AES-GCM до завершения pipeline.
 5. Android/GrapheneOS camera and microphone privacy toggles всегда имеют приоритет; приложение их не обходит.
 6. Основной стандартный JPEG path имеет прямой durable handoff, а завершённое видео — durable external-reference journal до async copy. Скрытые Advanced multi-frame/RAW пути сохраняют больше upstream lifecycle и требуют отдельной fault-injection/hardware проверки перед production claim `No DCIM plaintext` для каждой комбинации.

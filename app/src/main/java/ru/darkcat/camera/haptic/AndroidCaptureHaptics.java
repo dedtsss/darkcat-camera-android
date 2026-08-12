@@ -8,13 +8,13 @@ import android.os.VibratorManager;
 
 import java.util.Objects;
 
-/** Android vibrator implementation with a short success pulse and simple two-pulse failure. */
+/** Android vibrator implementation with immediate, distinguishable field-capture feedback. */
 public final class AndroidCaptureHaptics implements CaptureHaptics {
-    public static final long SUCCESS_DURATION_MILLIS = 35L;
-    public static final long[] FAILURE_PATTERN_MILLIS = {0L, 110L, 55L, 170L};
+    public static final long SUCCESS_DURATION_MILLIS = 55L;
+    public static final long[] FAILURE_PATTERN_MILLIS = {0L, 150L, 70L, 260L};
 
-    private static final int SUCCESS_AMPLITUDE = 96;
-    private static final int[] FAILURE_AMPLITUDES = {0, 180, 0, 255};
+    private static final int SUCCESS_AMPLITUDE = 180;
+    private static final int[] FAILURE_AMPLITUDES = {0, 220, 0, 255};
 
     private final Vibrator vibrator;
 

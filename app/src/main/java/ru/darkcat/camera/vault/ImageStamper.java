@@ -7,6 +7,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Matrix;
+import android.graphics.RectF;
+import android.net.Uri;
 import android.location.Location;
 import android.location.LocationManager;
 
@@ -14,12 +16,15 @@ import androidx.exifinterface.media.ExifInterface;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 
 import ru.darkcat.camera.data.CaptureContext;
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.stamp.TechnicalStampFormatter;
+import ru.darkcat.camera.ui.WatermarkConfig;
+import ru.darkcat.camera.ui.WatermarkLayout;
 
 /** Flattens DarkCat's simple black technical block and optional centered crosshair. */
 public final class ImageStamper {
@@ -41,7 +46,7 @@ public final class ImageStamper {
                 DarkCatSettings.stampTags(context),
                 DarkCatSettings.stampCustomText(context));
         boolean drawCrosshair = DarkCatSettings.CROSSHAIR_STAMP.equals(DarkCatSettings.crosshair(context));
-        if (lines.isEmpty() && !drawCrosshair) return;
+        if (lines.isEmpty() && !drawCrosshair && !DarkCatSettings.watermarkEnabled(context)) return;
 
         int orientation = new ExifInterface(file.getAbsolutePath()).getAttributeInt(
                 ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
@@ -59,6 +64,7 @@ public final class ImageStamper {
         }
         Canvas canvas = new Canvas(result);
 
+        drawWatermark(canvas, result, context);
         if (drawCrosshair) drawCrosshair(canvas, result, context);
         if (!lines.isEmpty()) drawTechnicalBlock(canvas, result, lines);
 
@@ -127,6 +133,46 @@ public final class ImageStamper {
         canvas.drawLine(cx - arm, cy, cx + arm, cy, paint);
         canvas.drawLine(cx, cy - arm, cx, cy + arm, paint);
         canvas.drawCircle(cx, cy, Math.max(arm * .25f, thickness), paint);
+    }
+
+    private static void drawWatermark(Canvas canvas, Bitmap result, Context context) {
+        if (!DarkCatSettings.watermarkEnabled(context)) return;
+        String uriText = DarkCatSettings.watermarkUri(context);
+        if (uriText == null || uriText.trim().isEmpty()) return;
+        Bitmap watermark = null;
+        try (InputStream input = context.getContentResolver().openInputStream(Uri.parse(uriText))) {
+            if (input == null) return;
+            watermark = BitmapFactory.decodeStream(input);
+            if (watermark == null) return;
+            WatermarkConfig config = watermarkConfig(context, uriText);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+            paint.setAlpha(Math.round(config.opacity * 255f));
+            for (WatermarkLayout.Box box : WatermarkLayout.boxes(result.getWidth(), result.getHeight(),
+                    watermark.getWidth(), watermark.getHeight(), config)) {
+                canvas.save();
+                if (config.angleDegrees != 0f)
+                    canvas.rotate(config.angleDegrees, (box.left + box.right) / 2f, (box.top + box.bottom) / 2f);
+                canvas.drawBitmap(watermark, null, new RectF(box.left, box.top, box.right, box.bottom), paint);
+                canvas.restore();
+            }
+        } catch (Exception ignored) {
+            // A missing optional watermark must never invalidate a captured JPEG.
+        } finally {
+            if (watermark != null && !watermark.isRecycled()) watermark.recycle();
+        }
+    }
+
+    private static WatermarkConfig watermarkConfig(Context context, String uri) {
+        String position = DarkCatSettings.watermarkPosition(context);
+        WatermarkConfig.Position value;
+        if ("top_left".equals(position)) value = WatermarkConfig.Position.TOP_LEFT;
+        else if ("top_right".equals(position)) value = WatermarkConfig.Position.TOP_RIGHT;
+        else if ("bottom_left".equals(position)) value = WatermarkConfig.Position.BOTTOM_LEFT;
+        else if ("center".equals(position)) value = WatermarkConfig.Position.CENTER;
+        else value = WatermarkConfig.Position.BOTTOM_RIGHT;
+        return new WatermarkConfig(true, uri, value, DarkCatSettings.watermarkSize(context),
+                DarkCatSettings.watermarkOpacity(context), DarkCatSettings.watermarkTiled(context),
+                DarkCatSettings.watermarkTileStep(context), DarkCatSettings.watermarkAngle(context));
     }
 
     private static Location captureLocation(CaptureContext captureContext) {

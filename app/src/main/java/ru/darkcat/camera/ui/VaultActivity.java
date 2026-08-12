@@ -93,6 +93,8 @@ public final class VaultActivity extends Activity {
         Button sync = button("Синхронизация", v -> startActivity(new Intent(this, SyncActivity.class)));
         Button settings = button("Настройки", v -> startActivity(new Intent(this, DarkCatSettingsActivity.class)));
         navigation.addView(sync, weight());
+        Button points = button("По точкам", v -> startActivity(new Intent(this, PointGalleryActivity.class)));
+        navigation.addView(points, weight());
         navigation.addView(settings, weight());
         list.addView(navigation, match());
         scroll.addView(list);

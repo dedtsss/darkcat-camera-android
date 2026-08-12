@@ -51,6 +51,7 @@ public final class DarkCatSettingsActivity extends Activity {
     private static final int REQUEST_LOCATION = 6102;
     private static final int REQUEST_NOTIFICATIONS = 6103;
     private static final int REQUEST_BACKGROUND_LOCATION = 6104;
+    private static final int REQUEST_WATERMARK = 6105;
 
     private enum PendingStart { NONE, GPS, FIELD }
 
@@ -78,6 +79,8 @@ public final class DarkCatSettingsActivity extends Activity {
     private Switch volumeShutter;
     private Switch videoStabilization;
     private Switch recordAudio;
+    private Switch watermarkEnabled;
+    private Switch watermarkTiled;
 
     private Spinner captureMode;
     private Spinner workflow;
@@ -89,6 +92,8 @@ public final class DarkCatSettingsActivity extends Activity {
     private Spinner crosshairSize;
     private Spinner crosshairThickness;
     private Spinner provider;
+    private Spinner watermarkPosition;
+    private TextView watermarkPath;
 
     private EditText maxAccuracy;
     private EditText currentSequence;
@@ -104,8 +109,6 @@ public final class DarkCatSettingsActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE);
         setTitle("Настройки DarkCat Camera");
         upstream = android.preference.PreferenceManager.getDefaultSharedPreferences(this);
         binding = true;
@@ -181,6 +184,19 @@ public final class DarkCatSettingsActivity extends Activity {
         stampCustom = toggle(content, "Штамп: свой текст", DarkCatSettings.stampCustomText(this));
         customStamp = field(content, "Свой текст", false, false);
         customStamp.setText(DarkCatSettings.customStampText(this));
+
+        section(content, "ВОДЯНОЙ ЗНАК", "Один и тот же image-space слой на preview и JPEG");
+        watermarkEnabled = toggle(content, "Показывать watermark", DarkCatSettings.watermarkEnabled(this));
+        watermarkTiled = toggle(content, "Повторять по всему кадру", DarkCatSettings.watermarkTiled(this));
+        watermarkPosition = spinner(content, "Позиция", new String[]{"Слева сверху", "Справа сверху",
+                "Слева снизу", "Справа снизу", "По центру"}, watermarkPositionIndex());
+        watermarkPath = note(content, watermarkLabel());
+        Button chooseWatermark = button("Выбрать PNG/WebP", v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*")
+                    .addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(intent, REQUEST_WATERMARK);
+        });
+        content.addView(chooseWatermark, match());
 
         section(content, "ХРАНИЛИЩЕ", "AES-256-GCM · Android Keystore · случайные UUID-имена");
         secure = toggle(content, "Защищённое хранилище", DarkCatSettings.isSecureMode(this));
@@ -317,6 +333,18 @@ public final class DarkCatSettingsActivity extends Activity {
                 Toast.makeText(this, "Без этого разрешения режим не запускается", Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_WATERMARK || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(uri,
+                    data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+        } catch (SecurityException ignored) { }
+        DarkCatSettings.set(this, "darkcat_watermark_uri", uri.toString());
+        if (watermarkPath != null) watermarkPath.setText(watermarkLabel());
     }
 
     private void showFieldSafety() {
@@ -534,6 +562,10 @@ public final class DarkCatSettingsActivity extends Activity {
         DarkCatSettings.set(this, "darkcat_stamp_custom_text_enabled", stampCustom.isChecked());
         DarkCatSettings.set(this, "darkcat_stamp_custom_text", customStamp.getText().toString().trim());
         DarkCatSettings.set(this, "darkcat_volume_shutter", volumeShutter.isChecked());
+        DarkCatSettings.set(this, "darkcat_watermark_enabled", watermarkEnabled.isChecked());
+        DarkCatSettings.set(this, "darkcat_watermark_tiled", watermarkTiled.isChecked());
+        DarkCatSettings.set(this, "darkcat_watermark_position", new String[]{"top_left", "top_right",
+                "bottom_left", "bottom_right", "center"}[watermarkPosition.getSelectedItemPosition()]);
 
         DarkCatSettings.set(this, "darkcat_provider", selectedProvider);
         DarkCatSettings.set(this, "darkcat_webdav_base", webdavBase.getText().toString().trim());
@@ -556,6 +588,20 @@ public final class DarkCatSettingsActivity extends Activity {
                 .putBoolean(PreferenceKeys.RecordAudioPreferenceKey, recordAudio.isChecked())
                 .apply();
         return true;
+    }
+
+    private int watermarkPositionIndex() {
+        String value = DarkCatSettings.watermarkPosition(this);
+        if ("top_left".equals(value)) return 0;
+        if ("top_right".equals(value)) return 1;
+        if ("bottom_left".equals(value)) return 2;
+        if ("center".equals(value)) return 4;
+        return 3;
+    }
+
+    private String watermarkLabel() {
+        String uri = DarkCatSettings.watermarkUri(this);
+        return uri == null || uri.trim().isEmpty() ? "Файл watermark не выбран" : "Выбран: " + uri;
     }
 
     private void applySequenceOnly() {

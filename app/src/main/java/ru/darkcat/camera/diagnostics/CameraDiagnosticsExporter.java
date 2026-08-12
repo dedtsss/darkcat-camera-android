@@ -24,7 +24,9 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Set;
 
+import ru.darkcat.camera.field.FieldCaptureBridge;
 import ru.darkcat.camera.field.FieldModeState;
+import ru.darkcat.camera.field.FieldTriggerDiagnostics;
 import ru.darkcat.camera.location.LocationSnapshotStore;
 
 /** Produces a media-free capability report suitable for Pixel hardware validation. */
@@ -58,6 +60,14 @@ public final class CameraDiagnosticsExporter {
         root.put("fieldModeRunning", FieldModeState.isRunning());
         root.put("gpsLockerRunning", LocationSnapshotStore.isLockerRunning());
         root.put("bluetoothVolumeTrigger", FieldModeState.isVolumeTriggerActive());
+        root.put("fieldServiceCameraReady", FieldCaptureBridge.isCameraBridgeReady());
+        FieldTriggerDiagnostics.Snapshot trigger = FieldTriggerDiagnostics.snapshot();
+        JSONObject triggerReport = new JSONObject();
+        triggerReport.put("total", trigger.total);
+        triggerReport.put("lastSource", trigger.lastSource);
+        triggerReport.put("lastKeyCode", trigger.lastKeyCode);
+        triggerReport.put("lastElapsedRealtime", trigger.lastElapsedRealtime);
+        root.put("fieldTriggerDiagnostics", triggerReport);
 
         LocationSnapshotStore.Snapshot location = LocationSnapshotStore.latest();
         JSONObject gps = new JSONObject();

@@ -58,6 +58,14 @@ public final class DarkCatSettings {
     public static String nextcloudShare(Context context) { return SecureCredentialStore.get(context, "nextcloud_share"); }
     public static long lastSuccessfulSync(Context context) { return longValue(context, "darkcat_last_sync_success", 0L); }
     public static boolean storageBlocked(Context context) { return prefs(context).getBoolean("darkcat_storage_blocked", false); }
+    public static boolean watermarkEnabled(Context context) { return prefs(context).getBoolean("darkcat_watermark_enabled", false); }
+    public static String watermarkUri(Context context) { return prefs(context).getString("darkcat_watermark_uri", ""); }
+    public static String watermarkPosition(Context context) { return prefs(context).getString("darkcat_watermark_position", "bottom_right"); }
+    public static float watermarkSize(Context context) { return floatValue(context, "darkcat_watermark_size", .22f); }
+    public static float watermarkOpacity(Context context) { return floatValue(context, "darkcat_watermark_opacity", .75f); }
+    public static boolean watermarkTiled(Context context) { return prefs(context).getBoolean("darkcat_watermark_tiled", false); }
+    public static float watermarkTileStep(Context context) { return floatValue(context, "darkcat_watermark_tile_step", .32f); }
+    public static float watermarkAngle(Context context) { return floatValue(context, "darkcat_watermark_angle", 0f); }
 
     public static void set(Context context, String key, Object value) {
         SharedPreferences.Editor editor = prefs(context).edit();

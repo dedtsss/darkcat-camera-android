@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="7"
-    android:versionName="0.3.0-field"
+    android:versionCode="8"
+    android:versionName="0.4.0-field"
     android:installLocation="auto"
     tools:ignore="GoogleAppIndexingWarning">
     <!-- ignore GoogleAppIndexingWarning as we don't want to implement that -->
@@ -146,6 +146,10 @@
             android:exported="false" />
         <activity
             android:name="ru.darkcat.camera.ui.SyncActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.PointGalleryActivity"
             android:excludeFromRecents="true"
             android:exported="false" />
 

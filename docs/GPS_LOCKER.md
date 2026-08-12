@@ -20,6 +20,8 @@ GPS Locker постоянно держит свежий GNSS fix для capture 
 
 Пользователь может включить GPS Locker самостоятельно или вместе с Field Mode. После boot `GpsBootReceiver` пытается восстановить только location service, если настройка была включена и выданы FINE + BACKGROUND LOCATION. Camera service на boot никогда не запускается. Платформа всё равно может отказать в старте; в таком случае пользователь восстанавливает locker из видимого приложения.
 
+В Field notification доступны независимые действия «Остановить камеру» и «Остановить всё». Первое закрывает только camera FGS, второе сбрасывает и Field Mode, и GPS Locker; остановка камеры сама по себе не должна silently выключать GPS Locker.
+
 Отказ typed foreground promotion либо запуска provider перехватывается внутри service: persisted running-setting сбрасывается, service останавливается, а процесс приложения не падает.
 
 GrapheneOS-specific Google APIs не нужны. Системные location toggles, per-app permissions и sensor/privacy policy имеют приоритет.

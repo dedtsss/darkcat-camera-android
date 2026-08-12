@@ -1,16 +1,16 @@
-# Google Pixel 7 / GrapheneOS — ручная проверка DarkCat Camera 0.3
+# DarkCat Camera 0.4 — ручная hardware-проверка
 
-Статус документа: **NOT RUN**. DarkCat Camera 0.3 ещё не тестировалась на реальном Pixel 7/GrapheneOS. Любые поля ниже заполняются только по факту.
+Статус документа: **NOT RUN**. Этот checklist не является подтверждением совместимости. Поля `PASS` заполняются только после реального прогона на устройстве.
 
 ## Паспорт прогона
 
 | Поле | Значение |
 | --- | --- |
-| Устройство | Google Pixel 7 |
-| GrapheneOS build |  |
+| Устройство | Google Pixel 7 / GrapheneOS **или** Xiaomi 12 Lite / Android 14 HyperOS 1 |
+| OEM/build |  |
 | Android version / API |  |
 | Security patch |  |
-| DarkCat version | `0.3.0-field` |
+| DarkCat version | `0.4.0-field` |
 | APK SHA-256 |  |
 | Commit |  |
 | Debug/release signature |  |
@@ -94,11 +94,11 @@
 
 30. **Bluetooth Volume+ while locked.** Статус: `____`. Сопрячь remote, включить Field Mode, реально заблокировать телефон, нажать Volume+; проверить camera callback, ровно один кадр/sequence и success haptic. Этот путь до теста считается неподтверждённым.
 
-31. **Short success vibration.** Статус: `____`. После фактического camera success чувствуется один короткий импульс (~35 ms), до завершения encryption/DB; не дублируется в burst/single shot.
+31. **Short success vibration.** Статус: `____`. После фактического camera success чувствуется один короткий усиленный импульс, до завершения encryption/DB; не дублируется в burst/single shot.
 
 32. **Long GPS-fail vibration.** Статус: `____`. При strict GPS rejection ощущается заметно более длинный двухимпульсный pattern; он отличается от success и не раздражающе длинный.
 
-33. **Lock/unlock without camera cold restart.** Статус: `____`. Повторить lock/unlock 10 раз и проверить session/camera ID/preview/capture latency. Если ОС закрывает Activity-owned session, измерить reopen и отметить `PARTIAL/FAIL`, не скрывать cold restart.
+33. **Lock/unlock without camera cold restart.** Статус: `____`. Повторить lock/unlock 10 раз и проверить service-owned session/camera ID, visible preview handoff и capture latency. Если ОС закрывает service session, измерить reopen и отметить `PARTIAL/FAIL`, не скрывать cold restart.
 
 34. **GPS remains warm while locked.** Статус: `____`. До lock получить GREEN, под lock подождать и переместиться на открытом месте; после unlock accuracy/age показывают непрерывные updates, а не старый cached fix/cold start.
 
@@ -142,3 +142,15 @@ Latency table:
 - Проверить отсутствие чувствительных данных в public notifications/log/export.
 - Записать known limitations и приложить sanitized diagnostics/logs к PR #2.
 - Оставить PR #2 OPEN/DRAFT; успешный checklist сам по себе не является разрешением на merge.
+
+## Второй обязательный профиль: Xiaomi 12 Lite / Android 14 HyperOS 1
+
+Повторить пункты 1–41 на Xiaomi 12 Lite с Android 14 / HyperOS 1. Отдельно зафиксировать:
+
+1. Разрешение CAMERA/location/notifications и поведение HyperOS autostart/battery policy для обоих foreground services.
+2. Переживание screen off и настоящей блокировки; не считать открытый экран или только выключенный дисплей эквивалентом lockscreen.
+3. Физический Bluetooth Volume+ / camera shutter routing и отсутствие duplicate capture.
+4. Reopen после camera disconnect, выбранные Camera2 IDs, logical/physical lenses и фактический JPEG resolution.
+5. Green/yellow/red GPS transitions, strict `7 m` gate, success/fail haptics и отсутствие потери кадров в серии.
+
+Если OEM policy требует вручную отключить battery optimization/autostart, записать это как prerequisite и не переносить результат на обычную пользовательскую конфигурацию.

@@ -1,6 +1,6 @@
-# Архитектура DarkCat Camera 0.3
+# Архитектура DarkCat Camera 0.4
 
-DarkCat Camera — отдельное Android-приложение с `applicationId` `ru.darkcat.camera`. Версия 0.3 сохраняет Linked Camera v1.4/Open Camera как камеру и добавляет продуктовые слои DarkCat вокруг неё. CameraX не является основной камерой и в этот vertical slice не добавлялся.
+DarkCat Camera — отдельное Android-приложение с `applicationId` `ru.darkcat.camera`. Версия 0.4 сохраняет Linked Camera v1.4/Open Camera как видимую камеру и добавляет service-owned locked capture, GPS Locker, WYSIWYG overlay и shooting points. CameraX не является основной камерой и в этот vertical slice не добавлялся.
 
 Основная цель текущей итерации — подготовить приложение к полевой проверке на Google Pixel 7 с GrapheneOS. Это не заявление об аппаратной совместимости: Pixel 7/GrapheneOS ещё не тестировался.
 
@@ -11,7 +11,7 @@ DarkCat Camera — отдельное Android-приложение с `applicati
 | `com.linkedcamera.app.*` | Linked/Open Camera preview, Camera1/Camera2, Camera2 physical camera ID, 3A, tap focus, фото/видео, flash и совместимость устройств |
 | `ru.darkcat.camera.capture` | Максимальная скорость/приоритет резкости, Camera2 3A snapshot, гироскоп, дешёвая оценка резкости и ранжирование кандидатов |
 | `ru.darkcat.camera.location` | Google-free GPS Locker на `LocationManager.GPS_PROVIDER`, возраст fix, GREEN/YELLOW/RED и strict capture gate |
-| `ru.darkcat.camera.field` | Явно запущенный пользователем camera foreground service, private notification, wake lock и process-local bridge к открытой camera Activity |
+| `ru.darkcat.camera.field` | Явно запущенный camera foreground service, private notification, wake lock, strong endpoint bridge и независимый service-owned Camera2 session при background/lock |
 | `ru.darkcat.camera.haptic` | Короткий success и отличимый fail; post-capture ошибки не переопределяют успешный кадр |
 | `ru.darkcat.camera.data` | Настройки, CaptureContext, sequence allocator, SQLite media/upload state |
 | `ru.darkcat.camera.tags` / `stamp` | Хранилище выбранных тегов и чистое форматирование технического блока |
@@ -67,15 +67,13 @@ Engine **ещё не заменяет JPEG, выбранный Camera2/Open Came
 
 ## Полевой режим и lockscreen
 
-`FieldModeService` — foreground service типа `camera`, который пользователь запускает из видимой Activity. Он держит visible private notification, partial wake lock и MediaSession/VolumeProvider adapter. Камерой продолжает владеть Linked Camera `MainActivity`; service вызывает тот же shutter path через weak process-local `FieldCaptureBridge`.
+`FieldModeService` — foreground service типа `camera`, который пользователь запускает из видимой Activity. Он держит visible private notification, partial wake lock и MediaSession/VolumeProvider adapter. `FieldCaptureBridge` содержит strong service endpoint, а не Activity `WeakReference`.
 
-Это фундамент удержания уже открытой session, а не независимый service-owned camera engine:
-
-- Activity и процесс живы — bridge может использовать тёплую camera session;
-- Activity/session были уничтожены системой — service не притворяется, что камера готова, а notification просит открыть камеру для восстановления;
-- process recreation требует reopen через Activity;
-- приложение не рисует поверх lockscreen, не показывает Vault и не разблокирует устройство;
-- camera FGS не стартует автоматически после boot.
+- Visible Activity сохраняет Linked/Open Camera engine и его physical-lens/quality UI.
+- При background/lock `FieldCameraSessionOwner` останавливает Activity session и владеет Camera2 device/session на собственном HandlerThread.
+- JPEG пишется app-private `tmp -> fsync -> atomic rename` до success handoff; при process death остаточный файл сканируется при следующем service start.
+- GPS gate, sequence/ticket and haptics остаются общими для visible и locked trigger paths.
+- Приложение не рисует поверх lockscreen, не показывает Vault и не разблокирует устройство; camera FGS не стартует автоматически после boot.
 
 Android 14+ запрещает произвольно создавать camera/location FGS из background, когда используются while-in-use permissions. Поэтому Field Mode запускается только в допустимом foreground state после явного действия пользователя. На Android 15+ camera FGS также нельзя восстанавливать из `BOOT_COMPLETED`. См. [официальные ограничения запуска FGS](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start), [типы foreground services](https://developer.android.com/develop/background-work/services/fgs/service-types) и [изменения Android 15](https://developer.android.com/about/versions/15/changes/foreground-service-types).
 
@@ -125,6 +123,12 @@ CAPTURED -> RECOVERY_PENDING -> ENCRYPTED -> QUEUED -> UPLOADING
 ```
 
 На практике первые два состояния существуют прежде всего в recovery journal, а SQLite media row создаётся при `ENCRYPTED`. HTTP 2xx означает `UPLOADED`, но не `VERIFIED`. Generic WebDAV подтверждает `VERIFIED` только успешным HEAD с точным `Content-Length`; отсутствие длины либо ошибка HEAD после принятого PUT оставляет `UPLOADED`. KEEP LOCAL — default, удаление возможно только после VERIFIED и явного opt-in.
+
+## Shooting points
+
+`PointClusterer` работает после capture и не блокирует shutter. Сначала media сортируются по времени, затем применяются две независимые границы: spatial radius по центру группы (default 5 m) и temporal gap (default 120 s с adaptive limit по наблюдаемым интервалам). Media без coordinates не смешиваются автоматически с координатными группами.
+
+`ShootingPoint` имеет стабильный UUID, display number, center/time range, individual media IDs, `pointShareUrl` и per-media share URLs. Lifecycle: `DRAFT -> REVIEWED -> UPLOADING -> PUBLISHED -> LOCKED`; после PUBLISHED/LOCKED автоматическая reclustering запрещена. Manual merge/split — explicit operations над draft/reviewed points. Point gallery и `PointBatchMetadata` уже используют этот контракт; server-side point batch upload/publish URL остаётся интеграционным gate.
 
 ## Diagnostics
 

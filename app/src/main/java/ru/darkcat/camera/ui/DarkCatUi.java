@@ -19,6 +19,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import com.linkedcamera.app.MainActivity;
 import com.linkedcamera.app.KeyguardUtils;
 import com.linkedcamera.app.R;
@@ -47,6 +51,10 @@ public final class DarkCatUi {
         installedActivity = new WeakReference<>(activity);
         FrameLayout preview = activity.findViewById(R.id.preview);
         if (preview != null) {
+            preview.addView(new WatermarkView(activity), new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            preview.addView(new TechnicalStampView(activity), new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
             preview.addView(new CrosshairView(activity), new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         }
@@ -130,6 +138,17 @@ public final class DarkCatUi {
                 RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
         bottomParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         root.addView(bottom, bottomParams);
+
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets safe = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            topParams.topMargin = safe.top;
+            bottomParams.bottomMargin = safe.bottom;
+            top.requestLayout();
+            bottom.requestLayout();
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(root);
 
         Runnable statusUpdater = new Runnable() {
             @Override public void run() {

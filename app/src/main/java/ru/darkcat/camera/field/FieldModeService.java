@@ -20,6 +20,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.util.Log;
 
 import androidx.core.content.ContextCompat;
 
@@ -29,22 +30,43 @@ import com.linkedcamera.app.R;
 import ru.darkcat.camera.data.DarkCatDatabase;
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.haptic.AndroidCaptureHaptics;
+import ru.darkcat.camera.haptic.CaptureHapticController;
 import ru.darkcat.camera.location.CaptureDecision;
 import ru.darkcat.camera.location.GpsIssue;
 import ru.darkcat.camera.location.GpsState;
 import ru.darkcat.camera.location.GpsLockerService;
+import ru.darkcat.camera.location.LocationFix;
 import ru.darkcat.camera.upload.UploadScheduler;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.Date;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /** User-started camera FGS. It never unlocks or draws over the system lockscreen. */
-public final class FieldModeService extends Service {
+public final class FieldModeService extends Service implements FieldCaptureBridge.Endpoint,
+        FieldCaptureController.Observer {
     public static final String ACTION_STOP = "ru.darkcat.camera.field.STOP";
+    public static final String ACTION_STOP_ALL = "ru.darkcat.camera.field.STOP_ALL";
     public static final String ACTION_SYNC = "ru.darkcat.camera.field.SYNC";
+    public static final String ACTION_ACTIVITY_VISIBLE = "ru.darkcat.camera.field.ACTIVITY_VISIBLE";
+    public static final String ACTION_ACTIVITY_BACKGROUND = "ru.darkcat.camera.field.ACTIVITY_BACKGROUND";
     private static final String CHANNEL = "darkcat_field_mode";
     private static final int NOTIFICATION_ID = 7301;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService artifactExecutor = Executors.newSingleThreadExecutor();
+    private static volatile FieldModeService activeService;
     private MediaSession mediaSession;
     private PowerManager.WakeLock wakeLock;
+    private FieldCameraSessionOwner cameraOwner;
+    private FieldCaptureController captureController;
+    // Service startup commonly comes from DarkCat Settings while MainActivity is paused. Treat
+    // that state as background until MainActivity explicitly hands ownership back in onResume.
+    private volatile boolean activityVisible;
+    private long lastExternalTriggerElapsedMs;
 
     private final Runnable notificationTicker = new Runnable() {
         @Override public void run() {
@@ -83,13 +105,55 @@ public final class FieldModeService extends Service {
         context.stopService(new Intent(context, FieldModeService.class));
     }
 
+    public static void stopEverything(Context context) {
+        DarkCatSettings.set(context, "darkcat_field_mode", false);
+        DarkCatSettings.set(context, "darkcat_gps_locker", false);
+        context.stopService(new Intent(context, FieldModeService.class).setAction(ACTION_STOP_ALL));
+        context.stopService(new Intent(context, GpsLockerService.class));
+    }
+
+    public static void handoffToVisibleActivity(Context context) {
+        FieldModeService service = activeService;
+        if (service != null) service.activityBecameVisible();
+        else context.startService(new Intent(context, FieldModeService.class).setAction(ACTION_ACTIVITY_VISIBLE));
+    }
+
+    public static void handoffToBackground(Context context) {
+        FieldModeService service = activeService;
+        if (service != null) service.activityBecameBackground();
+        else context.startService(new Intent(context, FieldModeService.class).setAction(ACTION_ACTIVITY_BACKGROUND));
+    }
+
     @Override public void onCreate() {
         super.onCreate();
+        activeService = this;
+        cameraOwner = new FieldCameraSessionOwner(this);
+        captureController = new FieldCaptureController(
+                () -> GpsLockerService.captureDecision(this),
+                cameraOwner,
+                new CaptureHapticController(new AndroidCaptureHaptics(this)),
+                this);
+        FieldCaptureBridge.attach(this);
         createChannel();
+        recoverDurableFieldJpegs();
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
+        if (ACTION_ACTIVITY_VISIBLE.equals(action)) {
+            activityBecameVisible();
+            return START_NOT_STICKY;
+        }
+        if (ACTION_ACTIVITY_BACKGROUND.equals(action)) {
+            activityBecameBackground();
+            return START_NOT_STICKY;
+        }
+        if (ACTION_STOP_ALL.equals(action)) {
+            DarkCatSettings.set(this, "darkcat_field_mode", false);
+            GpsLockerService.stop(this);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         if (ACTION_STOP.equals(action)) {
             DarkCatSettings.set(this, "darkcat_field_mode", false);
             stopSelf();
@@ -129,9 +193,12 @@ public final class FieldModeService extends Service {
     @Override public void onDestroy() {
         handler.removeCallbacks(notificationTicker);
         FieldModeState.updateDiagnostics(FieldModeState.DISABLED, false);
-        FieldCaptureBridge.stopCaptureSession();
+        FieldCaptureBridge.detach(this);
+        if (cameraOwner != null) cameraOwner.shutdown();
         releaseMediaSession();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        artifactExecutor.shutdownNow();
+        if (activeService == this) activeService = null;
         super.onDestroy();
     }
 
@@ -139,9 +206,8 @@ public final class FieldModeService extends Service {
 
     private void triggerFromVolume() {
         if (!DarkCatSettings.volumeShutterEnabled(this)) return;
-        if (!FieldCaptureBridge.requestCapture()) {
-            new AndroidCaptureHaptics(this).signalCaptureFailure();
-        }
+        FieldTriggerDiagnostics.record("volume-provider", android.view.KeyEvent.KEYCODE_VOLUME_UP);
+        if (!requestCapture()) new AndroidCaptureHaptics(this).signalCaptureFailure();
     }
 
     private void updateRuntimeState() {
@@ -166,12 +232,32 @@ public final class FieldModeService extends Service {
                 .setState(PlaybackState.STATE_PLAYING, 0L, 0f)
                 .build();
         mediaSession.setPlaybackState(state);
+        mediaSession.setCallback(new MediaSession.Callback() {
+            @Override public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                android.os.Parcelable parcelable = mediaButtonIntent == null ? null
+                        : mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                if (parcelable instanceof android.view.KeyEvent) {
+                    android.view.KeyEvent event = (android.view.KeyEvent) parcelable;
+                    Log.i("DarkCatFieldInput", "media-button key=" + event.getKeyCode()
+                            + " action=" + event.getAction() + " repeat=" + event.getRepeatCount());
+                    FieldTriggerDiagnostics.record("media-button", event.getKeyCode());
+                    if (event.getAction() == android.view.KeyEvent.ACTION_DOWN
+                            && event.getRepeatCount() == 0
+                            && isShutterKey(event.getKeyCode())) {
+                        triggerFromVolume();
+                        return true;
+                    }
+                }
+                return super.onMediaButtonEvent(mediaButtonIntent);
+            }
+        });
         mediaSession.setPlaybackToRemote(new VolumeProvider(VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, 50) {
             @Override public void onAdjustVolume(int direction) {
                 if (direction == AudioManager.ADJUST_RAISE) handler.post(FieldModeService.this::triggerFromVolume);
             }
         });
         mediaSession.setActive(true);
+        if (!activityVisible && cameraOwner != null) cameraOwner.start();
     }
 
     private void releaseMediaSession() {
@@ -232,8 +318,113 @@ public final class FieldModeService extends Service {
                 .setPublicVersion(publicVersion)
                 .addAction(R.drawable.ic_photo_camera_white_48dp, "Открыть камеру", open)
                 .addAction(R.drawable.ic_photo_camera_white_48dp, "Отправить очередь", sync)
-                .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить", stop)
+                .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить всё", stopAllIntent())
+                .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить камеру", stop)
                 .build();
+    }
+
+    private PendingIntent stopAllIntent() {
+        return PendingIntent.getService(this, 3,
+                new Intent(this, FieldModeService.class).setAction(ACTION_STOP_ALL), immutableUpdate());
+    }
+
+    private static boolean isShutterKey(int keyCode) {
+        return keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP
+                || keyCode == android.view.KeyEvent.KEYCODE_CAMERA
+                || keyCode == android.view.KeyEvent.KEYCODE_HEADSETHOOK
+                || keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                || keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY;
+    }
+
+    private void activityBecameVisible() {
+        activityVisible = true;
+        if (cameraOwner != null) cameraOwner.stop();
+        updateRuntimeState();
+    }
+
+    private void activityBecameBackground() {
+        activityVisible = false;
+        if (cameraOwner != null) cameraOwner.start();
+        updateRuntimeState();
+    }
+
+    @Override public boolean requestCapture() {
+        if (!DarkCatSettings.volumeShutterEnabled(this) || captureController == null) return false;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastExternalTriggerElapsedMs != 0L && now - lastExternalTriggerElapsedMs < 300L) return true;
+        lastExternalTriggerElapsedMs = now;
+        CaptureStartResult result = captureController.requestCapture();
+        return result.getStatus() == CaptureStartStatus.STARTED
+                || result.getStatus() == CaptureStartStatus.BLOCKED_BY_GPS;
+    }
+
+    @Override public boolean isCameraReady() {
+        return cameraOwner != null && cameraOwner.isReady();
+    }
+
+    @Override public void stopCaptureSession() {
+        if (cameraOwner != null) cameraOwner.stop();
+    }
+
+    @Override public void onCaptureBlocked(CaptureDecision decision) {
+        Log.i("DarkCatFieldInput", "capture blocked: " + decision.getBlockReason());
+    }
+
+    @Override public void onCameraCaptureSucceeded(LocationFix shutterLocation) {
+        // Success haptic is emitted by FieldCaptureController before this callback.
+    }
+
+    @Override public void onCameraCaptureFailed() {
+        Log.i("DarkCatFieldInput", "service-owned camera capture failed");
+    }
+
+    @Override public void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
+                                                   long capturedAt) {
+        if (durableJpeg == null || !durableJpeg.isFile()) return;
+        artifactExecutor.execute(() -> {
+            try {
+                byte[] jpeg = readBytes(durableJpeg);
+                ru.darkcat.camera.data.PhotoCaptureTicket ticket =
+                        ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(
+                                this, capturedAt, shutterLocation);
+                ru.darkcat.camera.vault.DarkCatCaptureCoordinator.stageCapturedJpeg(
+                        this, jpeg, ticket, new Date(capturedAt));
+                if (!durableJpeg.delete()) Log.w("DarkCatFieldCamera", "unable to delete staged JPEG");
+            } catch (Exception failure) {
+                Log.e("DarkCatFieldCamera", "field JPEG remains for recovery", failure);
+            }
+        });
+    }
+
+    /**
+     * A process death after the service-owned Camera2 write but before handoff must not discard
+     * the JPEG. Files are only removed after the normal recovery pipeline accepts them.
+     */
+    private void recoverDurableFieldJpegs() {
+        File root = new File(getFilesDir(), "darkcat-field-capture");
+        File[] pending = root.listFiles((directory, name) -> name != null && name.endsWith(".jpg"));
+        if (pending == null || pending.length == 0) return;
+        artifactExecutor.execute(() -> {
+            for (File file : pending) {
+                try {
+                    if (DarkCatSettings.isSecureMode(this)) {
+                        ru.darkcat.camera.vault.DarkCatCaptureCoordinator.interceptFile(this, file, false);
+                    }
+                } catch (RuntimeException failure) {
+                    Log.e("DarkCatFieldCamera", "durable field JPEG recovery deferred", failure);
+                }
+            }
+        });
+    }
+
+    private static byte[] readBytes(File file) throws Exception {
+        try (FileInputStream input = new FileInputStream(file);
+             ByteArrayOutputStream output = new ByteArrayOutputStream((int) Math.min(file.length(), 4_000_000L))) {
+            byte[] buffer = new byte[32 * 1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            return output.toByteArray();
+        }
     }
 
     private void createChannel() {

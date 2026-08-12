@@ -1,45 +1,48 @@
 package ru.darkcat.camera.field;
 
-import java.lang.ref.WeakReference;
+import java.util.Objects;
 
-/** Process-local adapter from the foreground service to the already-open Linked Camera Activity. */
+/**
+ * Process-local trigger endpoint owned by {@link FieldModeService}.
+ *
+ * <p>This is intentionally a strong, explicit endpoint rather than a WeakReference to an
+ * Activity. The service owns the locked-screen camera session; the visible Activity is only a
+ * UI/preview client and is never required for a background trigger.</p>
+ */
 public final class FieldCaptureBridge {
-    public interface Target {
-        /**
-         * Runs the same GPS-gated shutter path as the visible UI. Return true
-         * when the trigger was handled, including a GPS rejection that already
-         * emitted failure haptic; false means no feedback was emitted.
-         */
-        boolean requestFieldCapture();
+    public interface Endpoint {
+        /** Returns true when the request was handled or deliberately rejected with feedback. */
+        boolean requestCapture();
 
-        /** Current camera readiness; a live Activity reference alone is not sufficient. */
-        boolean isFieldCaptureReady();
+        boolean isCameraReady();
 
-        /** Close a camera that was deliberately kept warm after an explicit/service stop. */
-        void stopFieldCaptureSession();
+        void stopCaptureSession();
     }
 
-    private static volatile WeakReference<Target> target = new WeakReference<>(null);
+    private static volatile Endpoint endpoint;
 
-    public static void attach(Target value) { target = new WeakReference<>(value); }
-    public static void detach(Target value) {
-        Target current = target.get();
-        if (current == value) target.clear();
+    public static void attach(Endpoint value) {
+        endpoint = Objects.requireNonNull(value, "value");
+    }
+
+    public static void detach(Endpoint value) {
+        if (endpoint == value) endpoint = null;
     }
 
     public static boolean requestCapture() {
-        Target current = target.get();
-        return current != null && current.requestFieldCapture();
+        Endpoint value = endpoint;
+        return value != null && value.requestCapture();
     }
 
     public static boolean isCameraBridgeReady() {
-        Target current = target.get();
-        return current != null && current.isFieldCaptureReady();
+        Endpoint value = endpoint;
+        return value != null && value.isCameraReady();
     }
 
     public static void stopCaptureSession() {
-        Target current = target.get();
-        if (current != null) current.stopFieldCaptureSession();
+        Endpoint value = endpoint;
+        if (value != null) value.stopCaptureSession();
     }
+
     private FieldCaptureBridge() { }
 }

@@ -4,7 +4,7 @@
 
 Полевой режим — явно включаемый пользователем режим готовности камеры и GPS при background/screen off/штатном lockscreen. Он не является скрытой камерой и не имитирует блокировку.
 
-Текущий статус — **foundation, hardware validation pending**. Camera foreground service, notification, wake lock и trigger bridge реализованы, но удержание camera session и Bluetooth Volume+ на Google Pixel 7/GrapheneOS ещё не подтверждены.
+Текущий статус — **0.4 implementation complete, hardware validation pending**. Camera foreground service, независимая Camera2 session, notification, wake lock, GPS gate и trigger adapters реализованы. Удержание session и Bluetooth Volume+ на целевых устройствах ещё не подтверждены аппаратно.
 
 ## Пользовательский сценарий
 
@@ -12,7 +12,7 @@
 2. Включает «Полевой режим» и подтверждает safety screen.
 3. Поэтапно выдаёт CAMERA, notification и необходимые location permissions.
 4. Приложение запускает camera FGS и, если выбран GPS Locker, location FGS.
-5. Камера уже открыта и прогрета в Linked Camera Activity.
+5. В foreground камера использует зрелый Linked/Open Camera engine; после ухода Activity в background ownership передаётся service-owned Camera2 session.
 6. Пользователь штатной кнопкой питания выключает экран/блокирует Android.
 7. Приложение не снимает системную защиту; PIN/пароль/fingerprint остаются единственным lockscreen.
 8. Volume+ trigger при доступном routing вызывает тот же GPS-gated shutter path.
@@ -33,19 +33,20 @@ Safety screen должен явно сообщать: camera/GPS продолж�
 - публикует private ongoing notification с безопасным GPS/queue status;
 - никогда не открывает Vault и не рисует поверх lockscreen.
 
-### `MainActivity` и `FieldCaptureBridge`
+### `MainActivity`, `FieldModeService` и `FieldCaptureBridge`
 
-CameraDevice/session остаются собственностью Linked/Open Camera Activity. Activity регистрирует weak process-local target. Service может вызвать `requestFieldCapture()`, который переходит в UI thread и использует общий capture gate.
+`FieldCaptureBridge` содержит только сильную ссылку на явный service endpoint и не знает об Activity. `MainActivity` передаёт ownership-сигнал при `onResume`/`onPause`, но не является владельцем locked/background capture.
 
-Следствия этой границы важны:
+Когда Activity видима, снимки и lens/quality настройки идут через сохранённый Linked/Open Camera engine. Когда Activity уходит в background, `FieldModeService` останавливает Activity session и запускает `FieldCameraSessionOwner`: отдельный Camera2 controller с HandlerThread, JPEG/YUV readers, continuous AF/AE/AWB и повторным open после camera error/disconnect. JPEG сначала fsync-ится в app-private каталоге, затем передаётся в общий GPS-gated capture callback и recovery pipeline.
 
-- пока Activity/process живы, существующая session может оставаться OPEN/CONFIGURED/WARM;
-- foreground service повышает легитимность/видимость долгой camera работы, но не гарантирует, что конкретная ОС не закроет Activity-owned session;
-- если Activity, camera или process уничтожены, weak bridge недоступен;
-- notification показывает «Откройте камеру для восстановления», а не ложное «Камера готова»;
-- process recreation требует открытия Activity и быстрого reopen — service самостоятельно session не реконструирует.
+Следствия этой границы:
 
-Отдельный service-owned Camera2 controller в этой итерации не создавался, чтобы не дублировать и не рассинхронизировать зрелый Linked/Open Camera engine.
+- bridge и camera ownership не зависят от `WeakReference<MainActivity>`;
+- Activity/process живы — обычный engine сохраняет полный UI, physical-lens и advanced compatibility surface;
+- Activity в background/при screen off — service-owned session продолжает готовность к capture без View/Activity;
+- process death не теряет уже записанный service JPEG: при следующем service start оставшийся durable файл повторно передаётся в secure recovery;
+- notification показывает «Камера готова» только когда service-owned session действительно configured, иначе просит открыть камеру;
+- service-owned fallback intentionally использует Camera2 rear logical camera; выбор lens/quality остаётся за visible Linked/Open Camera UI.
 
 ### `GpsLockerService`
 
@@ -59,13 +60,13 @@ Sync не живёт в camera service и не блокирует shutter. Notif
 
 | Событие | Ожидаемое поведение текущей архитектуры |
 | --- | --- |
-| Activity visible | Пользователь может законно запустить camera/location FGS; camera bridge готов |
-| App background | FGS/notification остаются; Activity-owned session пытается остаться тёплой |
+| Activity visible | Пользователь может законно запустить camera/location FGS; снимки идут через Linked/Open Camera engine |
+| App background | Activity session закрывается, FGS запускает service-owned Camera2 session |
 | Screen off | Wake lock сохраняет CPU callbacks, но не держит экран и не отменяет OEM/GrapheneOS camera policy |
-| Real lock | Системный lockscreen остаётся; camera bridge может работать только если Activity/session не уничтожены |
-| Unlock/return | При живой session — продолжение; иначе Activity выполняет reopen |
-| Activity destroyed | Bridge становится unavailable; service не сообщает ложную готовность |
-| Process killed | Camera и MediaSession теряются; camera FGS `START_NOT_STICKY`, требуется явное открытие приложения |
+| Real lock | Системный lockscreen остаётся; service-owned session принимает разрешённый trigger |
+| Unlock/return | Service session останавливается, Activity возвращает Linked/Open Camera preview |
+| Activity destroyed | Service endpoint и session остаются независимыми от Activity |
+| Process killed | FGS `START_NOT_STICKY`; следующий явный старт восстанавливает session и durable JPEG handoff |
 | Reboot | Camera FGS не стартует; возможна только осторожная попытка location-only restore |
 | Camera privacy toggle/permission revoke | Android закрывает/не даёт camera; capture должен завершиться fail, без обхода системы |
 
@@ -96,7 +97,8 @@ Actions:
 
 - открыть камеру;
 - отправить очередь;
-- остановить режим.
+- остановить камеру;
+- остановить всё (Field Mode и GPS Locker).
 
 Notification имеет `VISIBILITY_PRIVATE`; public version сообщает только, что режим активен. Thumbnails, координаты, tags, CRM context и история съёмки не показываются.
 

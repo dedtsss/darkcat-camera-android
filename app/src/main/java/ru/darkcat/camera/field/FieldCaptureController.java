@@ -2,6 +2,7 @@ package ru.darkcat.camera.field;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.File;
 
 import ru.darkcat.camera.haptic.CaptureHapticController;
 import ru.darkcat.camera.location.CaptureDecision;
@@ -18,6 +19,10 @@ public final class FieldCaptureController {
 
         /** Start durable recovery/post-processing here; success haptic has already fired. */
         void onCameraCaptureSucceeded(LocationFix shutterLocation);
+
+        /** Called after success haptic with a durable app-private JPEG when available. */
+        default void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
+                                             long capturedAt) { }
 
         void onCameraCaptureFailed();
     }
@@ -54,6 +59,15 @@ public final class FieldCaptureController {
                 if (completed.compareAndSet(false, true)) {
                     haptics.onCameraCaptureSucceeded();
                     observer.onCameraCaptureSucceeded(shutterLocation);
+                }
+            }
+
+            @Override
+            public void onCameraCaptureSucceeded(File durableJpeg, long capturedAt) {
+                if (completed.compareAndSet(false, true)) {
+                    haptics.onCameraCaptureSucceeded();
+                    observer.onCameraCaptureSucceeded(shutterLocation);
+                    observer.onCameraCaptureArtifact(durableJpeg, shutterLocation, capturedAt);
                 }
             }
 
