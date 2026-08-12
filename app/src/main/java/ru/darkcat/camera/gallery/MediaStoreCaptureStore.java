@@ -2,6 +2,7 @@ package ru.darkcat.camera.gallery;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.ContentUris;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.location.Location;
@@ -31,6 +32,16 @@ import ru.darkcat.camera.vault.ImageStamper;
 public final class MediaStoreCaptureStore {
     public PublicMediaRecord saveJpeg(Context context, byte[] jpeg, String requestedName, int sequence,
                                       long capturedAt, CaptureContext captureContext) throws Exception {
+        return saveJpeg(context, jpeg, requestedName, sequence, capturedAt, captureContext, null);
+    }
+
+    /**
+     * A durable recovery sidecar supplies {@code publicationKey}; repeated retry then converges on
+     * one MediaStore row even if process death happened after publication but before the local index.
+     */
+    public PublicMediaRecord saveJpeg(Context context, byte[] jpeg, String requestedName, int sequence,
+                                      long capturedAt, CaptureContext captureContext,
+                                      String publicationKey) throws Exception {
         if (jpeg == null || jpeg.length < 4) throw new java.io.IOException("camera JPEG is empty");
         File staged = stagingFile(context, ".jpg");
         try (FileOutputStream output = new FileOutputStream(staged)) {
@@ -44,7 +55,7 @@ public final class MediaStoreCaptureStore {
         // ImageStamper flattens a bitmap when an overlay is present. Restore the exact fix that
         // was bound at shutter time, rather than consulting a newer live location here.
         writeCaptureLocationExif(staged, captureContext, capturedAt);
-        try { return publishFile(context, staged, requestedName, sequence, capturedAt, captureContext); }
+        try { return publishFile(context, staged, requestedName, sequence, capturedAt, captureContext, publicationKey); }
         finally { if (staged.exists()) { //noinspection ResultOfMethodCallIgnored
             staged.delete();
         } }
@@ -61,7 +72,7 @@ public final class MediaStoreCaptureStore {
             output.flush();
             output.getFD().sync();
         } finally { bitmap.recycle(); }
-        try { return publishFile(context, staged, requestedName, sequence, capturedAt, captureContext); }
+        try { return publishFile(context, staged, requestedName, sequence, capturedAt, captureContext, null); }
         finally { if (staged.exists()) { //noinspection ResultOfMethodCallIgnored
             staged.delete();
         } }
@@ -78,7 +89,17 @@ public final class MediaStoreCaptureStore {
 
     private PublicMediaRecord publishFile(Context context, File source, String requestedName,
                                           int sequence, long capturedAt,
-                                          CaptureContext captureContext) throws Exception {
+                                          CaptureContext captureContext, String publicationKey) throws Exception {
+        if (publicationKey != null && !publicationKey.trim().isEmpty()) {
+            PublicMediaRecord indexed = DarkCatDatabase.get(context).getGalleryMedia(publicationKey);
+            if (indexed != null) return indexed;
+            PublicMediaRecord published = findPublishedRecovery(context, publicationKey, sequence,
+                    capturedAt, captureContext);
+            if (published != null) {
+                DarkCatDatabase.get(context).insertGalleryMedia(published);
+                return published;
+            }
+        }
         ContentResolver resolver = context.getContentResolver();
         String displayName = displayName(requestedName, capturedAt);
         ContentValues values = new ContentValues();
@@ -86,6 +107,9 @@ public final class MediaStoreCaptureStore {
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
         values.put(MediaStore.Images.Media.DATE_TAKEN, capturedAt);
         values.put(MediaStore.Images.Media.DATE_ADDED, capturedAt / 1000L);
+        if (publicationKey != null && !publicationKey.trim().isEmpty()) {
+            values.put(MediaStore.Images.ImageColumns.DESCRIPTION, publicationKey);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             values.put(MediaStore.Images.Media.RELATIVE_PATH,
                     Environment.DIRECTORY_PICTURES + "/" + DarkCatPreferencePolicy.DARKCAT_MEDIASTORE_FOLDER);
@@ -108,7 +132,10 @@ public final class MediaStoreCaptureStore {
                 complete.put(MediaStore.Images.Media.IS_PENDING, 0);
                 resolver.update(uri, complete, null, null);
             }
-            PublicMediaRecord record = new PublicMediaRecord(UUID.randomUUID().toString(), uri.toString(),
+            PublicMediaRecord record = new PublicMediaRecord(
+                    publicationKey == null || publicationKey.trim().isEmpty()
+                            ? UUID.randomUUID().toString() : publicationKey,
+                    uri.toString(),
                     sequence, "image/jpeg", displayName, capturedAt, source.length(),
                     metadata(capturedAt, captureContext));
             DarkCatDatabase.get(context).insertGalleryMedia(record);
@@ -125,6 +152,31 @@ public final class MediaStoreCaptureStore {
         File root = new File(context.getCacheDir(), "darkcat-gallery-staging");
         if (!root.exists() && !root.mkdirs()) throw new java.io.IOException("gallery staging unavailable");
         return new File(root, UUID.randomUUID() + extension);
+    }
+
+    private static PublicMediaRecord findPublishedRecovery(Context context, String publicationKey,
+                                                            int sequence, long capturedAt,
+                                                            CaptureContext captureContext) {
+        String[] projection = new String[]{MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.SIZE};
+        android.database.Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    projection, MediaStore.Images.ImageColumns.DESCRIPTION + "=?",
+                    new String[]{publicationKey}, null);
+            if (cursor == null || !cursor.moveToFirst()) return null;
+            long id = cursor.getLong(0);
+            String displayName = cursor.getString(1);
+            long size = cursor.isNull(2) ? 0L : cursor.getLong(2);
+            return new PublicMediaRecord(publicationKey,
+                    ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id).toString(),
+                    sequence, "image/jpeg", displayName, capturedAt, size,
+                    metadata(capturedAt, captureContext));
+        } catch (RuntimeException ignored) {
+            return null;
+        } finally {
+            if (cursor != null) cursor.close();
+        }
     }
 
     private static String displayName(String requested, long capturedAt) {

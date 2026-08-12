@@ -31,6 +31,7 @@ import ru.darkcat.camera.data.DarkCatDatabase;
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.data.CaptureContext;
 import ru.darkcat.camera.gallery.MediaStoreCaptureStore;
+import ru.darkcat.camera.gallery.MediaStoreRecoveryJournal;
 import ru.darkcat.camera.haptic.AndroidCaptureHaptics;
 import ru.darkcat.camera.haptic.CaptureHapticController;
 import ru.darkcat.camera.location.CaptureDecision;
@@ -40,6 +41,7 @@ import ru.darkcat.camera.location.GpsLockerService;
 import ru.darkcat.camera.location.LocationFix;
 import ru.darkcat.camera.tags.TagRepository;
 import ru.darkcat.camera.upload.UploadScheduler;
+import ru.darkcat.camera.vault.RecoveryStore;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -94,25 +96,29 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         DarkCatSettings.set(context, "darkcat_field_mode", true);
         FieldModeState.updateDiagnostics(FieldModeState.STARTING, false);
         try {
+            // This is a Field-owned request. It must not silently become the user's persistent
+            // GPS Locker preference when Field Mode later stops.
+            GpsLockerService.startForFieldFromVisibleContext(context);
             ContextCompat.startForegroundService(context, new Intent(context, FieldModeService.class));
         } catch (RuntimeException deniedByPlatform) {
             DarkCatSettings.set(context, "darkcat_field_mode", false);
+            GpsLockerService.stopField(context);
             FieldModeState.updateDiagnostics(FieldModeState.ERROR, false);
             throw deniedByPlatform;
         }
-        if (DarkCatSettings.gpsLockerEnabled(context)) GpsLockerService.startFromVisibleContext(context);
     }
 
     public static void stop(Context context) {
         DarkCatSettings.set(context, "darkcat_field_mode", false);
+        GpsLockerService.stopField(context);
         context.stopService(new Intent(context, FieldModeService.class));
     }
 
     public static void stopEverything(Context context) {
         DarkCatSettings.set(context, "darkcat_field_mode", false);
-        DarkCatSettings.set(context, "darkcat_gps_locker", false);
+        DarkCatSettings.clearGpsLockerRequests(context);
         context.stopService(new Intent(context, FieldModeService.class).setAction(ACTION_STOP_ALL));
-        context.stopService(new Intent(context, GpsLockerService.class));
+        GpsLockerService.stopEverything(context);
     }
 
     public static void handoffToVisibleActivity(Context context) {
@@ -153,12 +159,13 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         }
         if (ACTION_STOP_ALL.equals(action)) {
             DarkCatSettings.set(this, "darkcat_field_mode", false);
-            GpsLockerService.stop(this);
+            GpsLockerService.stopEverything(this);
             stopSelf();
             return START_NOT_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
             DarkCatSettings.set(this, "darkcat_field_mode", false);
+            GpsLockerService.stopField(this);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -171,6 +178,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
             }
         } catch (RuntimeException promotionDenied) {
             DarkCatSettings.set(this, "darkcat_field_mode", false);
+            GpsLockerService.stopField(this);
             FieldModeState.updateDiagnostics(FieldModeState.ERROR, false);
             stopSelf();
             return START_NOT_STICKY;
@@ -179,6 +187,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
             ensureRuntimeStarted();
         } catch (RuntimeException runtimeUnavailable) {
             DarkCatSettings.set(this, "darkcat_field_mode", false);
+            GpsLockerService.stopField(this);
             FieldModeState.updateDiagnostics(FieldModeState.ERROR, false);
             stopSelf();
             return START_NOT_STICKY;
@@ -321,7 +330,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                 .addAction(R.drawable.ic_photo_camera_white_48dp, "Открыть камеру", open)
                 .addAction(R.drawable.ic_photo_camera_white_48dp, "Отправить очередь", sync)
                 .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить всё", stopAllIntent())
-                .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить камеру", stop)
+                .addAction(R.drawable.ic_photo_camera_white_48dp, "Остановить Field Mode", stop)
                 .build();
     }
 
@@ -383,23 +392,46 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     @Override public void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
                                                    long capturedAt) {
         if (durableJpeg == null || !durableJpeg.isFile()) return;
+        final boolean galleryDestination = DarkCatSettings.isMediaStoreMode(this);
+        final ru.darkcat.camera.data.PhotoCaptureTicket ticket;
+        final CaptureContext captureContext;
+        final RecoveryStore.PendingCapture galleryPending;
+        try {
+            // Bind all metadata at the shutter callback, before handing the durable file to an
+            // asynchronous publisher. Recovery must never consult a newer live fix after restart.
+            ticket = ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(
+                    this, capturedAt, shutterLocation);
+            CaptureContext base = CaptureContext.empty();
+            java.util.ArrayList<String> tags = new java.util.ArrayList<>(base.customTags);
+            for (String tag : new TagRepository(this).active()) if (!tags.contains(tag)) tags.add(tag);
+            captureContext = base.withTagsAndLocation(tags, shutterLocation);
+            galleryPending = galleryDestination
+                    ? MediaStoreRecoveryJournal.markPending(new RecoveryStore(durableJpeg.getParentFile()),
+                    durableJpeg, ticket.sequenceNumber, "DarkCat-Field-" + ticket.capturedAt + ".jpg",
+                    ticket.capturedAt, captureContext)
+                    : null;
+        } catch (Exception journalFailure) {
+            DarkCatSettings.set(this, "darkcat_storage_blocked", true);
+            Log.e("DarkCatFieldCamera", "unable to journal field JPEG", journalFailure);
+            return;
+        }
         artifactExecutor.execute(() -> {
             try {
                 byte[] jpeg = readBytes(durableJpeg);
-                ru.darkcat.camera.data.PhotoCaptureTicket ticket =
-                        ru.darkcat.camera.vault.DarkCatCaptureCoordinator.enqueuePhotoCaptureSuccess(
-                                this, capturedAt, shutterLocation);
-                if (DarkCatSettings.isVaultMode(this)) {
+                if (!galleryDestination) {
                     ru.darkcat.camera.vault.DarkCatCaptureCoordinator.stageCapturedJpeg(
                             this, jpeg, ticket, new Date(capturedAt));
                 } else {
-                    CaptureContext base = CaptureContext.empty();
-                    java.util.ArrayList<String> tags = new java.util.ArrayList<>(base.customTags);
-                    for (String tag : new TagRepository(this).active()) if (!tags.contains(tag)) tags.add(tag);
-                    CaptureContext context = base.withTagsAndLocation(tags, shutterLocation);
-                    new MediaStoreCaptureStore().saveJpeg(this, jpeg,
-                            "DarkCat-Field-" + capturedAt + ".jpg", ticket.sequenceNumber,
-                            ticket.capturedAt, context);
+                    RecoveryStore journal = new RecoveryStore(durableJpeg.getParentFile());
+                    new MediaStoreCaptureStore().saveJpeg(this, jpeg, galleryPending.displayName,
+                            galleryPending.sequenceNumber, galleryPending.capturedAt, captureContext,
+                            MediaStoreRecoveryJournal.publicationKey(galleryPending));
+                    // The sidecar remains until the durable source is removed. If this tiny cleanup
+                    // step is interrupted, retry converges on the same MediaStore row.
+                    if (!durableJpeg.delete()) throw new java.io.IOException("unable to delete staged JPEG");
+                    journal.clear(durableJpeg);
+                    DarkCatSettings.set(this, "darkcat_storage_blocked", false);
+                    return;
                 }
                 DarkCatSettings.set(this, "darkcat_storage_blocked", false);
                 if (!durableJpeg.delete()) Log.w("DarkCatFieldCamera", "unable to delete staged JPEG");
@@ -416,12 +448,24 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
      */
     private void recoverDurableFieldJpegs() {
         File root = new File(getFilesDir(), "darkcat-field-capture");
-        File[] pending = root.listFiles((directory, name) -> name != null && name.endsWith(".jpg"));
-        if (pending == null || pending.length == 0) return;
+        RecoveryStore journal = new RecoveryStore(root);
+        java.util.List<RecoveryStore.PendingCapture> pending = journal.listPending();
+        if (pending.isEmpty()) return;
         artifactExecutor.execute(() -> {
-            for (File file : pending) {
+            for (RecoveryStore.PendingCapture entry : pending) {
                 try {
-                    if (DarkCatSettings.isVaultMode(this)) {
+                    File file = entry.mediaFile;
+                    if (MediaStoreRecoveryJournal.isGallery(entry)) {
+                        CaptureContext context = MediaStoreRecoveryJournal.captureContext(entry);
+                        new MediaStoreCaptureStore().saveJpeg(this, readBytes(file), entry.displayName,
+                                entry.sequenceNumber, entry.capturedAt, context,
+                                MediaStoreRecoveryJournal.publicationKey(entry));
+                        if (!file.delete()) throw new java.io.IOException("unable to delete recovered JPEG");
+                        journal.clear(file);
+                        DarkCatSettings.set(this, "darkcat_storage_blocked", false);
+                    } else if (DarkCatSettings.isVaultMode(this)) {
+                        // Legacy pre-journal files had no destination metadata; preserve their old
+                        // vault recovery behavior rather than guessing a new Gallery route.
                         ru.darkcat.camera.vault.DarkCatCaptureCoordinator.interceptFile(this, file, false);
                     } else {
                         ru.darkcat.camera.data.PhotoCaptureTicket ticket =
@@ -431,6 +475,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                         if (!file.delete()) Log.w("DarkCatFieldCamera", "unable to delete recovered JPEG");
                     }
                 } catch (Exception failure) {
+                    DarkCatSettings.set(this, "darkcat_storage_blocked", true);
                     Log.e("DarkCatFieldCamera", "durable field JPEG recovery deferred", failure);
                 }
             }

@@ -28,6 +28,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.linkedcamera.app.PreferenceKeys;
+import com.linkedcamera.app.MainActivity;
+import com.linkedcamera.app.cameracontroller.CameraController;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import ru.darkcat.camera.crypto.SecureCredentialStore;
+import ru.darkcat.camera.capture.PhotoResolutionPolicy;
 import ru.darkcat.camera.data.DarkCatPreferencePolicy;
 import ru.darkcat.camera.data.DarkCatSettings;
 import ru.darkcat.camera.data.StorageMode;
@@ -89,6 +92,9 @@ public final class DarkCatSettingsActivity extends Activity {
     private Switch nightMode;
 
     private Spinner captureMode;
+    private Spinner photoResolution;
+    private Spinner flash;
+    private Spinner orientation;
     private Spinner storageMode;
     private Spinner hapticSuccess;
     private Spinner hapticFailure;
@@ -114,6 +120,7 @@ public final class DarkCatSettingsActivity extends Activity {
     private EditText webdavPassword;
     private LinearLayout nextcloudFields;
     private LinearLayout webdavFields;
+    private final ArrayList<PhotoResolutionPolicy.SizeValue> photoResolutionOptions = new ArrayList<>();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -132,6 +139,12 @@ public final class DarkCatSettingsActivity extends Activity {
         captureMode = spinner(content, "Режим съёмки",
                 new String[]{"Максимальная скорость", "Приоритет резкости"},
                 DarkCatSettings.CAPTURE_SHARP.equals(DarkCatSettings.captureMode(this)) ? 1 : 0);
+        photoResolutionOptions.addAll(supportedPhotoResolutions());
+        photoResolution = spinner(content, "Разрешение фото", resolutionLabels(), selectedResolutionIndex());
+        if (photoResolutionOptions.isEmpty()) {
+            photoResolution.setEnabled(false);
+            note(content, "Список появится после открытия выбранной камеры.");
+        }
         note(content, "После кадра: снимок остаётся в выбранном хранилище. Редактор открывается только из Viewer.");
         pausePreview = toggle(content, "Показывать снимок после съёмки",
                 upstream.getBoolean(PreferenceKeys.PausePreviewPreferenceKey, false));
@@ -142,11 +155,15 @@ public final class DarkCatSettingsActivity extends Activity {
         brightness = spinner(content, "Яркость снимка",
                 new String[]{"Темнее", "Обычная", "Светлее"},
                 exposureIndex(upstream.getString(PreferenceKeys.ExposurePreferenceKey, "0")));
+        flash = spinner(content, "Вспышка",
+                new String[]{"Авто", "Выкл.", "Вкл.", "Фонарь"}, flashIndex());
+        orientation = spinner(content, "Ориентация",
+                new String[]{"Авто", "Портрет", "Альбомная"}, orientationIndex());
         nightMode = toggle(content, "OEM Night (если камера заявляет capability)", DarkCatSettings.nightMode(this));
         note(content, "Используется только официальный Camera2/OEM extension. При отсутствии capability остаётся обычная съёмка.");
 
-        section(content, "ГЕОЛОКАЦИЯ", "GPS Locker держит свежий GNSS fix даже при выключенном экране");
-        gpsLocker = toggle(content, "GPS Locker", DarkCatSettings.gpsLockerEnabled(this));
+        section(content, "ГЕОЛОКАЦИЯ", "Field Mode поднимает GPS Locker сам; отдельный Locker можно держать постоянно");
+        gpsLocker = toggle(content, "Держать GPS Locker постоянно", DarkCatSettings.gpsLockerUserRequested(this));
         recordLocation = toggle(content, "Записывать координаты", upstream.getBoolean(PreferenceKeys.LocationPreferenceKey, true));
         strictGps = toggle(content, "Запрещать снимок без точного GPS", DarkCatSettings.strictGps(this));
         maxAccuracy = field(content, "Максимальная погрешность, м", false, true);
@@ -273,8 +290,8 @@ public final class DarkCatSettingsActivity extends Activity {
         });
         gpsLocker.setOnCheckedChangeListener((button, checked) -> {
             if (binding) return;
-            if (checked && !fieldMode.isChecked()) beginPermissionFlow(PendingStart.GPS);
-            else if (!checked && !fieldMode.isChecked()) GpsLockerService.stop(this);
+            if (checked) beginPermissionFlow(PendingStart.GPS);
+            else GpsLockerService.stopUser(this);
         });
 
         section(content, "ВИДЕО", "Дополнительные параметры разрешения доступны в расширенных настройках");
@@ -381,9 +398,6 @@ public final class DarkCatSettingsActivity extends Activity {
                         + "DarkCat не обходит экран блокировки и не показывает хранилище на нём. "
                         + "Режим можно остановить в приложении или из уведомления.")
                 .setPositiveButton("Понятно, включить", (dialog, which) -> {
-                    binding = true;
-                    gpsLocker.setChecked(true);
-                    binding = false;
                     beginPermissionFlow(PendingStart.FIELD);
                 })
                 .setNegativeButton("Отмена", (dialog, which) -> {
@@ -476,12 +490,11 @@ public final class DarkCatSettingsActivity extends Activity {
         try {
             if (requested == PendingStart.FIELD) {
                 DarkCatSettings.set(this, "darkcat_volume_shutter", volumeShutter.isChecked());
-                GpsLockerService.startFromVisibleContext(this);
                 FieldModeService.startFromVisibleActivity(this);
                 Toast.makeText(this, "Полевой режим включён", Toast.LENGTH_SHORT).show();
             } else if (requested == PendingStart.GPS) {
-                GpsLockerService.startFromVisibleContext(this);
-                Toast.makeText(this, "GPS Locker включён", Toast.LENGTH_SHORT).show();
+                GpsLockerService.startForUserFromVisibleContext(this);
+                Toast.makeText(this, "Постоянный GPS Locker включён", Toast.LENGTH_SHORT).show();
             }
         } catch (RuntimeException error) {
             binding = true;
@@ -499,12 +512,11 @@ public final class DarkCatSettingsActivity extends Activity {
             FieldModeService.stop(this);
         }
         if (!gpsLocker.isChecked()) {
-            DarkCatSettings.set(this, "darkcat_gps_locker", false);
-            GpsLockerService.stop(this);
+            GpsLockerService.stopUser(this);
         } else if (fieldMode.isChecked() && !FieldModeState.isRunning()) {
             showFieldSafety();
             return;
-        } else if (!fieldMode.isChecked() && !DarkCatSettings.gpsLockerEnabled(this)) {
+        } else if (!DarkCatSettings.gpsLockerUserRequested(this)) {
             beginPermissionFlow(PendingStart.GPS);
             return;
         } else if (fieldMode.isChecked()) {
@@ -568,6 +580,8 @@ public final class DarkCatSettingsActivity extends Activity {
                 ? StorageMode.VAULT : StorageMode.MEDIASTORE);
         DarkCatSettings.set(this, "darkcat_capture_mode", captureMode.getSelectedItemPosition() == 1
                 ? DarkCatSettings.CAPTURE_SHARP : DarkCatSettings.CAPTURE_MAX_SPEED);
+        persistPhotoResolution();
+        persistFlash();
         DarkCatSettings.set(this, "darkcat_night_mode", nightMode.isChecked());
         DarkCatSettings.set(this, "darkcat_gps_max_accuracy", accuracy);
         DarkCatSettings.set(this, "darkcat_strict_gps", strictGps.isChecked());
@@ -606,6 +620,8 @@ public final class DarkCatSettingsActivity extends Activity {
                 .putString(PreferenceKeys.WhiteBalancePreferenceKey, new String[]{"auto", "daylight",
                         "cloudy-daylight", "incandescent", "fluorescent"}[whiteBalance.getSelectedItemPosition()])
                 .putString(PreferenceKeys.ExposurePreferenceKey, new String[]{"-1", "0", "1"}[brightness.getSelectedItemPosition()])
+                .putString(PreferenceKeys.LockOrientationPreferenceKey,
+                        new String[]{"none", "portrait", "landscape"}[orientation.getSelectedItemPosition()])
                 .putString(PreferenceKeys.StampGPSFormatPreferenceKey, coordinateFormat.getSelectedItemPosition() == 1
                         ? "preference_stamp_gpsformat_dms" : "preference_stamp_gpsformat_default")
                 .putString(PreferenceKeys.VolumeKeysPreferenceKey, "volume_nothing")
@@ -623,6 +639,77 @@ public final class DarkCatSettingsActivity extends Activity {
         if ("bottom_left".equals(value)) return 2;
         if ("center".equals(value)) return 4;
         return 3;
+    }
+
+    private List<PhotoResolutionPolicy.SizeValue> supportedPhotoResolutions() {
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        if (activity == null || activity.getPreview() == null) return new ArrayList<>();
+        List<CameraController.Size> sizes = activity.getPreview().getSupportedPictureSizes(false);
+        ArrayList<PhotoResolutionPolicy.SizeValue> result = new ArrayList<>();
+        if (sizes != null) for (CameraController.Size size : sizes) {
+            if (size == null || size.width <= 0 || size.height <= 0 || containsSize(result, size.width, size.height)) continue;
+            result.add(new PhotoResolutionPolicy.SizeValue(size.width, size.height));
+        }
+        java.util.Collections.sort(result, (left, right) -> Long.compare(right.pixels(), left.pixels()));
+        return result;
+    }
+
+    private String[] resolutionLabels() {
+        if (photoResolutionOptions.isEmpty()) return new String[]{"Камера открывается…"};
+        String[] labels = new String[photoResolutionOptions.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = PhotoResolutionPolicy.label(photoResolutionOptions.get(i));
+        return labels;
+    }
+
+    private int selectedResolutionIndex() {
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        if (activity != null && activity.getPreview() != null) {
+            CameraController.Size current = activity.getPreview().getCurrentPictureSize();
+            if (current != null) for (int i = 0; i < photoResolutionOptions.size(); i++) {
+                PhotoResolutionPolicy.SizeValue candidate = photoResolutionOptions.get(i);
+                if (candidate.width == current.width && candidate.height == current.height) return i;
+            }
+        }
+        return 0;
+    }
+
+    private void persistPhotoResolution() {
+        if (photoResolutionOptions.isEmpty() || photoResolution == null) return;
+        int index = photoResolution.getSelectedItemPosition();
+        if (index < 0 || index >= photoResolutionOptions.size()) return;
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        if (activity == null) return;
+        PhotoResolutionPolicy.SizeValue selected = photoResolutionOptions.get(index);
+        activity.getApplicationInterface().setCameraResolutionPref(selected.width, selected.height);
+    }
+
+    /** Uses the retained Camera2 controller preference rather than exposing upstream keys. */
+    private int flashIndex() {
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        String value = activity == null ? "flash_auto" : activity.getApplicationInterface().getFlashPref();
+        return valueIndex(value, new String[]{"flash_auto", "flash_off", "flash_on", "flash_torch"});
+    }
+
+    private void persistFlash() {
+        if (flash == null) return;
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        if (activity == null || activity.getPreview() == null) return;
+        String value = new String[]{"flash_auto", "flash_off", "flash_on", "flash_torch"}
+                [flash.getSelectedItemPosition()];
+        activity.getPreview().updateFlash(value);
+    }
+
+    private int orientationIndex() {
+        String value = upstream.getString(PreferenceKeys.LockOrientationPreferenceKey, "none");
+        if ("portrait".equals(value)) return 1;
+        if ("landscape".equals(value)) return 2;
+        return 0;
+    }
+
+    private static boolean containsSize(List<PhotoResolutionPolicy.SizeValue> values, int width, int height) {
+        for (PhotoResolutionPolicy.SizeValue value : values)
+            if (value.width == width && value.height == height) return true;
+        return false;
     }
 
     private String watermarkLabel() {

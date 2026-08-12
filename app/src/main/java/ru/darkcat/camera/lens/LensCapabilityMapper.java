@@ -28,7 +28,9 @@ public final class LensCapabilityMapper {
         if (front) return "Фронт";
         if (!(focal > 0f) || !(standard > 0f)) return "Линза";
         float ratio = focal / standard;
-        String type = ratio < .80f ? "Широкая" : ratio > 1.25f ? "Телефото" : "Основная";
+        String type = ratio < .65f ? "Ультраширокоугольная"
+                : ratio < .80f ? "Широкоугольная"
+                : ratio > 1.25f ? "Телефото" : "Основная";
         return type + " " + String.format(Locale.US, "%.1f×", ratio);
     }
 

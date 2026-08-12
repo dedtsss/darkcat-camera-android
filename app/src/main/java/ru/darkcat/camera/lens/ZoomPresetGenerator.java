@@ -15,12 +15,31 @@ public final class ZoomPresetGenerator {
     public static List<Preset> generate(float[] ratios, boolean physicalWideAvailable) {
         ArrayList<Preset> result = new ArrayList<>();
         if (ratios == null || ratios.length == 0) return result;
-        if (physicalWideAvailable && ratios[0] < .98f) add(result, new Preset(0, ratios[0]));
-        for (float target : new float[]{1f, 2f, 3f, 5f}) {
-            int index = closest(ratios, target);
-            if (index >= 0) add(result, new Preset(index, ratios[index]));
-        }
+        float minimum = min(ratios), maximum = max(ratios);
+        if (physicalWideAvailable && minimum > 0f && minimum < .98f)
+            add(result, new Preset(closest(ratios, minimum), minimum));
+        add(result, presetNear(ratios, 1f));
+        // Do not turn a 1.0/1.1/1.2 controller range into a row of misleading quick buttons.
+        if (maximum >= 1.60f) add(result, presetNear(ratios, 2f));
+        if (maximum >= 4.20f) add(result, presetNear(ratios, 5f));
         if (result.isEmpty()) add(result, new Preset(closest(ratios, 1f), ratios[closest(ratios, 1f)]));
+        return result;
+    }
+
+    private static Preset presetNear(float[] ratios, float target) {
+        int index = closest(ratios, target);
+        return index < 0 ? null : new Preset(index, ratios[index]);
+    }
+
+    private static float min(float[] ratios) {
+        float result = Float.POSITIVE_INFINITY;
+        for (float ratio : ratios) if (ratio > 0f && ratio < result) result = ratio;
+        return result == Float.POSITIVE_INFINITY ? 0f : result;
+    }
+
+    private static float max(float[] ratios) {
+        float result = 0f;
+        for (float ratio : ratios) if (ratio > result) result = ratio;
         return result;
     }
 
@@ -35,7 +54,7 @@ public final class ZoomPresetGenerator {
     }
 
     private static void add(List<Preset> presets, Preset candidate) {
-        if (candidate.index < 0) return;
+        if (candidate == null || candidate.index < 0) return;
         for (Preset present : presets) if (present.index == candidate.index) return;
         presets.add(candidate);
     }

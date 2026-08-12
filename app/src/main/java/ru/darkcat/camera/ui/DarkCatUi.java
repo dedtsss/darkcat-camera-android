@@ -76,15 +76,13 @@ public final class DarkCatUi {
     public static void install(MainActivity activity) {
         installedActivity = new WeakReference<>(activity);
         DarkCatPreferencePolicy.normalize(activity);
-        FrameLayout preview = activity.findViewById(R.id.preview);
-        if (preview != null) installCaptureOverlays(activity, preview);
+        reapplyChrome(activity);
         RelativeLayout root = activity.findViewById(R.id.main_layout);
         if (root == null || root.findViewWithTag(ROOT_TAG) != null) return;
-        hideUpstreamChrome(activity);
         root.addOnLayoutChangeListener((view, left, topEdge, right, bottomEdge, oldLeft, oldTop, oldRight, oldBottom) -> hideUpstreamChrome(activity));
 
         LinearLayout top = new LinearLayout(activity); top.setTag(ROOT_TAG); top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(activity, 6), dp(activity, 5), dp(activity, 6), dp(activity, 5)); top.setBackgroundColor(0xb8000000);
+        top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(activity, 7), dp(activity, 8), dp(activity, 7), dp(activity, 8)); top.setBackgroundColor(0xb8000000);
         TextView gps = statusChip(activity), sequence = statusChip(activity), sync = statusChip(activity), shield = statusChip(activity), field = statusChip(activity);
         top.addView(gps, weighted()); top.addView(sequence, weighted()); top.addView(sync, weighted()); top.addView(shield, weighted()); top.addView(field, weighted());
         gps.setOnClickListener(v -> showGpsQuickPanel(activity));
@@ -134,12 +132,22 @@ public final class DarkCatUi {
         gps.post(update);
     }
 
+    /** Safe to call after resume, rotation, or a retained engine mode/lens change. */
+    public static void reapplyChrome(MainActivity activity) {
+        if (activity == null) return;
+        installedActivity = new WeakReference<>(activity);
+        FrameLayout preview = activity.findViewById(R.id.preview);
+        if (preview != null) installCaptureOverlays(activity, preview);
+        hideUpstreamChrome(activity);
+    }
+
     private static void installCaptureOverlays(MainActivity activity, FrameLayout preview) {
         if (preview.findViewWithTag(WATERMARK_TAG) == null) { WatermarkView view = new WatermarkView(activity); view.setTag(WATERMARK_TAG); preview.addView(view, cover()); }
         if (preview.findViewWithTag(STAMP_TAG) == null) { TechnicalStampView view = new TechnicalStampView(activity); view.setTag(STAMP_TAG); preview.addView(view, cover()); }
         if (preview.findViewWithTag(CROSSHAIR_TAG) == null) { CrosshairView view = new CrosshairView(activity); view.setTag(CROSSHAIR_TAG); preview.addView(view, cover()); }
     }
 
+    @SuppressLint("SetTextI18n") // Compact product status is intentionally Russian-only in this 0.5 surface.
     private static void renderStatus(MainActivity activity, TextView gps, TextView sequence, TextView sync, TextView shield, TextView field,
                                      Button flash, Button tags, Button photoVideo, Button night, Button lens, LinearLayout zooms, ImageButton last) {
         updateOverlayOutputSize(activity);
@@ -148,7 +156,7 @@ public final class DarkCatUi {
         sequence.setText(DarkCatSettings.sequenceEnabled(activity) ? "№" + String.format(java.util.Locale.US, "%05d", DarkCatSettings.currentPhotoSequence(activity)) : "№ выкл.");
         UploadQueueSummary queue = DarkCatDatabase.get(activity).queueSummary(); boolean storageError = DarkCatSettings.storageBlocked(activity);
         sync.setText(storageError ? "Облако !" : "Облако " + queue.pending + (queue.errors > 0 ? " !" : queue.uploading > 0 ? " ↑" : "")); sync.setTextColor(storageError || queue.errors > 0 ? 0xffff7777 : Color.WHITE);
-        boolean vault = DarkCatSettings.isVaultMode(activity); shield.setText(vault ? "Щит Vault" : "Галерея"); shield.setTextColor(vault ? 0xff72e59c : 0xffffd166);
+        boolean vault = DarkCatSettings.isVaultMode(activity); shield.setText(vault ? "Vault" : "Галерея"); shield.setTextColor(vault ? 0xff72e59c : 0xffffd166);
         field.setText(FieldModeState.isRunning() ? "Field ●" : "Field ○"); field.setTextColor(FieldModeState.isRunning() ? 0xff72e59c : Color.LTGRAY);
         photoVideo.setText(activity.getPreview() != null && activity.getPreview().isVideo() ? "Фото" : "Видео"); flash.setText(flashLabel(activity));
         boolean nightAvailable = supportsOemNight(activity); night.setText(DarkCatSettings.nightMode(activity) && nightAvailable ? "Ночь OEM" : nightAvailable ? "Ночь" : "Ночь —"); night.setEnabled(nightAvailable && !FieldModeState.isRunning());
@@ -242,6 +250,9 @@ public final class DarkCatUi {
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(activity, "Нужно разрешение камеры: откройте Полевой режим в настройках", Toast.LENGTH_LONG).show(); openProductSettings(activity); return;
         }
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(activity, "Для Field Mode нужна точная геолокация: откройте Полевой режим в настройках", Toast.LENGTH_LONG).show(); openProductSettings(activity); return;
+        }
         try { FieldModeService.startFromVisibleActivity(activity); Toast.makeText(activity, "Field Mode запускается", Toast.LENGTH_SHORT).show(); }
         catch (RuntimeException error) { Toast.makeText(activity, "Не удалось запустить Field Mode", Toast.LENGTH_LONG).show(); }
     }
@@ -256,6 +267,11 @@ public final class DarkCatUi {
     static boolean openAdvancedSettings(android.app.Activity caller) {
         MainActivity activity = installedActivity.get(); if (activity == null || activity.isFinishing()) { Toast.makeText(caller, "Камера должна быть открыта для расширенных настроек", Toast.LENGTH_LONG).show(); return false; }
         caller.finish(); activity.openSettings(); return true;
+    }
+    /** The retained camera activity is the only source for current-lens capability lists. */
+    public static MainActivity activeCameraActivity() {
+        MainActivity activity = installedActivity.get();
+        return activity == null || activity.isFinishing() || activity.isDestroyed() ? null : activity;
     }
     private static void openProductSettings(MainActivity activity) { activity.startActivity(new Intent(activity, DarkCatSettingsRootActivity.class)); }
 
@@ -352,7 +368,10 @@ public final class DarkCatUi {
         CameraController.Facing facing = manager.getFacing(logical);
         if (facing == CameraController.Facing.FACING_FRONT) return "Фронт";
         String description = manager.getDescription(activity, logical);
-        if (description == null || description.trim().isEmpty()) return logical == 0 ? "Основная" : "Дополнительная задняя камера";
+        if (description == null || description.trim().isEmpty()
+                || description.toLowerCase(java.util.Locale.US).contains("camera id")
+                || description.matches("(?i).*\\bcamera\\s*(id\\s*)?\\d+\\b.*"))
+            return logical == 0 ? "Основная" : "Дополнительная задняя камера";
         return description;
     }
 
@@ -382,7 +401,7 @@ public final class DarkCatUi {
     private static String flashLabel(MainActivity activity) { String value = activity.getApplicationInterface().getFlashPref(); if ("flash_auto".equals(value) || "flash_frontscreen_auto".equals(value)) return "⚡ авто"; if ("flash_on".equals(value) || "flash_frontscreen_on".equals(value)) return "⚡ вкл."; if ("flash_torch".equals(value)) return "Фонарь"; return "⚡"; }
     private static Button control(MainActivity activity, String text, View.OnClickListener listener) { Button b = new Button(activity); b.setAllCaps(false); b.setText(text); b.setTextColor(Color.WHITE); b.setTextSize(12f); b.setMinWidth(0); b.setMinHeight(0); b.setPadding(dp(activity, 7), dp(activity, 4), dp(activity, 7), dp(activity, 4)); GradientDrawable background = new GradientDrawable(); background.setColor(0xbb20242a); background.setCornerRadius(dp(activity, 18)); background.setStroke(dp(activity, 1), 0x667f8b99); b.setBackground(background); b.setOnClickListener(listener); return b; }
     private static ImageButton lastShotButton(MainActivity activity) { ImageButton b = new ImageButton(activity); b.setImageResource(R.drawable.ic_photo_camera_white_48dp); b.setScaleType(ImageButton.ScaleType.CENTER_CROP); GradientDrawable background = new GradientDrawable(); background.setColor(0xbb20242a); background.setCornerRadius(dp(activity, 25)); b.setBackground(background); b.setContentDescription("Последний снимок"); return b; }
-    private static TextView statusChip(MainActivity activity) { TextView t = new TextView(activity); t.setTextColor(Color.WHITE); t.setTextSize(11f); t.setGravity(Gravity.CENTER); t.setSingleLine(true); t.setPadding(dp(activity, 2), dp(activity, 7), dp(activity, 2), dp(activity, 7)); return t; }
+    private static TextView statusChip(MainActivity activity) { TextView t = new TextView(activity); t.setTextColor(Color.WHITE); t.setTextSize(13.5f); t.setGravity(Gravity.CENTER); t.setSingleLine(true); t.setPadding(dp(activity, 3), dp(activity, 9), dp(activity, 3), dp(activity, 9)); return t; }
     private static FrameLayout.LayoutParams cover() { return new FrameLayout.LayoutParams(-1, -1); }
     private static LinearLayout.LayoutParams weighted() { return new LinearLayout.LayoutParams(0, -2, 1f); }
     private static LinearLayout.LayoutParams compactControl(MainActivity activity) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(activity, 38), 1f); p.setMargins(dp(activity, 2), 0, dp(activity, 2), 0); return p; }

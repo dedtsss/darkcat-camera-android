@@ -172,7 +172,7 @@ public final class GalleryActivity extends Activity {
             for (GalleryItem item : selectedItems) {
                 if (item.source == GalleryItem.Source.MEDIASTORE) uris.add(item.publicUri);
                 else {
-                    File decrypted = new VaultRepository(this).decryptToCache(item.vaultRecord);
+                    File decrypted = new VaultRepository(this).decryptForShare(item.vaultRecord);
                     if (decrypted == null) throw new java.io.IOException("Vault source unavailable");
                     uris.add(FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", decrypted));
                 }

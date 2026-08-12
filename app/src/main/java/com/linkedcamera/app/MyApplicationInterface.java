@@ -637,14 +637,17 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         }
 
         // New installs get a readable 4:3 default derived from this camera's actual stream list.
-        // A user-selected upstream resolution remains authoritative.
-        if (result == null && photo_mode == PhotoMode.Standard) {
+        // A user-selected upstream resolution remains authoritative only while this lens still
+        // supports it; another physical/logical lens gets a safe capability-derived fallback.
+        if (photo_mode == PhotoMode.Standard) {
             List<CameraController.Size> sizes = main_activity.getPreview().getSupportedPictureSizes(false);
             ArrayList<PhotoResolutionPolicy.SizeValue> options = new ArrayList<>();
             if (sizes != null) for (CameraController.Size size : sizes) {
                 options.add(new PhotoResolutionPolicy.SizeValue(size.width, size.height));
             }
-            PhotoResolutionPolicy.SizeValue selected = PhotoResolutionPolicy.chooseDefault(options,
+            PhotoResolutionPolicy.SizeValue requested = result == null ? null
+                    : new PhotoResolutionPolicy.SizeValue(result.first, result.second);
+            PhotoResolutionPolicy.SizeValue selected = PhotoResolutionPolicy.chooseSupported(options, requested,
                     Long.MAX_VALUE);
             if (selected != null) result = new Pair<>(selected.width, selected.height);
         }

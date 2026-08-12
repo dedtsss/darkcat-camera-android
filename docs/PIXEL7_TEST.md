@@ -34,7 +34,7 @@
 
 ## Обязательный checklist (54 пункта)
 
-1. **Запуск.** Статус: `____`. Cold start проходит без crash/ANR; preview появляется, основной DarkCat UI читаем и не налезает на upstream controls.
+1. **Запуск / чистая установка.** Статус: `____`. Cold start проходит без crash/ANR; после Android permissions сразу появляется preview и DarkCat UI, без inherited Open Camera/Linked Camera intro или What's New. Основной UI читаем и не налезает на upstream controls.
 
 2. **Camera2 реально используется.** Статус: `____`. В diagnostics/log подтверждён Camera2, а не Camera1 compatibility fallback; записать selected logical/physical ID и hardware level.
 
@@ -62,7 +62,7 @@
 
 14. **Flash.** Статус: `____`. Проверить Auto/On/Off/Torch на main camera; отсутствие freeze, корректный fallback при несовместимом ZSL/physical lens.
 
-15. **GPS acquisition.** Статус: `____`. На открытом небе включить GPS Locker, измерить время до первого fix и до GREEN `<=7 m`; затем проверить повторный warm acquisition.
+15. **GPS Locker ownership.** Статус: `____`. На открытом небе включить Field Mode: field-owned Locker запускается сам. Выключить Field: он останавливается, если «Держать GPS Locker постоянно» OFF; при ON user-owned Locker остаётся. Проверить notification actions «Остановить Field Mode», «Остановить GPS» и «Остановить всё», затем измерить время до first fix и GREEN `<=7 m`.
 
 16. **Accuracy live updates.** Статус: `____`. Значение рядом с GPS меняется по фактическим fixes (`±N м`), notification обновляется и не показывает фиксированную заглушку.
 
@@ -86,7 +86,7 @@
 
 26. **Object editor.** Статус: `____`. Проверить crop, drawing, line, rectangle, ellipse, arrow, text, undo/redo; старую shape/text можно переизбрать, move/scale/rotate/recolor/restroke/delete. В текущем известном partial editor этот acceptance criterion ожидаемо не выполнен — фиксировать точные отсутствующие операции.
 
-27. **Vault и screenshots.** Статус: `____`. Vault не оставляет plaintext в DCIM/MediaStore; Vault/thumbnail открываются после unlock, повреждённый encrypted file не decryptится. Screenshot/recents **не блокируются намеренно** во всех DarkCat экранах; не публиковать эти screenshots с чувствительными данными.
+27. **Vault и screenshots.** Статус: `____`. Vault не оставляет plaintext в DCIM/MediaStore; Vault/thumbnail открываются после unlock, повреждённый encrypted file не decryptится. Standard Android screenshot/recents не блокируются намеренно в Camera, Settings, Gallery, Viewer, Editor и Vault UI; не публиковать эти screenshots с чувствительными данными.
 
 28. **Screen OFF.** Статус: `____`. Включить Field Mode из видимой Activity, нажать power, подождать 1/5/15 min; notification остаётся, нет crash, камера/GPS состояние записать.
 
@@ -112,13 +112,13 @@
 
 39. **Restart app.** Статус: `____`. Force-stop/обычный restart сохраняет settings, tags, next sequence, vault и queue; camera/permissions восстанавливаются без crash. Camera FGS не должен притворяться восстановленным после process death.
 
-40. **Recovery pending.** Статус: `____`. На тестовом кадре остановить процесс после success haptic/до vault commit; restart обнаруживает sidecar/media, не TTL-delete original и возобновляет non-EDIT processing либо показывает unresolved EDIT.
+40. **Recovery pending.** Статус: `____`. Отдельно для Vault и Gallery остановить процесс после camera success/до destination publication. Restart сохраняет original и для Gallery публикует ровно один MediaStore row с исходными sequence, capturedAt, GPS/accuracy/provider, tags и destination — без нового fix или нового времени.
 
-41. **Diagnostics export.** Статус: `____`. JSON создаётся и содержит device/Android, all camera IDs, hardware level, physical IDs, focal lengths, AF/OIS, reprocessing/ZSL, streams/extensions, выбранную камеру, service/GPS/volume state, Night-extension/Low-Light-Boost/exposure/ISO/AE capability и sync diagnostics; media и точных координат нет.
+41. **Diagnostics export.** Статус: `____`. JSON создаётся и содержит device/Android, all camera IDs, hardware level, physical IDs, focal lengths, AF/OIS, reprocessing/ZSL, streams/extensions, active logical/physical selection и zoom ratio, service/GPS/volume state, Night-extension/Low-Light-Boost/exposure/ISO/AE capability и sync diagnostics; media и точных координат нет.
 
 42. **Storage shield.** Статус: `____`. Быстро переключить `Vault → Галерея → Vault`; feedback соответствует выбору, следующий кадр идёт только в выбранный backend, существующие originals не перемещаются.
 
-43. **MediaStore Gallery.** Статус: `____`. В Gallery mode JPEG появляется в `Pictures/DarkCat` и системной галерее; дата, sequence и shutter-time GPS совпадают с DarkCat Gallery/EXIF там, где OEM JPEG разрешает EXIF rewrite.
+43. **MediaStore Gallery.** Статус: `____`. В Gallery mode JPEG появляется в `Pictures/DarkCat` и системной галерее; дата, sequence и shutter-time GPS совпадают с DarkCat Gallery/EXIF там, где OEM JPEG разрешает EXIF rewrite. В Settings → Съёмка проверить список реальных sizes текущей lens, supported user choice и fallback при смене lens.
 
 44. **Last-shot / Viewer.** Статус: `____`. Thumbnail обновляется, открывает последний Vault и MediaStore кадр; swipe previous/next, Info, Share и Delete работают для обоих backends.
 

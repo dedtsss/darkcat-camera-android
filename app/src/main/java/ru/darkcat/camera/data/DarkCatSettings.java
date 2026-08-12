@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
 import ru.darkcat.camera.crypto.SecureCredentialStore;
+import ru.darkcat.camera.location.GpsLockerOwnership;
 
 public final class DarkCatSettings {
     public static final String CAPTURE_MAX_SPEED = "max_speed";
@@ -45,7 +46,36 @@ public final class DarkCatSettings {
         return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && isVaultMode(context);
     }
     public static String captureMode(Context context) { return prefs(context).getString("darkcat_capture_mode", CAPTURE_MAX_SPEED); }
-    public static boolean gpsLockerEnabled(Context context) { return prefs(context).getBoolean("darkcat_gps_locker", false); }
+    /** Compatibility aggregate. New code must preserve the two owners separately. */
+    public static boolean gpsLockerEnabled(Context context) { return gpsLockerOwnership(context).isLockerRequired(); }
+    public static boolean gpsLockerUserRequested(Context context) {
+        SharedPreferences preferences = prefs(context);
+        return preferences.getBoolean("darkcat_gps_locker_user",
+                preferences.getBoolean("darkcat_gps_locker", false));
+    }
+    public static boolean gpsLockerFieldRequested(Context context) {
+        return prefs(context).getBoolean("darkcat_gps_locker_field", false);
+    }
+    public static GpsLockerOwnership gpsLockerOwnership(Context context) {
+        return new GpsLockerOwnership(gpsLockerUserRequested(context), gpsLockerFieldRequested(context));
+    }
+    public static void setGpsLockerUserRequested(Context context, boolean requested) {
+        setGpsLockerOwnership(context, gpsLockerOwnership(context).withUserRequest(requested));
+    }
+    public static void setGpsLockerFieldRequested(Context context, boolean requested) {
+        setGpsLockerOwnership(context, gpsLockerOwnership(context).withFieldRequest(requested));
+    }
+    public static void clearGpsLockerRequests(Context context) {
+        setGpsLockerOwnership(context, gpsLockerOwnership(context).stopAll());
+    }
+    private static void setGpsLockerOwnership(Context context, GpsLockerOwnership ownership) {
+        prefs(context).edit()
+                .putBoolean("darkcat_gps_locker_user", ownership.isRequestedByUser())
+                .putBoolean("darkcat_gps_locker_field", ownership.isRequestedByField())
+                // Keep the old aggregate readable for a safe interrupted upgrade.
+                .putBoolean("darkcat_gps_locker", ownership.isLockerRequired())
+                .apply();
+    }
     public static boolean strictGps(Context context) { return prefs(context).getBoolean("darkcat_strict_gps", true); }
     public static float maxGpsAccuracyMeters(Context context) { return floatValue(context, "darkcat_gps_max_accuracy", 7.0f); }
     public static long locationFreshMs(Context context) { return longValue(context, "darkcat_location_fresh_ms", 5_000L); }

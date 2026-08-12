@@ -20,7 +20,10 @@ public final class FieldCaptureController {
         /** Start durable recovery/post-processing here; success haptic has already fired. */
         void onCameraCaptureSucceeded(LocationFix shutterLocation);
 
-        /** Called after success haptic with a durable app-private JPEG when available. */
+        /**
+         * Called synchronously for a durable app-private JPEG before success haptic. The observer
+         * must durably journal shutter metadata here; publication itself may remain asynchronous.
+         */
         default void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
                                              long capturedAt) { }
 
@@ -65,9 +68,11 @@ public final class FieldCaptureController {
             @Override
             public void onCameraCaptureSucceeded(File durableJpeg, long capturedAt) {
                 if (completed.compareAndSet(false, true)) {
+                    // A process-kill after the user receives success feedback must still find the
+                    // exact shutter-time sidecar, not reconstruct metadata from a later fix.
+                    observer.onCameraCaptureArtifact(durableJpeg, shutterLocation, capturedAt);
                     haptics.onCameraCaptureSucceeded();
                     observer.onCameraCaptureSucceeded(shutterLocation);
-                    observer.onCameraCaptureArtifact(durableJpeg, shutterLocation, capturedAt);
                 }
             }
 

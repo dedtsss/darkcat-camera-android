@@ -623,24 +623,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         if( MyDebug.LOG )
             Log.d(TAG, "onCreate: time after setting system ui visibility listener: " + (System.currentTimeMillis() - debug_time));
 
-        // show "about" dialog for first time use
+        // DarkCat keeps the upstream first-run key for engine defaults, but never presents the
+        // inherited Open/Linked Camera onboarding to a product user.
         if( !has_done_first_time ) {
-            if( !is_test ) {
-                AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-                alertDialog.setTitle(R.string.app_name);
-                alertDialog.setMessage(R.string.intro_text);
-                alertDialog.setPositiveButton(android.R.string.ok, null);
-                alertDialog.setNegativeButton(R.string.preference_online_help, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if( MyDebug.LOG )
-                            Log.d(TAG, "online help");
-                        launchOnlineHelp();
-                    }
-                });
-                alertDialog.show();
-            }
-
             setFirstTimeFlag();
         }
 
@@ -660,8 +645,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                     Log.d(TAG, "version_code: " + version_code);
                     Log.d(TAG, "latest_version: " + latest_version);
                 }
-                //final boolean whats_new_enabled = false;
-                final boolean whats_new_enabled = true;
+                // Product updates do not surface inherited Open/Linked Camera release notes.
+                final boolean whats_new_enabled = false;
                 if( whats_new_enabled ) {
                     // whats_new_version is the version code that the What's New text is written for. Normally it will equal the
                     // current release (version_code), but it some cases we may want to leave it unchanged.
@@ -932,8 +917,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     /** Applies the small, opinionated DarkCat product surface once per installation/update.
      *  The full upstream controls remain available from Advanced settings. */
     private void applyDarkCatProductDefaults(SharedPreferences sharedPreferences) {
-        if( sharedPreferences.getBoolean("darkcat_product_defaults_v3", false) )
+        if( sharedPreferences.getBoolean("darkcat_product_defaults_v3", false) ) {
+            // Also repair earlier 0.5 installs that had already run the old defaults.
+            sharedPreferences.edit().putBoolean(PreferenceKeys.ShowWhatsNewPreferenceKey, false).apply();
             return;
+        }
         SharedPreferences.Editor editor = sharedPreferences.edit();
         if( supports_camera2 )
             editor.putString(PreferenceKeys.CameraAPIPreferenceKey, "preference_camera_api_camera2");
@@ -947,6 +935,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         editor.putBoolean(PreferenceKeys.LocationPreferenceKey, true);
         editor.putBoolean(PreferenceKeys.RequireLocationPreferenceKey, false);
         editor.putBoolean(PreferenceKeys.MultiCamButtonPreferenceKey, true);
+        editor.putBoolean(PreferenceKeys.ShowWhatsNewPreferenceKey, false);
         // DarkCat handles only Volume+ itself so Volume- remains normal volume control.
         editor.putString(PreferenceKeys.VolumeKeysPreferenceKey, "volume_nothing");
         editor.putBoolean("darkcat_product_defaults_v3", true);
@@ -1590,6 +1579,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         super.onResume();
         this.app_is_paused = false; // must be set before initLocation() at least
         ru.darkcat.camera.ui.DarkCatUi.reconcileNightMode(this);
+        ru.darkcat.camera.ui.DarkCatUi.install(this);
         if( ru.darkcat.camera.data.DarkCatSettings.fieldModeEnabled(this)
                 && ru.darkcat.camera.field.FieldModeState.isRunning() ) {
             ru.darkcat.camera.field.FieldModeService.handoffToVisibleActivity(this);
@@ -1609,10 +1599,10 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 Log.e(TAG, "Unable to restore Field Mode from visible Activity", deniedByPlatform);
             }
         }
-        if( ru.darkcat.camera.data.DarkCatSettings.gpsLockerEnabled(this)
+        if( ru.darkcat.camera.data.DarkCatSettings.gpsLockerUserRequested(this)
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ) {
             try {
-                ru.darkcat.camera.location.GpsLockerService.startFromVisibleContext(this);
+                ru.darkcat.camera.location.GpsLockerService.startForUserFromVisibleContext(this);
             }
             catch(RuntimeException deniedByPlatform) {
                 Log.e(TAG, "Unable to restore GPS Locker from visible Activity", deniedByPlatform);
@@ -1933,6 +1923,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         // update: need this all the time when lock_to_landscape==false
         onSystemOrientationChanged();
         super.onConfigurationChanged(newConfig);
+        ru.darkcat.camera.ui.DarkCatUi.reapplyChrome(this);
     }
 
     private void onSystemOrientationChanged() {
@@ -2555,6 +2546,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             }
         }
         this.preview.setCamera(cameraId, cameraIdSPhysical);
+        getWindow().getDecorView().post(() -> ru.darkcat.camera.ui.DarkCatUi.reapplyChrome(this));
         switchCameraButton.setEnabled(true);
         switchMultiCameraButton.setEnabled(true);
         // no need to call mainUI.setSwitchCameraContentDescription - this will be called from Preview.cameraSetup when the
@@ -2875,6 +2867,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         if( !block_startup_toast ) {
             this.showPhotoVideoToast(true);
         }
+        getWindow().getDecorView().post(() -> ru.darkcat.camera.ui.DarkCatUi.reapplyChrome(this));
     }
 
     public void clickedWhiteBalanceLock(View view) {

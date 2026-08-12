@@ -136,8 +136,8 @@ public final class MediaViewerActivity extends Activity {
             android.net.Uri uri;
             if (item.source == GalleryItem.Source.MEDIASTORE) uri = item.publicUri;
             else {
-                if (decryptedSessionFile == null) throw new java.io.IOException("Vault session missing");
-                uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", decryptedSessionFile);
+                File shareFile = new VaultRepository(this).decryptForShare(item.vaultRecord);
+                uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", shareFile);
             }
             Intent intent = new Intent(Intent.ACTION_SEND).setType(item.mimeType == null ? "image/jpeg" : item.mimeType)
                     .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

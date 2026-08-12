@@ -16,6 +16,7 @@ import java.util.Properties;
 public final class RecoveryStore {
     private static final String SIDECAR_SUFFIX = ".pending";
     private static final String VERSION = "1";
+    public static final String DESTINATION_VAULT = "vault";
     private final File directory;
 
     public RecoveryStore(File directory) {
@@ -28,6 +29,14 @@ public final class RecoveryStore {
     public PendingCapture markPending(File mediaFile, int sequenceNumber, String displayName,
                                       String mimeType, long capturedAt, String captureContextJson,
                                       boolean editRequested) throws IOException {
+        return markPending(mediaFile, sequenceNumber, displayName, mimeType, capturedAt,
+                captureContextJson, editRequested, DESTINATION_VAULT);
+    }
+
+    /** A recovery sidecar owns the original destination as well as shutter-time metadata. */
+    public PendingCapture markPending(File mediaFile, int sequenceNumber, String displayName,
+                                      String mimeType, long capturedAt, String captureContextJson,
+                                      boolean editRequested, String destination) throws IOException {
         if (mediaFile == null || !mediaFile.isFile() || mediaFile.length() <= 0) {
             throw new IOException("Recovery media is missing or empty");
         }
@@ -38,7 +47,8 @@ public final class RecoveryStore {
         PendingCapture pending = new PendingCapture(mediaFile, sequenceNumber,
                 safeDisplayName(displayName, mediaFile.getName()), mimeType == null ? "application/octet-stream" : mimeType,
                 capturedAt > 0 ? capturedAt : System.currentTimeMillis(),
-                captureContextJson == null ? "{}" : captureContextJson, editRequested);
+                captureContextJson == null ? "{}" : captureContextJson, editRequested,
+                safeDestination(destination), false);
         write(pending);
         return pending;
     }
@@ -144,6 +154,7 @@ public final class RecoveryStore {
         properties.setProperty("capturedAt", Long.toString(pending.capturedAt));
         properties.setProperty("captureContext", pending.captureContextJson);
         properties.setProperty("editRequested", Boolean.toString(pending.editRequested));
+        properties.setProperty("destination", pending.destination);
         File destination = sidecar(pending.mediaFile);
         File temporary = new File(directory, destination.getName() + ".tmp");
         File backup = sidecarBackup(destination);
@@ -184,7 +195,8 @@ public final class RecoveryStore {
                 safeDisplayName(properties.getProperty("displayName"), mediaFile.getName()),
                 properties.getProperty("mimeType", "application/octet-stream"), capturedAt,
                 properties.getProperty("captureContext", "{}"),
-                Boolean.parseBoolean(properties.getProperty("editRequested", "false")));
+                Boolean.parseBoolean(properties.getProperty("editRequested", "false")),
+                safeDestination(properties.getProperty("destination", DESTINATION_VAULT)), false);
     }
 
     private static File sidecar(File mediaFile) {
@@ -200,6 +212,10 @@ public final class RecoveryStore {
         return new File(value).getName();
     }
 
+    private static String safeDestination(String value) {
+        return value == null || value.trim().isEmpty() ? DESTINATION_VAULT : value.trim();
+    }
+
     public static final class PendingCapture {
         public final File mediaFile;
         public final int sequenceNumber;
@@ -208,16 +224,18 @@ public final class RecoveryStore {
         public final long capturedAt;
         public final String captureContextJson;
         public final boolean editRequested;
+        public final String destination;
         public final boolean legacy;
 
         private PendingCapture(File mediaFile, int sequenceNumber, String displayName, String mimeType,
                                long capturedAt, String captureContextJson, boolean editRequested) {
             this(mediaFile, sequenceNumber, displayName, mimeType, capturedAt, captureContextJson,
-                    editRequested, false);
+                    editRequested, DESTINATION_VAULT, false);
         }
 
         private PendingCapture(File mediaFile, int sequenceNumber, String displayName, String mimeType,
                                long capturedAt, String captureContextJson, boolean editRequested,
+                               String destination,
                                boolean legacy) {
             this.mediaFile = mediaFile;
             this.sequenceNumber = sequenceNumber;
@@ -226,12 +244,14 @@ public final class RecoveryStore {
             this.capturedAt = capturedAt;
             this.captureContextJson = captureContextJson;
             this.editRequested = editRequested;
+            this.destination = safeDestination(destination);
             this.legacy = legacy;
         }
 
         private static PendingCapture legacy(File file) {
             String mime = file.getName().toLowerCase(java.util.Locale.US).endsWith(".mp4") ? "video/mp4" : "image/jpeg";
-            return new PendingCapture(file, -1, file.getName(), mime, file.lastModified(), "{}", false, true);
+            return new PendingCapture(file, -1, file.getName(), mime, file.lastModified(), "{}", false,
+                    DESTINATION_VAULT, true);
         }
     }
 }

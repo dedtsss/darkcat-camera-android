@@ -11,9 +11,9 @@ public final class TechnicalStampFormatter {
                                      boolean includeSequence, boolean includeTags, boolean includeCustomText) {
         ArrayList<String> result = new ArrayList<>();
         if (includeCoordinates && latitude != null && longitude != null) {
-            String coordinates = String.format(Locale.US, "N %.6f   E %.6f", latitude, longitude);
+            String coordinates = coordinate(latitude, 'N', 'S') + " " + coordinate(longitude, 'E', 'W');
             if (includeAccuracy && accuracyMeters != null && !Float.isNaN(accuracyMeters)
-                    && !Float.isInfinite(accuracyMeters)) coordinates += String.format(Locale.US, "   ±%.1fm", accuracyMeters);
+                    && !Float.isInfinite(accuracyMeters)) coordinates += " " + accuracy(accuracyMeters);
             result.add(coordinates);
         }
         if (includeSequence && sequence != null) result.add(String.format(Locale.US, "№%05d", sequence));
@@ -30,6 +30,20 @@ public final class TechnicalStampFormatter {
             output.append(value.trim());
         }
         return output.toString();
+    }
+
+    private static String coordinate(double value, char positive, char negative) {
+        char hemisphere = value < 0d ? negative : positive;
+        return decimal(Math.abs(value), 6) + hemisphere;
+    }
+
+    private static String accuracy(float value) {
+        return "±" + decimal(value, 1) + "м";
+    }
+
+    /** Product stamps deliberately use a stable Russian decimal comma independent of device locale. */
+    private static String decimal(double value, int digits) {
+        return String.format(Locale.US, "% ." + digits + "f", value).trim().replace('.', ',');
     }
 
     private TechnicalStampFormatter() { }

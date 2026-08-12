@@ -26,6 +26,16 @@ public final class DarkCatPreferencePolicy {
         editor.putBoolean("darkcat_secure_mode",
                 DarkCatSettings.storageMode(preferences) == StorageMode.VAULT);
 
+        // 0.5 initially used one flag for both an explicit locker and the Field-owned locker.
+        // Preserve an existing explicit request while all new Field starts get their own owner.
+        if (!preferences.contains("darkcat_gps_locker_user") && preferences.contains("darkcat_gps_locker")) {
+            editor.putBoolean("darkcat_gps_locker_user",
+                    preferences.getBoolean("darkcat_gps_locker", false));
+        }
+        if (!preferences.contains("darkcat_gps_locker_field")) {
+            editor.putBoolean("darkcat_gps_locker_field", false);
+        }
+
         // Auto-editor was a 0.4 capture mode. Editing is now an explicit viewer action.
         editor.remove("darkcat_workflow");
 

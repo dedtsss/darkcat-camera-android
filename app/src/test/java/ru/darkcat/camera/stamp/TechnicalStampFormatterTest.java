@@ -9,9 +9,15 @@ public class TechnicalStampFormatterTest {
     @Test public void formatsTechnicalBlockWithoutDecorations() {
         List<String> lines = TechnicalStampFormatter.lines(64.588210, 30.599140, 4.2f, 427,
                 Arrays.asList("СКЛАД", "ВХОД"), "Доп. текст", true, true, true, true, true);
-        assertEquals("N 64.588210   E 30.599140   ±4.2m", lines.get(0));
+        assertEquals("64,588210N 30,599140E ±4,2м", lines.get(0));
         assertEquals("№00427", lines.get(1));
         assertEquals("СКЛАД · ВХОД", lines.get(2));
         assertEquals("Доп. текст", lines.get(3));
+    }
+
+    @Test public void formatsSouthWestCoordinatesAndAccuracyWithRussianDecimalComma() {
+        List<String> lines = TechnicalStampFormatter.lines(-12.5, -7.25, 11.0f, null,
+                null, null, true, true, false, false, false);
+        assertEquals("12,500000S 7,250000W ±11,0м", lines.get(0));
     }
 }

@@ -13,6 +13,8 @@ import android.os.Build;
 import android.util.Size;
 import android.util.Range;
 
+import com.linkedcamera.app.MainActivity;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -29,6 +31,7 @@ import ru.darkcat.camera.field.FieldCaptureBridge;
 import ru.darkcat.camera.field.FieldModeState;
 import ru.darkcat.camera.field.FieldTriggerDiagnostics;
 import ru.darkcat.camera.location.LocationSnapshotStore;
+import ru.darkcat.camera.ui.DarkCatUi;
 import ru.darkcat.camera.upload.SyncDiagnostics;
 
 /** Produces a media-free capability report suitable for Pixel hardware validation. */
@@ -58,6 +61,7 @@ public final class CameraDiagnosticsExporter {
         root.put("securityPatch", Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 ? Build.VERSION.SECURITY_PATCH : JSONObject.NULL);
         root.put("selectedCamera", selectedCamera == null ? JSONObject.NULL : selectedCamera);
+        root.put("activeSelection", activeSelection());
         root.put("cameraApiDefault", "Camera2 with capability fallback");
         root.put("fieldModeRunning", FieldModeState.isRunning());
         root.put("gpsLockerRunning", LocationSnapshotStore.isLockerRunning());
@@ -92,6 +96,30 @@ public final class CameraDiagnosticsExporter {
         if (manager != null) for (String id : manager.getCameraIdList()) cameras.put(camera(manager, id));
         root.put("cameras", cameras);
         return root;
+    }
+
+    /** Runtime selection is for OEM validation; product lens labels never expose raw IDs. */
+    private static JSONObject activeSelection() throws org.json.JSONException {
+        JSONObject selection = new JSONObject();
+        MainActivity activity = DarkCatUi.activeCameraActivity();
+        if (activity == null || activity.getApplicationInterface() == null) {
+            selection.put("logicalCameraIndex", JSONObject.NULL);
+            selection.put("physicalCameraId", JSONObject.NULL);
+            selection.put("zoomRatio", JSONObject.NULL);
+            return selection;
+        }
+        selection.put("logicalCameraIndex", activity.getApplicationInterface().getCameraIdPref());
+        String physical = activity.getApplicationInterface().getCameraIdSPhysicalPref();
+        selection.put("physicalCameraId", physical == null || physical.trim().isEmpty()
+                ? JSONObject.NULL : physical);
+        Object zoom = JSONObject.NULL;
+        try {
+            if (activity.getPreview() != null) zoom = (double) activity.getPreview().getZoomRatio();
+        } catch (RuntimeException unavailable) {
+            // Diagnostics remains usable if MainActivity is paused while Camera2 is reopening.
+        }
+        selection.put("zoomRatio", zoom);
+        return selection;
     }
 
     private static JSONObject camera(CameraManager manager, String id) throws Exception {

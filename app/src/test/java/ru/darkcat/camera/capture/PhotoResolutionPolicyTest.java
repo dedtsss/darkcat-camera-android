@@ -17,4 +17,14 @@ public final class PhotoResolutionPolicyTest {
                 new PhotoResolutionPolicy.SizeValue(6000, 4000), new PhotoResolutionPolicy.SizeValue(8000, 6000)), 10_000_000L);
         assertEquals(6000, selected.width);
     }
+    @Test public void keepsSupportedUserSelectionAndFallsBackWhenLensDoesNotOfferIt() {
+        PhotoResolutionPolicy.SizeValue twelve = new PhotoResolutionPolicy.SizeValue(4032, 3024);
+        PhotoResolutionPolicy.SizeValue eight = new PhotoResolutionPolicy.SizeValue(3264, 2448);
+        assertSame(eight, PhotoResolutionPolicy.chooseSupported(Arrays.asList(twelve, eight), eight, Long.MAX_VALUE));
+        assertSame(eight, PhotoResolutionPolicy.chooseSupported(Arrays.asList(eight), twelve, Long.MAX_VALUE));
+    }
+    @Test public void formatsOnlyProductFacingResolutionDetails() {
+        assertEquals("4032 × 3024 · 12.2 МП · 4:3",
+                PhotoResolutionPolicy.label(new PhotoResolutionPolicy.SizeValue(4032, 3024)));
+    }
 }

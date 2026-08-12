@@ -2,6 +2,7 @@ package ru.darkcat.camera.field;
 
 import org.junit.Test;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,6 +58,21 @@ public final class FieldCaptureControllerTest {
         assertEquals("capture-success", observer.events.get(1));
         assertEquals(1, haptics.successCount);
         assertEquals(0, haptics.failureCount);
+    }
+
+    @Test
+    public void durableArtifactIsJournaledBeforeSuccessFeedback() {
+        FakeCamera camera = new FakeCamera();
+        RecordingObserver observer = new RecordingObserver();
+        RecordingHaptics haptics = new RecordingHaptics(observer.events);
+        FieldCaptureController controller = controller(allowedDecision(), camera, haptics, observer);
+
+        controller.requestCapture();
+        camera.callback.onCameraCaptureSucceeded(new File("field.jpg"), 456L);
+
+        assertEquals("artifact", observer.events.get(0));
+        assertEquals("success-haptic", observer.events.get(1));
+        assertEquals("capture-success", observer.events.get(2));
     }
 
     @Test
@@ -154,6 +170,12 @@ public final class FieldCaptureControllerTest {
         public void onCameraCaptureSucceeded(LocationFix shutterLocation) {
             lastFix = shutterLocation;
             events.add("capture-success");
+        }
+
+        @Override
+        public void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
+                                             long capturedAt) {
+            events.add("artifact");
         }
 
         @Override

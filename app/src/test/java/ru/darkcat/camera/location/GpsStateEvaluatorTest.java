@@ -30,8 +30,8 @@ public final class GpsStateEvaluatorTest {
         assertEquals(GpsIndicator.GREEN, first.getIndicator());
         assertEquals(LocationAge.FRESH, first.getLocationAge());
         assertEquals(4.2f, first.getAccuracyMeters(), 0.001f);
-        assertEquals("±4.2 м", first.getAccuracyLabel());
-        assertEquals("±6.6 м", second.getAccuracyLabel());
+        assertEquals("±4,2 м", first.getAccuracyLabel());
+        assertEquals("±6,6 м", second.getAccuracyLabel());
     }
 
     @Test

@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class VaultRepository {
     private static final String DIR = "darkcat-vault";
     private static final String SHARE_CACHE_DIR = "darkcat-share";
+    private static final String SESSION_CACHE_DIR = "darkcat-session";
     private static final int THUMBNAIL_MAX_DIMENSION = 512;
     private static final Object COMMIT_LOCK = new Object();
     private static final AtomicBoolean CACHE_SCAVENGED = new AtomicBoolean();
@@ -278,10 +279,33 @@ public final class VaultRepository {
 
     public File decryptToCache(MediaRecord record) throws Exception {
         File cache = File.createTempFile(".darkcat-decrypted-" + record.id + "-",
+                extension(record.displayName, record.mimeType), sessionCacheDir());
+        try {
+            new AuthenticatedFileCipher(DarkCatKeyStore.vaultKey()).decrypt(
+                    vaultFile(record.vaultFileName), cache);
+            return cache;
+        } catch (Exception failure) {
+            cleanupDecryptedCacheQuietly(cache);
+            throw failure;
+        } catch (OutOfMemoryError failure) {
+            cleanupDecryptedCacheQuietly(cache);
+            throw failure;
+        }
+    }
+
+    /**
+     * Creates a FileProvider-safe plaintext only for an explicit outgoing share. It is not
+     * deleted immediately after startActivity(), because the receiving app may read lazily.
+     */
+    public File decryptForShare(MediaRecord record) throws Exception {
+        File cache = File.createTempFile(".darkcat-share-" + record.id + "-",
                 extension(record.displayName, record.mimeType), shareCacheDir());
         try {
             new AuthenticatedFileCipher(DarkCatKeyStore.vaultKey()).decrypt(
                     vaultFile(record.vaultFileName), cache);
+            // The retention scan uses this timestamp on the next process start.
+            //noinspection ResultOfMethodCallIgnored
+            cache.setLastModified(System.currentTimeMillis());
             return cache;
         } catch (Exception failure) {
             cleanupDecryptedCacheQuietly(cache);
@@ -313,9 +337,12 @@ public final class VaultRepository {
         if (cacheFile == null) return;
         File cacheRoot = context.getCacheDir().getCanonicalFile();
         File shareRoot = new File(cacheRoot, SHARE_CACHE_DIR).getCanonicalFile();
+        File sessionRoot = new File(cacheRoot, SESSION_CACHE_DIR).getCanonicalFile();
         File candidate = cacheFile.getCanonicalFile();
-        if ((!cacheRoot.equals(candidate.getParentFile()) && !shareRoot.equals(candidate.getParentFile()))
-                || !candidate.getName().startsWith(".darkcat-decrypted-")) {
+        String name = candidate.getName();
+        if ((!cacheRoot.equals(candidate.getParentFile()) && !shareRoot.equals(candidate.getParentFile())
+                && !sessionRoot.equals(candidate.getParentFile()))
+                || (!name.startsWith(".darkcat-decrypted-") && !name.startsWith(".darkcat-share-"))) {
             throw new IOException("refusing to delete a non-session cache file");
         }
         deleteIfPresent(candidate);
@@ -328,7 +355,8 @@ public final class VaultRepository {
     private void scavengePreviousProcessCache() {
         if (!CACHE_SCAVENGED.compareAndSet(false, true)) return;
         scavengeCacheDirectory(context.getCacheDir());
-        scavengeCacheDirectory(new File(context.getCacheDir(), SHARE_CACHE_DIR));
+        scavengeCacheDirectory(new File(context.getCacheDir(), SESSION_CACHE_DIR));
+        scavengeExpiredShareDirectory(new File(context.getCacheDir(), SHARE_CACHE_DIR));
     }
 
     private void scavengeCacheDirectory(File directory) {
@@ -345,10 +373,32 @@ public final class VaultRepository {
         }
     }
 
+    /** Called when this process first opens the Vault; fresh outgoing URIs are deliberately kept. */
+    private void scavengeExpiredShareDirectory(File directory) {
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        long now = System.currentTimeMillis();
+        for (File file : files) {
+            String name = file.getName();
+            if (file.isFile() && (name.startsWith(".darkcat-share-")
+                    || name.startsWith(".darkcat-decrypted-"))
+                    && VaultShareCachePolicy.shouldDelete(file.lastModified(), now)) {
+                deleteBestEffort(file);
+            }
+        }
+    }
+
     private File shareCacheDir() throws IOException {
         File directory = new File(context.getCacheDir(), SHARE_CACHE_DIR);
         if (!directory.exists() && !directory.mkdirs())
             throw new IOException("unable to create share cache directory");
+        return directory;
+    }
+
+    private File sessionCacheDir() throws IOException {
+        File directory = new File(context.getCacheDir(), SESSION_CACHE_DIR);
+        if (!directory.exists() && !directory.mkdirs())
+            throw new IOException("unable to create session cache directory");
         return directory;
     }
 

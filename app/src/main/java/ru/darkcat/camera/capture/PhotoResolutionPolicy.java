@@ -1,6 +1,7 @@
 package ru.darkcat.camera.capture;
 
 import java.util.List;
+import java.util.Locale;
 
 /** Capability-driven default: prefer the largest practical 4:3 still, never a device hard-code. */
 public final class PhotoResolutionPolicy {
@@ -32,6 +33,29 @@ public final class PhotoResolutionPolicy {
                 fourByThree = value;
         }
         return fourByThree != null ? fourByThree : fallback != null ? fallback : overLimit;
+    }
+
+    /** Keeps a supported explicit choice; a lens-specific missing choice falls back safely. */
+    public static SizeValue chooseSupported(List<SizeValue> values, SizeValue requested, long maxPixels) {
+        if (requested != null && values != null) for (SizeValue value : values) {
+            if (value != null && value.width == requested.width && value.height == requested.height) return value;
+        }
+        return chooseDefault(values, maxPixels);
+    }
+
+    public static String label(SizeValue value) {
+        if (value == null) return "Недоступно";
+        long wide = Math.max(value.width, value.height);
+        long tall = Math.min(value.width, value.height);
+        long divisor = gcd(wide, tall);
+        String aspect = (wide / divisor) + ":" + (tall / divisor);
+        return value.width + " × " + value.height + " · "
+                + String.format(Locale.US, "%.1f", value.pixels() / 1_000_000d) + " МП · " + aspect;
+    }
+
+    private static long gcd(long left, long right) {
+        while (right != 0L) { long next = left % right; left = right; right = next; }
+        return Math.max(1L, left);
     }
 
     private PhotoResolutionPolicy() { }
