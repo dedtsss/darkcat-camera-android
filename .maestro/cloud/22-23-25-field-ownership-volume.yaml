@@ -1,0 +1,51 @@
+appId: ru.darkcat.camera
+name: CAT-22/23/25 Cloud Field ownership and Volume+ capture
+tags:
+  - cloud-expanded
+  - cat-22
+  - cat-23
+  - cat-25
+---
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Field ●"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_field"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible: "GPS Locker: Field Mode"
+    timeout: 10000
+- assertVisible: ".*Текущая точность:.*"
+- takeScreenshot: "cloud-22-23-field-owner"
+- tapOn: "Закрыть"
+- copyTextFrom:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- evalScript: ${output.beforeVolumeSequence = maestro.copiedText}
+- pressKey: "volume up"
+- waitForAnimationToEnd:
+    timeout: 15000
+- copyTextFrom:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- evalScript: ${output.afterVolumeSequence = maestro.copiedText}
+- assertTrue: ${output.afterVolumeSequence != output.beforeVolumeSequence}
+- takeScreenshot: "cloud-25-volume-up"

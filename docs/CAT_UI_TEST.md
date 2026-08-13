@@ -2,6 +2,12 @@
 
 CAT UI is a small Maestro-based smoke layer for the existing DarkCat Camera 0.5 UI. It preserves checklist IDs `01..36`, uses the visible product surface plus stable resource IDs, and does not replace the camera engine, add a backend, or create a dashboard.
 
+## Expanded Maestro Cloud suite
+
+The stable eight-flow smoke under `.maestro/flows/` remains independent and unchanged. The self-contained Cloud expansion is under `.maestro/cloud/` and is launched only by the manual **Maestro Cloud expanded CAT** GitHub Actions workflow. The workflow builds the APK in GitHub Actions (never on Bruce), then uploads `.maestro/cloud` with the GitHub repository's `MAESTRO_API_KEY` and `MAESTRO_PROJECT_ID` secrets.
+
+It covers CAT `11`, `13`, `14`, `20`–`23`, `25`, `27`–`35` with Cloud-supported `setLocation`, orientation, lock/power/volume keys, Android notification shade, cross-app launch, AI visual assertions and AI text extraction. Read `.maestro/cloud/README.md` before interpreting failures: Gallery/receiver availability, lockscreen semantics, haptic perception, real GNSS and physical-camera claims deliberately remain bounded.
+
 ## Prerequisites
 
 - Linux shell.

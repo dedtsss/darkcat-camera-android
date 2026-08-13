@@ -1,0 +1,54 @@
+appId: ru.darkcat.camera
+name: CAT-20/21 Cloud orientation, deterministic location and technical stamp
+tags:
+  - cloud-expanded
+  - cat-20
+  - cat-21
+---
+# setLocation is a Cloud coordinate mock, not a GNSS-quality assertion.
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_shutter"
+    timeout: 30000
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- takeScreenshot: "cloud-20-portrait"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- assertWithAI:
+    assertion: "DarkCat camera controls are completely visible in landscape. No control is clipped or overlaps another control, and the camera preview is not an unintended black error screen."
+    optional: false
+- takeScreenshot: "cloud-20-landscape"
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- assertNoDefectsWithAI:
+    optional: false
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- extendedWaitUntil:
+    visible: "Редактор"
+    timeout: 15000
+- assertWithAI:
+    assertion: "The saved DarkCat image is visible. Its technical stamp shows coordinates near 55.755826, 37.617300, an accuracy presentation, and a sequence number; the entire stamp is inside the image and is not clipped."
+    optional: false
+- extractTextWithAI:
+    query: "Extract the technical-stamp coordinates, accuracy presentation, and sequence number from the displayed saved image."
+    outputVariable: "technicalStampText"
+    optional: false
+- takeScreenshot: "cloud-21-technical-stamp"
