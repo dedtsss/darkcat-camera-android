@@ -23,10 +23,10 @@ tags:
 - extendedWaitUntil:
     visible: "GPS · live"
     timeout: 5000
-- assertVisible: "GPS Locker:"
-- assertVisible: "Текущая точность:"
-- assertVisible: "Состояние:"
+- assertVisible: ".*GPS Locker:.*"
+- assertVisible: ".*Текущая точность:.*"
+- assertVisible: ".*Состояние:.*"
 - takeScreenshot: "05-gps-panel"
-- tapOn: "Закрыть"
+- tapOn: "(?i)закрыть"
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_gps"

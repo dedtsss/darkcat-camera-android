@@ -41,7 +41,7 @@ tags:
 - extendedWaitUntil:
     visible: "Все кадры"
     timeout: 10000
-- assertVisible: "Vault"
+- assertVisible: "DarkCat media · Vault"
 - takeScreenshot: "15-vault-gallery-screen"
 - pressKey: back
 - assertVisible:

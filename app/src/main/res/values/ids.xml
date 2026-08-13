@@ -17,4 +17,6 @@
     <item name="cat_ui_shutter" type="id" />
     <item name="cat_ui_lens" type="id" />
     <item name="cat_ui_settings_save" type="id" />
+    <item name="cat_ui_settings_capture" type="id" />
+    <item name="cat_ui_settings_field" type="id" />
 </resources>

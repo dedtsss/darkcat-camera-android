@@ -9,6 +9,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.linkedcamera.app.R;
+
 /** Category root for focused 0.5 settings pages. */
 public final class DarkCatSettingsRootActivity extends Activity {
     public static final String EXTRA_CATEGORY = "darkcat_settings_category";
@@ -41,8 +43,18 @@ public final class DarkCatSettingsRootActivity extends Activity {
         TextView title = new TextView(this); title.setText(name); title.setTextSize(17f); title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         TextView detail = new TextView(this); detail.setText(description); detail.setTextSize(13f);
         Button open = new Button(this); open.setAllCaps(false); open.setText("Открыть");
+        int testId = categoryButtonId(name);
+        if (testId != View.NO_ID) open.setId(testId);
         open.setOnClickListener(v -> startActivity(new Intent(this, DarkCatSettingsActivity.class).putExtra(EXTRA_CATEGORY, name)));
         card.addView(title); card.addView(detail); card.addView(open); list.addView(card, params);
     }
+
+    /** Stable selectors for the focused CAT settings flows; labels and layout stay unchanged. */
+    private static int categoryButtonId(String name) {
+        if ("Съёмка".equals(name)) return R.id.cat_ui_settings_capture;
+        if ("Полевой режим".equals(name)) return R.id.cat_ui_settings_field;
+        return View.NO_ID;
+    }
+
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

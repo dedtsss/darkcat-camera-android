@@ -15,9 +15,10 @@ tags:
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_settings"
 - extendedWaitUntil:
-    visible: "Настройки DarkCat"
+    visible: "Камера 0\\.5 · основные категории"
     timeout: 5000
-- tapOn: "Съёмка"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings_capture"
 - extendedWaitUntil:
     visible: "Разрешение фото"
     timeout: 5000
@@ -29,12 +30,11 @@ tags:
     id: "ru.darkcat.camera:id/cat_ui_settings_save"
 - takeScreenshot: "09-settings-capture"
 - pressKey: back
-- pressKey: back
-- assertVisible:
-    id: "ru.darkcat.camera:id/cat_ui_settings"
+- extendedWaitUntil:
+    visible: "Камера 0\\.5 · основные категории"
+    timeout: 5000
 - tapOn:
-    id: "ru.darkcat.camera:id/cat_ui_settings"
-- tapOn: "Полевой режим"
+    id: "ru.darkcat.camera:id/cat_ui_settings_field"
 - extendedWaitUntil:
     visible: "Сила отклика: кадр"
     timeout: 5000

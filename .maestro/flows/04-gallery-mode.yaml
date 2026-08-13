@@ -41,7 +41,7 @@ tags:
 - extendedWaitUntil:
     visible: "Все кадры"
     timeout: 10000
-- assertVisible: "Галерея"
+- assertVisible: "DarkCat media · Галерея"
 - takeScreenshot: "15-gallery-screen"
 - pressKey: back
 - assertVisible:

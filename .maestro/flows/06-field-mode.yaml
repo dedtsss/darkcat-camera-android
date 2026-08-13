@@ -12,7 +12,11 @@ tags:
     timeout: 30000
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_settings"
-- tapOn: "Полевой режим"
+- extendedWaitUntil:
+    visible: "Камера 0\\.5 · основные категории"
+    timeout: 5000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings_field"
 - extendedWaitUntil:
     visible: "Полевой режим"
     timeout: 5000
