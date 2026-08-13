@@ -1,0 +1,79 @@
+name: CAT UI Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Exact branch, tag, or commit to build"
+        required: true
+        default: agent/cat-ui-maestro-pilot
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-cat-ui-apk:
+    runs-on: ubuntu-latest
+    env:
+      REQUESTED_REF: ${{ inputs.ref }}
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 1
+
+      - name: Set up Java 17 and Gradle cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run CAT UI APK checks
+        run: |
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Package APK metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          apk_path="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$apk_path"
+
+          artifact_dir="cat-ui-artifact"
+          mkdir -p "$artifact_dir"
+          apk_name="$(basename "$apk_path")"
+          cp "$apk_path" "$artifact_dir/$apk_name"
+
+          apk_size="$(stat -c '%s' "$artifact_dir/$apk_name")"
+          apk_sha256="$(sha256sum "$artifact_dir/$apk_name" | awk '{print $1}')"
+          build_time="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          commit_sha="$(git rev-parse HEAD)"
+          branch_name="${REQUESTED_REF}"
+
+          cat > "$artifact_dir/BUILD_INFO.txt" <<EOF
+          repository: ${GITHUB_REPOSITORY}
+          branch: ${branch_name}
+          commit SHA: ${commit_sha}
+          build time (UTC): ${build_time}
+          Gradle task: testDebugUnitTest assembleDebug
+          APK filename: ${apk_name}
+          APK size (bytes): ${apk_size}
+          SHA-256: ${apk_sha256}
+          EOF
+
+          printf '%s  %s\n' "$apk_sha256" "$apk_name" > "$artifact_dir/SHA256SUMS.txt"
+
+      - name: Upload CAT UI APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkcat-camera-cat-ui-apk
+          path: cat-ui-artifact/
+          if-no-files-found: error
+          retention-days: 14
