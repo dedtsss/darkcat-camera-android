@@ -8,6 +8,11 @@ on:
         required: true
         default: agent/cat-ui-maestro-pilot
         type: string
+      include_tags:
+        description: "Maestro tag filter; use cat-20 for a targeted run or cloud-expanded for full regression"
+        required: true
+        default: cloud-expanded
+        type: string
 
 permissions:
   contents: read
@@ -40,6 +45,7 @@ jobs:
           app-file: app/build/outputs/apk/debug/app-debug.apk
           workspace: .maestro/cloud
           device-os: android-33
+          include-tags: ${{ inputs.include_tags }}
           name: AP-260814-0220 DarkCat CAT expanded Cloud
           env: |
             CLOUD_APPROVED_VISUAL_BASELINES=false
