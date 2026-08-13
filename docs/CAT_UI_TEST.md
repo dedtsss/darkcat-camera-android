@@ -8,7 +8,7 @@ The stable eight-flow smoke under `.maestro/flows/` remains independent and unch
 
 It covers CAT `11`, `13`, `14`, `20`–`23`, `25`, `27`–`35` with Cloud-supported `setLocation`, orientation, lock/power/volume keys, Android notification shade, cross-app launch, AI visual assertions and AI text extraction. Read `.maestro/cloud/README.md` before interpreting failures: Gallery/receiver availability, lockscreen semantics, haptic perception, real GNSS and physical-camera claims deliberately remain bounded.
 
-For targeted Cloud evidence, dispatch with `include_tags=cat-20` (orientation/stamp) or another exact `cat-XX` tag. Dispatch with the default `include_tags=cloud-expanded` only after targeted outcomes are classified; it runs the full expanded regression.
+For targeted Cloud evidence, dispatch with `include_tags=cat-20` (orientation/stamp) or another exact `cat-XX` tag. On the PR #5 branch, the GitHub workflow also runs CAT-20 first after a push and proceeds to the full `cloud-expanded` suite only if that target succeeds; this exists because GitHub does not register a `workflow_dispatch` file until it is on the default branch. Dispatch with the default `include_tags=cloud-expanded` also runs target then full regression.
 
 ## Prerequisites
 

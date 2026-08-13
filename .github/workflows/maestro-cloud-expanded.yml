@@ -1,6 +1,9 @@
 name: Maestro Cloud expanded CAT
 
 on:
+  push:
+    branches:
+      - agent/cat-ui-maestro-pilot
   workflow_dispatch:
     inputs:
       ref:
@@ -37,7 +40,36 @@ jobs:
       - name: Build the Cloud APK in GitHub Actions
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
 
-      - name: Run expanded CAT suite on Maestro Cloud
+      - name: Run CAT-20 target on Maestro Cloud
+        if: github.event_name == 'push' || inputs.include_tags == 'cloud-expanded'
+        uses: mobile-dev-inc/action-maestro-cloud@v1
+        with:
+          api-key: ${{ secrets.MAESTRO_API_KEY }}
+          project-id: ${{ secrets.MAESTRO_PROJECT_ID }}
+          app-file: app/build/outputs/apk/debug/app-debug.apk
+          workspace: .maestro/cloud
+          device-os: android-33
+          include-tags: cat-20
+          name: AP-260814-0220 DarkCat CAT-20 target Cloud
+          env: |
+            CLOUD_APPROVED_VISUAL_BASELINES=false
+
+      - name: Run full expanded CAT suite on Maestro Cloud
+        if: github.event_name == 'push' || inputs.include_tags == 'cloud-expanded'
+        uses: mobile-dev-inc/action-maestro-cloud@v1
+        with:
+          api-key: ${{ secrets.MAESTRO_API_KEY }}
+          project-id: ${{ secrets.MAESTRO_PROJECT_ID }}
+          app-file: app/build/outputs/apk/debug/app-debug.apk
+          workspace: .maestro/cloud
+          device-os: android-33
+          include-tags: cloud-expanded
+          name: AP-260814-0220 DarkCat CAT expanded Cloud
+          env: |
+            CLOUD_APPROVED_VISUAL_BASELINES=false
+
+      - name: Run selected CAT target on Maestro Cloud
+        if: github.event_name == 'workflow_dispatch' && inputs.include_tags != 'cloud-expanded'
         uses: mobile-dev-inc/action-maestro-cloud@v1
         with:
           api-key: ${{ secrets.MAESTRO_API_KEY }}
@@ -46,6 +78,6 @@ jobs:
           workspace: .maestro/cloud
           device-os: android-33
           include-tags: ${{ inputs.include_tags }}
-          name: AP-260814-0220 DarkCat CAT expanded Cloud
+          name: AP-260814-0220 DarkCat selected Cloud target
           env: |
             CLOUD_APPROVED_VISUAL_BASELINES=false
