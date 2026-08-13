@@ -1,0 +1,36 @@
+appId: ru.darkcat.camera
+name: CAT-01/02/03 launch and main screen
+tags:
+  - cat-01
+  - cat-02
+  - cat-03
+---
+- launchApp:
+    clearState: false
+- runFlow:
+    when:
+      visible: "While using the app"
+    commands:
+      - tapOn: "While using the app"
+- runFlow:
+    when:
+      visible: "При использовании приложения"
+    commands:
+      - tapOn: "При использовании приложения"
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_gps"
+    timeout: 30000
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_lens"
+- assertNotVisible: "Open Camera"
+- assertNotVisible: "What's New"
+- takeScreenshot: "01-launch-main"
+- takeScreenshot: "02-main"
+- takeScreenshot: "03-system-main"

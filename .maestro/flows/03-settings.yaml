@@ -1,0 +1,44 @@
+appId: ru.darkcat.camera
+name: CAT-09/10/34/35 settings and capability gates
+tags:
+  - cat-09
+  - cat-10
+  - cat-34
+  - cat-35
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_settings"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings"
+- extendedWaitUntil:
+    visible: "Настройки DarkCat"
+    timeout: 5000
+- tapOn: "Съёмка"
+- extendedWaitUntil:
+    visible: "Разрешение фото"
+    timeout: 5000
+- assertVisible: "Баланс белого"
+- assertVisible: "Яркость снимка"
+- assertVisible: "Вспышка"
+- assertVisible: "OEM Night (если камера заявляет capability)"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_settings_save"
+- takeScreenshot: "09-settings-capture"
+- pressKey: BACK
+- pressKey: BACK
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_settings"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings"
+- tapOn: "Полевой режим"
+- extendedWaitUntil:
+    visible: "Сила отклика: кадр"
+    timeout: 5000
+- assertVisible: "Тест: кадр снят"
+- assertVisible: "Тест: отказ"
+- assertVisible: "Сила отклика: отказ"
+- takeScreenshot: "34-haptics-settings"

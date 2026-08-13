@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable selectors for the CAT UI Maestro pilot; behavior and layout are unchanged. -->
+    <item name="cat_ui_top_bar" type="id" />
+    <item name="cat_ui_gps" type="id" />
+    <item name="cat_ui_sequence" type="id" />
+    <item name="cat_ui_sync" type="id" />
+    <item name="cat_ui_storage" type="id" />
+    <item name="cat_ui_field" type="id" />
+    <item name="cat_ui_flash" type="id" />
+    <item name="cat_ui_tags" type="id" />
+    <item name="cat_ui_photo_video" type="id" />
+    <item name="cat_ui_night" type="id" />
+    <item name="cat_ui_settings" type="id" />
+    <item name="cat_ui_zoom_presets" type="id" />
+    <item name="cat_ui_last_shot" type="id" />
+    <item name="cat_ui_shutter" type="id" />
+    <item name="cat_ui_lens" type="id" />
+    <item name="cat_ui_settings_save" type="id" />
+</resources>
