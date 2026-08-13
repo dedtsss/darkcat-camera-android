@@ -1,0 +1,54 @@
+appId: ru.darkcat.camera
+name: CAT-22/23 Pixel 7 Field Mode enable and GPS ownership
+tags:
+  - cat-pixel7-hardware
+  - cat-22
+  - cat-23
+---
+# Precondition: the disposable Pixel 7 test profile has Camera, precise Location and
+# notifications granted; Field Mode and persistent user GPS are OFF.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings"
+- tapOn: "Полевой режим"
+- extendedWaitUntil:
+    visible: "Volume+ как спуск в полевом режиме"
+    timeout: 5000
+- tapOn: "Полевой режим"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings_save"
+- extendedWaitUntil:
+    visible: "Включить полевой режим?"
+    timeout: 5000
+- tapOn: "Понятно, включить"
+- pressKey: back
+- pressKey: back
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- takeScreenshot: "22-field-active"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible: "GPS · live"
+    timeout: 5000
+- assertVisible: "GPS Locker: Field Mode"
+- takeScreenshot: "23-field-gps-owner"
+- tapOn: "Держать постоянно"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible: "GPS Locker: Field Mode + постоянно (пользователь)"
+    timeout: 5000
+- takeScreenshot: "23-field-user-gps"
+- tapOn: "Выключить постоянный GPS"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- assertVisible: "GPS Locker: Field Mode"
+- tapOn: "Закрыть"

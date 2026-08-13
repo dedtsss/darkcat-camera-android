@@ -1,0 +1,16 @@
+appId: ru.darkcat.camera
+name: CAT-29 Pixel 7 return after normal unlock
+tags:
+  - cat-pixel7-hardware
+  - cat-29
+---
+# The runner has only woken the device. The operator unlocks normally; no credential
+# is requested or automated. This flow waits for the actual CAT UI to become reachable.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 90000
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- takeScreenshot: "29-field-return"

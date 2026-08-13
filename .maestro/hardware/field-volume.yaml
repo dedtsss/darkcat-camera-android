@@ -1,0 +1,16 @@
+appId: ru.darkcat.camera
+name: CAT-25 Pixel 7 Field Mode Volume+ capture
+tags:
+  - cat-pixel7-hardware
+  - cat-25
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- pressKey: "volume up"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- takeScreenshot: "25-volume-up"

@@ -33,4 +33,4 @@ tags:
 - assertNotVisible: "What's New"
 - takeScreenshot: "01-launch-main"
 - takeScreenshot: "02-main"
-- takeScreenshot: "03-system-main"
+- takeScreenshot: "03-maestro-main"

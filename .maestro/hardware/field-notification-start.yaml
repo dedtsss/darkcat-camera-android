@@ -1,0 +1,19 @@
+appId: ru.darkcat.camera
+name: CAT-32/33 Pixel 7 Field notification setup
+tags:
+  - cat-pixel7-hardware
+  - cat-32
+  - cat-33
+---
+# field-off-ownership restores the test profile to Field OFF, so start a new test-owned
+# Field session immediately before expanding the notification shade.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000

@@ -1,0 +1,43 @@
+appId: ru.darkcat.camera
+name: CAT-30/31 Pixel 7 Field and persistent GPS ownership
+tags:
+  - cat-pixel7-hardware
+  - cat-30
+  - cat-31
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+# 30: no user request is present, so Field OFF must stop the Locker completely.
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 10000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- assertVisible: "GPS Locker: выключен"
+- takeScreenshot: "30-field-off"
+- tapOn: "Закрыть"
+# 31: recreate Field, add a user request, then prove user ownership survives Field OFF.
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- tapOn: "Держать постоянно"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 10000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- assertVisible: "GPS Locker: постоянно (пользователь)"
+- takeScreenshot: "31-user-gps-survives"
+# Restore the documented precondition rather than leaving a test-created persistent request.
+- tapOn: "Выключить постоянный GPS"

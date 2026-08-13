@@ -22,7 +22,7 @@ tags:
 - assertNotVisible: "Camera ID"
 - assertNotVisible: "camera id"
 - takeScreenshot: "16-lenses"
-- pressKey: BACK
+- pressKey: back
 - setOrientation: PORTRAIT
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_top_bar"

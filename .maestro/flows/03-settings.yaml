@@ -28,8 +28,8 @@ tags:
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_settings_save"
 - takeScreenshot: "09-settings-capture"
-- pressKey: BACK
-- pressKey: BACK
+- pressKey: back
+- pressKey: back
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_settings"
 - tapOn:

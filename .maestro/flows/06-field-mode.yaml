@@ -1,18 +1,6 @@
 appId: ru.darkcat.camera
-name: CAT-22/23/24/25/26/27/28/29/30/31/32/33/34/35 Field Mode surface
+name: CAT-34/35 Field Mode configuration surface
 tags:
-  - cat-22
-  - cat-23
-  - cat-24
-  - cat-25
-  - cat-26
-  - cat-27
-  - cat-28
-  - cat-29
-  - cat-30
-  - cat-31
-  - cat-32
-  - cat-33
   - cat-34
   - cat-35
 ---
@@ -34,16 +22,3 @@ tags:
 - assertVisible: "Сила отклика: кадр"
 - assertVisible: "Сила отклика: отказ"
 - takeScreenshot: "22-field-settings"
-- pressKey: BACK
-- pressKey: BACK
-- assertVisible:
-    id: "ru.darkcat.camera:id/cat_ui_field"
-- tapOn:
-    id: "ru.darkcat.camera:id/cat_ui_field"
-- runFlow:
-    when:
-      visible: "Включить полевой режим?"
-    commands:
-      - assertVisible: "Android покажет системное уведомление."
-      - takeScreenshot: "23-field-safety"
-      - tapOn: "Отмена"
