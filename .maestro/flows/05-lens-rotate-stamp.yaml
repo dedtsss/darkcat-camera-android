@@ -27,7 +27,7 @@ tags:
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_top_bar"
 - takeScreenshot: "20-portrait"
-- setOrientation: LANDSCAPE
+- setOrientation: LANDSCAPE_LEFT
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_top_bar"
 - takeScreenshot: "20-landscape"
