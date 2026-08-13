@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraExtensionCharacteristics;
@@ -29,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -57,6 +59,7 @@ import ru.darkcat.camera.gallery.GalleryRepository;
 import ru.darkcat.camera.lens.LensCapabilityMapper;
 import ru.darkcat.camera.lens.ZoomPresetGenerator;
 import ru.darkcat.camera.location.GpsIndicator;
+import ru.darkcat.camera.location.GpsLockerOwnership;
 import ru.darkcat.camera.location.GpsLockerService;
 import ru.darkcat.camera.location.GpsState;
 import ru.darkcat.camera.location.LocationRepository;
@@ -70,6 +73,8 @@ public final class DarkCatUi {
     private static final String WATERMARK_TAG = "darkcat-watermark";
     private static final String STAMP_TAG = "darkcat-technical-stamp";
     private static final String CROSSHAIR_TAG = "darkcat-crosshair";
+    private static final int ACTIVE_SHIELD_COLOR = 0xff72e59c;
+    private static final int INACTIVE_SHIELD_COLOR = 0xffa7adb5;
     private static WeakReference<MainActivity> installedActivity = new WeakReference<>(null);
 
     @SuppressLint("SetTextI18n")
@@ -156,7 +161,7 @@ public final class DarkCatUi {
         sequence.setText(DarkCatSettings.sequenceEnabled(activity) ? "№" + String.format(java.util.Locale.US, "%05d", DarkCatSettings.currentPhotoSequence(activity)) : "№ выкл.");
         UploadQueueSummary queue = DarkCatDatabase.get(activity).queueSummary(); boolean storageError = DarkCatSettings.storageBlocked(activity);
         sync.setText(storageError ? "Облако !" : "Облако " + queue.pending + (queue.errors > 0 ? " !" : queue.uploading > 0 ? " ↑" : "")); sync.setTextColor(storageError || queue.errors > 0 ? 0xffff7777 : Color.WHITE);
-        boolean vault = DarkCatSettings.isVaultMode(activity); shield.setText(vault ? "Vault" : "Галерея"); shield.setTextColor(vault ? 0xff72e59c : 0xffffd166);
+        renderStorageIndicator(activity, shield, DarkCatSettings.isVaultMode(activity));
         field.setText(FieldModeState.isRunning() ? "Field ●" : "Field ○"); field.setTextColor(FieldModeState.isRunning() ? 0xff72e59c : Color.LTGRAY);
         photoVideo.setText(activity.getPreview() != null && activity.getPreview().isVideo() ? "Фото" : "Видео"); flash.setText(flashLabel(activity));
         boolean nightAvailable = supportsOemNight(activity); night.setText(DarkCatSettings.nightMode(activity) && nightAvailable ? "Ночь OEM" : nightAvailable ? "Ночь" : "Ночь —"); night.setEnabled(nightAvailable && !FieldModeState.isRunning());
@@ -202,12 +207,62 @@ public final class DarkCatUi {
         } catch (Exception ignored) { }
     }
 
+    private static void renderStorageIndicator(MainActivity activity, TextView shield, boolean vault) {
+        int color = vault ? ACTIVE_SHIELD_COLOR : INACTIVE_SHIELD_COLOR;
+        shield.setText(vault ? "Vault" : "Галерея"); shield.setTextColor(color);
+        Drawable icon = ContextCompat.getDrawable(activity, R.drawable.ic_darkcat_storage_shield);
+        if (icon != null) {
+            icon = DrawableCompat.wrap(icon.mutate());
+            DrawableCompat.setTint(icon, color);
+            shield.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null);
+            shield.setCompoundDrawablePadding(dp(activity, 4));
+        }
+        shield.setContentDescription(vault
+                ? "Vault: защищённое хранилище включено. Нажмите, чтобы переключить в Gallery"
+                : "Gallery: сохранение в MediaStore. Нажмите, чтобы переключить в Vault");
+    }
+
     private static void showGpsQuickPanel(MainActivity activity) {
         GpsState state = GpsLockerService.currentState(activity);
+        GpsLockerOwnership ownership = DarkCatSettings.gpsLockerOwnership(activity);
         new AlertDialog.Builder(activity).setTitle("GPS · live")
-                .setMessage("Текущая точность: " + state.getAccuracyLabel() + "\nСостояние: " + state.getIssue()
+                .setMessage(gpsLockerOwnershipSummary(ownership)
+                        + "\nТекущая точность: " + state.getAccuracyLabel() + "\nСостояние: " + state.getIssue()
                         + "\nСостояние обновляется тем же callback, что штамп и EXIF.")
-                .setNegativeButton("Закрыть", null).setPositiveButton("Настройки", (d, w) -> openProductSettings(activity)).show();
+                .setNeutralButton("Закрыть", null)
+                .setNegativeButton("Настройки", (d, w) -> openProductSettings(activity))
+                .setPositiveButton(ownership.isRequestedByUser() ? "Выключить постоянный GPS" : "Держать постоянно",
+                        (d, w) -> toggleUserOwnedGpsLocker(activity, ownership)).show();
+    }
+
+    private static String gpsLockerOwnershipSummary(GpsLockerOwnership ownership) {
+        if (ownership.isRequestedByField() && ownership.isRequestedByUser())
+            return "GPS Locker: Field Mode + постоянно (пользователь)";
+        if (ownership.isRequestedByField()) return "GPS Locker: Field Mode";
+        if (ownership.isRequestedByUser()) return "GPS Locker: постоянно (пользователь)";
+        return "GPS Locker: выключен";
+    }
+
+    /** Only the explicit user request changes here; Field Mode keeps its own owner. */
+    private static void toggleUserOwnedGpsLocker(MainActivity activity, GpsLockerOwnership ownership) {
+        if (ownership.isRequestedByUser()) {
+            GpsLockerService.stopUser(activity);
+            Toast.makeText(activity, ownership.isRequestedByField()
+                    ? "Постоянный GPS выключен; GPS Locker остаётся для Field Mode"
+                    : "Постоянный GPS Locker выключен", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(activity, "Для GPS Locker нужна точная геолокация; откройте Настройки", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            GpsLockerService.startForUserFromVisibleContext(activity);
+            Toast.makeText(activity, "Постоянный GPS Locker включён", Toast.LENGTH_SHORT).show();
+        } catch (RuntimeException error) {
+            Toast.makeText(activity, "Не удалось включить постоянный GPS Locker", Toast.LENGTH_LONG).show();
+        }
     }
 
     private static void toggleStorage(MainActivity activity) {
