@@ -34,7 +34,14 @@ tags:
     timeout: 10000
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_gps"
-- assertVisible: "GPS Locker: выключен"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.fieldOffGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.fieldOffGpsOwnership.includes("GPS Locker: выключен")}'
 - takeScreenshot: "cloud-30-field-off-gps-off"
 - tapOn: "Закрыть"
 - tapOn:
@@ -52,6 +59,13 @@ tags:
     timeout: 10000
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_gps"
-- assertVisible: "GPS Locker: постоянно (пользователь)"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.userGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.userGpsOwnership.includes("GPS Locker: постоянно (пользователь)")}'
 - takeScreenshot: "cloud-31-user-gps-survives"
 - tapOn: "Выключить постоянный GPS"

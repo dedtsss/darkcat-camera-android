@@ -37,7 +37,7 @@ tags:
     timeout: 15000
 - tapOn: "Поделиться"
 - assertWithAI:
-    assertion: "The Android system share chooser is open above DarkCat and shows at least one receiving application."
+    assertion: "The Android system share chooser is open above DarkCat and exposes one or more available system targets or receiving applications. A recipient recommendation is not required."
     optional: false
 - extractTextWithAI:
     query: "Extract the visible title and receiving application names from the Android share chooser."

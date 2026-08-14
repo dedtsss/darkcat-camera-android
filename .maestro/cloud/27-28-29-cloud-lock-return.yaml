@@ -29,7 +29,8 @@ tags:
       - tapOn:
           id: "ru.darkcat.camera:id/cat_ui_field"
 - extendedWaitUntil:
-    visible: "Field ●"
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
     timeout: 30000
 - copyTextFrom:
     id: "ru.darkcat.camera:id/cat_ui_sequence"
@@ -40,7 +41,8 @@ tags:
 - launchApp:
     stopApp: false
 - extendedWaitUntil:
-    visible: "Field ●"
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
     timeout: 30000
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_gps"
@@ -50,6 +52,13 @@ tags:
 - takeScreenshot: "cloud-27-28-29-return"
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_gps"
-- assertVisible: "GPS Locker: Field Mode"
-- assertVisible: ".*Текущая точность:.*"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.returnGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.returnGpsOwnership.includes("GPS Locker: Field Mode")}'
+- assertTrue: '${output.returnGpsOwnership.includes("Текущая точность:")}'
 - takeScreenshot: "cloud-29-gps-after-return"

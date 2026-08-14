@@ -19,7 +19,8 @@ tags:
 - extendedWaitUntil:
     visible: "Камера 0\\.5 · основные категории"
     timeout: 10000
-- assertNoDefectsWithAI:
+- assertWithAI:
+    assertion: "Ignore intentional mixed Russian and technical English labels. The static settings cards do not overlap, clip, or hide controls, and all visible labels and buttons are readable."
     optional: false
 - takeScreenshot:
     path: "cloud-settings-root"

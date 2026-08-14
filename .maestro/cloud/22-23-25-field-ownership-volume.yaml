@@ -33,9 +33,14 @@ tags:
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_gps"
 - extendedWaitUntil:
-    visible: "GPS Locker: Field Mode"
+    visible:
+      id: "android:id/message"
     timeout: 10000
-- assertVisible: ".*Текущая точность:.*"
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.fieldGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.fieldGpsOwnership.includes("GPS Locker: Field Mode")}'
+- assertTrue: '${output.fieldGpsOwnership.includes("Текущая точность:")}'
 - takeScreenshot: "cloud-22-23-field-owner"
 - tapOn: "Закрыть"
 - copyTextFrom:

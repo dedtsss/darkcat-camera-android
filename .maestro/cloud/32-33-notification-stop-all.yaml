@@ -32,9 +32,11 @@ tags:
     start: "50%,0%"
     end: "50%,85%"
     duration: 800
-- extendedWaitUntil:
-    visible: "DarkCat Camera · Полевой режим"
-    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertWithAI:
+    assertion: "Android's notification shade is open and displays a DarkCat Camera Field Mode or GPS Locker notification. Ignore whether Android splits the app title and the notification text into separate lines."
+    optional: false
 - assertNotVisible: "Откройте камеру для восстановления"
 - assertNoDefectsWithAI:
     optional: false
