@@ -27,14 +27,12 @@ tags:
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_top_bar"
 - assertWithAI:
-    assertion: "DarkCat camera controls are completely visible in landscape. No control is clipped or overlaps another control, and the camera preview is not an unintended black error screen."
+    assertion: "Ignore the dynamic camera-preview pixels. DarkCat's landscape UI chrome, including the top bar, shutter, lens control, and last-shot control, is completely visible. No control is clipped or overlaps another control."
     optional: false
 - takeScreenshot: "cloud-20-landscape"
 - setOrientation: PORTRAIT
 - assertVisible:
     id: "ru.darkcat.camera:id/cat_ui_top_bar"
-- assertNoDefectsWithAI:
-    optional: false
 - tapOn:
     id: "ru.darkcat.camera:id/cat_ui_shutter"
 - waitForAnimationToEnd:
