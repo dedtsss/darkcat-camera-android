@@ -48,6 +48,10 @@ tags:
 - pressKey: "volume up"
 - waitForAnimationToEnd:
     timeout: 15000
+- extendedWaitUntil:
+    visible: "Failed to take picture"
+    timeout: 15000
+    optional: true
 - copyTextFrom:
     id: "ru.darkcat.camera:id/cat_ui_sequence"
 - evalScript: ${output.afterVolumeSequence = maestro.copiedText}
