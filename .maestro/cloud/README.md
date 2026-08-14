@@ -14,6 +14,8 @@ CAT-21 treats stamp clipping as missing glyphs, not as a requirement for a decor
 
 The cropped CAT-34 Field-settings card uses `takeScreenshot` and an `assertScreenshot`/`cropOn` guard behind `CLOUD_APPROVED_VISUAL_BASELINES=true`. The workflow defaults it to `false` until a reviewed image is committed at `baselines/cloud-settings-field-card.png` from the exact Cloud API/device. A dynamic camera preview, another device, or an unreviewed first run is never an acceptable baseline. Do not use a full-screen baseline for the preview.
 
+CAT-22 reads the ownership from the actual AlertDialog `android:id/message` node. The message is one multiline Android node, so its ownership is asserted there; a second-line text selector is not treated as an independent UI element. CAT-34 checks card geometry separately from copy: its AI assertion treats every label, including the intentional `Volume+` technical label, as opaque expected content and evaluates only clipping, overlap, and hidden controls.
+
 ## First-failure classification
 
 Classify a new failure before changing app code:

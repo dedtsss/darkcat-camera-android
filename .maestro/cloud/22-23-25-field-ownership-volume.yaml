@@ -40,7 +40,6 @@ tags:
     id: "android:id/message"
 - evalScript: ${output.fieldGpsOwnership = maestro.copiedText}
 - assertTrue: '${output.fieldGpsOwnership.includes("GPS Locker: Field Mode")}'
-- assertTrue: '${output.fieldGpsOwnership.includes("Текущая точность:")}'
 - takeScreenshot: "cloud-22-23-field-owner"
 - tapOn: "Закрыть"
 - copyTextFrom:

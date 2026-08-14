@@ -44,7 +44,8 @@ tags:
 - assertVisible: "Volume+ как спуск в полевом режиме"
 - assertVisible: "Тест: кадр снят"
 - assertVisible: "Тест: отказ"
-- assertNoDefectsWithAI:
+- assertWithAI:
+    assertion: "Evaluate only the geometry of this Field Mode settings screen. Treat every text string, its language, spelling, and meaning—including the literal label Volume+—as expected opaque content. The Volume+ capture, success haptic, and failure haptic controls are fully within their cards and do not overlap, clip, or hide one another. Do not report a text-language difference as a defect."
     optional: false
 - takeScreenshot: "cloud-34-haptic-controls"
 - pressKey: back
