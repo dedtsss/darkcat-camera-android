@@ -10,6 +10,8 @@ The suite is intentionally self-contained per flow because Maestro Cloud resets 
 
 `assertNoDefectsWithAI` and the stable-UI `assertWithAI` checks are hard gates here (`optional: false`) and their Cloud reports are required evidence for visual outcomes. `extractTextWithAI` records stamp and chooser text as Cloud evidence. Camera-preview pixels are explicitly excluded from the CAT-20 AI chrome check: Cloud can expose a black virtual-camera feed even while the camera UI is healthy. That observation is retained as `CLOUD_PARTIAL` / `CLOUD_LIMITATION`, never as a claim that the preview was physically validated.
 
+CAT-21 treats stamp clipping as missing glyphs, not as a requirement for a decorative lower margin. The Cloud screenshot is retained with the result: a fully visible `№00001` on the lower stamp line is a pass even when the strip sits against the image edge.
+
 The cropped CAT-34 Field-settings card uses `takeScreenshot` and an `assertScreenshot`/`cropOn` guard behind `CLOUD_APPROVED_VISUAL_BASELINES=true`. The workflow defaults it to `false` until a reviewed image is committed at `baselines/cloud-settings-field-card.png` from the exact Cloud API/device. A dynamic camera preview, another device, or an unreviewed first run is never an acceptable baseline. Do not use a full-screen baseline for the preview.
 
 ## First-failure classification

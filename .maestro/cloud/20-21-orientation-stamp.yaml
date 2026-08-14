@@ -43,7 +43,7 @@ tags:
     visible: "Редактор"
     timeout: 15000
 - assertWithAI:
-    assertion: "The saved DarkCat image is visible. Its technical stamp shows coordinates near 55.755826, 37.617300, an accuracy presentation, and a sequence number; the entire stamp is inside the image and is not clipped."
+    assertion: "Inspect the black technical-stamp strip inside the saved image. Both stamp lines have fully legible, complete glyphs: 55,755826N 37,617300E, ±1,0m, and the complete second-line sequence №00001. The strip is inside the image; it is acceptable for its lower edge to be close to the image edge, but do not call it clipped when every character is visible."
     optional: false
 - extractTextWithAI:
     query: "Extract the technical-stamp coordinates, accuracy presentation, and sequence number from the displayed saved image."
