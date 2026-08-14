@@ -28,7 +28,7 @@ IDs `01`–`36` are stable in flows, reports and evidence names. `CLOUD_AUTO` me
 | 22 | CLOUD_AUTO | `cloud/22-23-25-field-ownership-volume.yaml`, `cloud-22-23-*` | Field becomes active under fixed location. | Not a Pixel 7/GrapheneOS PASS. |
 | 23 | CLOUD_AUTO | `cloud/22-23-25-field-ownership-volume.yaml`, `cloud-22-23-*` | Field GPS Locker ownership text is visible. | No real GNSS accuracy claim. |
 | 24 | PHYSICAL_REQUIRED | — | — | Wait for real accuracy better than 7 m. |
-| 25 | CLOUD_AUTO for sequence; PHYSICAL_REQUIRED for haptic | `cloud/22-23-25-field-ownership-volume.yaml`, `cloud-25-volume-up.png` | `pressKey: volume up` changes CAT sequence. | Perceived haptic remains manual. |
+| 25 | CLOUD_AUTO for sequence when the Cloud Camera2 frame is usable; CLOUD_PARTIAL for its proved virtual-camera error; PHYSICAL_REQUIRED for haptic | `cloud/22-23-25-field-ownership-volume.yaml`, `cloud-25-volume-up.png` or `cloud-25-virtual-camera-limitation.png` | `pressKey: volume up` changes CAT sequence unless Cloud reports `Failed to take picture`, which is retained as virtual-Camera2 evidence. | Perceived haptic and physical Camera2 capture remain manual. |
 | 26 | PHYSICAL_REQUIRED | — | — | Real poor-GNSS strict block and distinct fail haptic. |
 | 27 | CLOUD_PARTIAL + PHYSICAL_REQUIRED | `cloud/27-28-29-cloud-lock-return.yaml` | `pressKey: lock` is issued. | Cloud has no fixed 30-second physical lock proof. |
 | 28 | CLOUD_PARTIAL + PHYSICAL_REQUIRED | `cloud/27-28-29-cloud-lock-return.yaml` | Cloud sends Volume+ while lock simulation is active. | No secure-lockscreen/haptic PASS. |

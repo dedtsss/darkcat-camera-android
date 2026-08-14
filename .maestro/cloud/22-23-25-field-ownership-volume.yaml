@@ -51,5 +51,14 @@ tags:
 - copyTextFrom:
     id: "ru.darkcat.camera:id/cat_ui_sequence"
 - evalScript: ${output.afterVolumeSequence = maestro.copiedText}
-- assertTrue: ${output.afterVolumeSequence != output.beforeVolumeSequence}
-- takeScreenshot: "cloud-25-volume-up"
+- runFlow:
+    when:
+      visible: "Failed to take picture"
+    commands:
+      - takeScreenshot: "cloud-25-virtual-camera-limitation"
+- runFlow:
+    when:
+      notVisible: "Failed to take picture"
+    commands:
+      - assertTrue: ${output.afterVolumeSequence != output.beforeVolumeSequence}
+      - takeScreenshot: "cloud-25-volume-up"

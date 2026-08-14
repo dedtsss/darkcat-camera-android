@@ -16,6 +16,8 @@ The cropped CAT-34 Field-settings card uses `takeScreenshot` and an `assertScree
 
 CAT-22 reads the ownership from the actual AlertDialog `android:id/message` node. The message is one multiline Android node, so its ownership is asserted there; a second-line text selector is not treated as an independent UI element. CAT-34 checks card geometry separately from copy: its AI assertion treats every label, including the intentional `Volume+` technical label, as opaque expected content and evaluates only clipping, overlap, and hidden controls.
 
+CAT-25 branches on the evidence after `Volume+`: when Cloud Camera2 supplies a usable virtual frame, the sequence must change; when it exposes the proved `Failed to take picture` virtual-camera condition, the flow retains a limitation screenshot instead. That branch is `CLOUD_PARTIAL`, never a Camera2/physical-capture PASS and never an application failure without contrary evidence.
+
 ## First-failure classification
 
 Classify a new failure before changing app code:
