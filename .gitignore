@@ -1,8 +1,40 @@
+_archive/
+_devdocs/
+_docs/*.jpg
+_docs/ads.txt
+_docs/app-ads.txt
+_docs/gplay.html
+_other/
+_saved/
+
 .gradle/
+.idea/
+!.idea/inspectionProfiles
 build/
 **/build/
-local.properties
-.idea/
+app/release/
+gfx/
+testdata/
+
+*.db
 *.iml
+*.apk
+*.aab
+*.ap_
 captures/
 .DS_Store
+
+local.properties
+uninstall.bat
+
+# Signing files - NEVER commit these
+*.keystore
+*.jks
+signing.properties
+
+# Registration token shipped in the app assets - keep out of this public repo
+app/src/main/assets/adi-registration.properties
+
+# Local development notes, not part of the app
+CLAUDE.md
+.claude/

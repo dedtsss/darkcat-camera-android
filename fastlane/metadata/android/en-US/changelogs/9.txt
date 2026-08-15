@@ -1,0 +1,5 @@
+DarkCat Camera 0.5 field iteration:
+- choose encrypted Vault or MediaStore Gallery with a quick shield toggle;
+- unified gallery, last-shot viewer, explicit editor, live GPS and configurable haptics;
+- service-owned Field Mode remains intact, with improved diagnostics and notifications;
+- OEM Night is capability-gated; hardware validation remains pending on Pixel 7 and Xiaomi 12 Lite.

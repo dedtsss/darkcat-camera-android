@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:versionCode="9"
+    android:versionName="0.5.0-field"
+    android:installLocation="auto"
+    tools:ignore="GoogleAppIndexingWarning">
+    <!-- ignore GoogleAppIndexingWarning as we don't want to implement that -->
+
+    <supports-screens android:xlargeScreens="true" android:largeScreens="true" android:normalScreens="true" android:smallScreens="true" android:anyDensity="true"/>
+
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30"
+        />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30"
+        />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"
+        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- DarkCat capture/upload integration. Camera and microphone remain upstream capabilities. -->
+
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-feature android:name="android.hardware.microphone" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
+
+    <application
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:name=".OpenCameraApplication"
+        android:theme="@style/AppTheme"
+        android:largeHeap="true"
+        >
+        <!-- enableOnBackInvokedCallback is set to false because predictive back is enabled by default
+             when targeting Android 16 (API 36), and that breaks the settings screens. The preference
+             fragments are added to the *framework* FragmentManager back stack (see openSettings() and
+             onPreferenceStartFragment() in MainActivity), which is only popped by
+             Activity.onBackPressed(). With predictive back enabled the system dispatches back to the
+             AndroidX OnBackPressedDispatcher instead, and none of the callbacks registered there
+             (popup, pause preview, screen lock) is enabled while the settings are open, so back
+             finished the activity and skipped settingsClosing() entirely. Verified on Android 16:
+             without this flag one back press from a settings sub-screen exits the app.
+             This opt-out is temporary; the real fix is to migrate the preference fragments to
+             AndroidX fragments, whose FragmentManager registers its own OnBackPressedCallback. -->
+
+        <!-- Note: we deliberately do NOT set PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY. Android 16
+             ignores orientation/resizability requests on displays of at least 600dp, but that does not
+             affect us: we declare no screenOrientation, resizableActivity or aspect ratio, and
+             setWindowFlagsForCamera() only ever requests SCREEN_ORIENTATION_SENSOR (lock_to_landscape
+             is a compile-time false) or SCREEN_ORIENTATION_UNSPECIFIED, neither of which is on the
+             list of values that Android 16 ignores. Verified on a simulated 617dp display: identical
+             rendering with and without the opt-out, and no letterboxing. -->
+
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <activity
+            android:name="com.linkedcamera.app.MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:clearTaskOnLaunch="true"
+            android:exported="true"
+            >
+            <!-- clearTaskOnLaunch set to true, so if user goes to gallery then returns to home, we return to the camera rather than remaining in gallery if user relaunches Linked Camera -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.IMAGE_CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.IMAGE_CAPTURE_SECURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.STILL_IMAGE_CAMERA_SECURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.VIDEO_CAMERA" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.action.VIDEO_CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="ru.darkcat.camera.action.CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+        </activity>
+        <activity
+            android:name="com.linkedcamera.app.remotecontrol.DeviceScanner"
+            android:label="@string/scan_ble"
+            android:exported="false"
+        >
+        </activity>
+        <activity
+            android:name="ru.darkcat.camera.ui.DarkCatSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.DarkCatSettingsRootActivity"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.GalleryActivity"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.VaultActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name="ru.darkcat.camera.ui.EditorActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name="ru.darkcat.camera.ui.MediaViewerActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.DiagnosticsActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.SyncActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <activity
+            android:name="ru.darkcat.camera.ui.PointGalleryActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/darkcat_file_paths" />
+        </provider>
+
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <activity
+            android:name="TakePhoto"
+            android:label="@string/take_photo"
+            android:icon="@drawable/ic_launcher_take_photo"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:exported="false"
+            >
+        </activity>
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <receiver
+            android:icon="@drawable/ic_launcher_take_photo"
+            android:label="@string/take_photo"
+            android:name="MyWidgetProviderTakePhoto"
+            android:exported="true">
+            <intent-filter >
+                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+               android:name="android.appwidget.provider"
+               android:resource="@xml/widget_info_take_photo" />
+        </receiver>
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <service
+            android:name="com.linkedcamera.app.MyTileService"
+            android:icon="@drawable/ic_photo_camera_white_48dp"
+            android:label="@string/camera"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <service
+            android:name="com.linkedcamera.app.MyTileServiceVideo"
+            android:icon="@drawable/ic_videocam_white_48dp"
+            android:label="@string/record_video"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <!-- should not change the android:name, including moving to a subpackage - see http://android-developers.blogspot.co.uk/2011/06/things-that-cannot-change.html -->
+        <service
+            android:name="com.linkedcamera.app.MyTileServiceFrontCamera"
+            android:icon="@drawable/ic_face_white_48dp"
+            android:label="@string/selfie"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service android:name="com.linkedcamera.app.remotecontrol.BluetoothLeService"
+            android:enabled="true"
+            android:exported="false"
+            />
+        <service
+            android:name="com.linkedcamera.app.NextcloudUploadService"
+            android:exported="false" />
+        <service
+            android:name="ru.darkcat.camera.field.FieldModeService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
+        <service
+            android:name="ru.darkcat.camera.location.GpsLockerService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <receiver
+            android:name="ru.darkcat.camera.location.GpsBootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.linkedcamera.app.NextcloudWiFiReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                <action android:name="android.net.wifi.WIFI_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+    </application>
+    <!-- needed for targetting Android 11 - see https://developer.android.com/about/versions/11/behavior-changes-11 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+</manifest>

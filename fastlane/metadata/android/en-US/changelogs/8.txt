@@ -1,0 +1,7 @@
+DarkCat Camera 0.4 field iteration:
+- service-owned Camera2 Field Mode session for real lockscreen capture;
+- Volume+/Bluetooth trigger diagnostics and stronger capture haptics;
+- independent GPS Locker state/gate remains active in the background;
+- WYSIWYG technical stamp and watermark preview/JPEG layer;
+- shooting-point grouping model and point gallery;
+- hardware validation remains pending on Pixel 7 and Xiaomi 12 Lite.
