@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref != 'refs/heads/agent/cat-log-mvp' || contains(github.event.head_commit.message, '[build-apk]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
