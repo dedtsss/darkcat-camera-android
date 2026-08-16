@@ -78,7 +78,7 @@ public final class CatLog {
         CatLog current = get();
         if (current == null) return;
         Map<String, ?> snapshot = current.snapshotProvider == null ? Collections.emptyMap() : current.snapshotProvider.snapshot();
-        current.record("ui", "user.problem_marked", "mark_problem", "problem marker recorded", "recorded", "PASS", snapshot);
+        current.record("ui", "user.problem_marked", "mark_problem", "problem marker recorded", "recorded", "PASS", null, null, snapshot);
     }
 
     public static void startSession() {
@@ -86,13 +86,13 @@ public final class CatLog {
         if (current == null) return;
         current.session.markStarted();
         current.recording.set(true);
-        current.record("session", "session.start", "start", "new diagnostic session", "started", "PASS", null);
+        current.record("session", "session.start", "start", "new diagnostic session", "started", "PASS", null, null, null);
     }
 
     public static void stopSession() {
         CatLog current = get();
         if (current == null) return;
-        current.record("session", "session.stop", "stop", "clean stop requested", "stopped", "PASS",
+        current.record("session", "session.stop", "stop", "clean stop requested", "stopped", "PASS", null, null,
                 map("event_count", current.writer.writtenCount(), "dropped_count", current.writer.droppedCount()));
         current.flush(500L);
         current.session.markStopped();
@@ -122,7 +122,7 @@ public final class CatLog {
         current.session.directory().mkdirs();
         current.session.markStarted();
         current.recording.set(true);
-        current.record("session", "session.start", "clear", "fresh session after CAT data clear", "started", "PASS", null);
+        current.record("session", "session.start", "clear", "fresh session after CAT data clear", "started", "PASS", null, null, null);
     }
 
     public static JSONObject status() {

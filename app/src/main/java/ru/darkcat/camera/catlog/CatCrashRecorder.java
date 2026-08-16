@@ -12,7 +12,7 @@ import java.util.Map;
 /** Best-effort own-process crash and previous-exit evidence; never swallows a crash. */
 final class CatCrashRecorder {
     private final Context context;
-    private Thread previous;
+    private Thread.UncaughtExceptionHandler previous;
 
     CatCrashRecorder(Context context) { this.context = context.getApplicationContext(); }
 
@@ -34,7 +34,7 @@ final class CatCrashRecorder {
         ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         if (manager == null) return result;
         try {
-            List<ApplicationExitInfo> exits = manager.getHistoricalProcessExitReasons(context.getPackageName(), 3);
+            List<ApplicationExitInfo> exits = manager.getHistoricalProcessExitReasons(context.getPackageName(), 0, 3);
             if (exits == null || exits.isEmpty()) return result;
             ApplicationExitInfo exit = exits.get(0);
             Map<String, Object> attributes = new java.util.HashMap<>();
