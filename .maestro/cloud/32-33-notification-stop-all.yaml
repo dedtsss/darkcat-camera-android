@@ -1,0 +1,54 @@
+appId: ru.darkcat.camera
+name: CAT-32/33 Cloud notification shade and Stop all
+tags:
+  - cloud-expanded
+  - cloud-system-ui
+  - cat-32
+  - cat-33
+---
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Field ○"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- swipe:
+    start: "50%,0%"
+    end: "50%,85%"
+    duration: 800
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertWithAI:
+    assertion: "Android's notification shade is open and displays a DarkCat Camera Field Mode or GPS Locker notification. Ignore whether Android splits the app title and the notification text into separate lines."
+    optional: false
+- assertNotVisible: "Откройте камеру для восстановления"
+- assertNoDefectsWithAI:
+    optional: false
+- takeScreenshot: "cloud-33-field-notification"
+- tapOn: "Остановить всё"
+- launchApp:
+    appId: ru.darkcat.camera
+    stopApp: false
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- assertVisible: "GPS Locker: выключен"
+- takeScreenshot: "cloud-32-stop-all"

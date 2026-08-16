@@ -1,0 +1,48 @@
+appId: ru.darkcat.camera
+name: CAT-11/12/15 deterministic Gallery-mode capture and viewer
+tags:
+  - cat-11
+  - cat-12
+  - cat-15
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_storage"
+    timeout: 30000
+# Make this scenario independent of the mode left by any earlier flow.
+- runFlow:
+    when:
+      visible: "Vault"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_storage"
+- extendedWaitUntil:
+    visible: "Галерея"
+    timeout: 5000
+- takeScreenshot: "11-gallery-mode"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- extendedWaitUntil:
+    visible: "Редактор"
+    timeout: 15000
+- assertVisible: "Поделиться"
+- assertVisible: "Удалить"
+- takeScreenshot: "12-gallery-viewer"
+- pressKey: back
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- extendedWaitUntil:
+    visible: "Все кадры"
+    timeout: 10000
+- assertVisible: "DarkCat media · Галерея"
+- takeScreenshot: "15-gallery-screen"
+- pressKey: back
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"

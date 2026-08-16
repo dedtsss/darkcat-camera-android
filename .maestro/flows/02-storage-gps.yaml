@@ -1,0 +1,32 @@
+appId: ru.darkcat.camera
+name: CAT-04/05/06/07/08 storage and GPS panel
+tags:
+  - cat-04
+  - cat-05
+  - cat-06
+  - cat-07
+  - cat-08
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_storage"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_storage"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_storage"
+- takeScreenshot: "04-storage-toggle"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible: "GPS · live"
+    timeout: 5000
+- assertVisible: ".*GPS Locker:.*"
+- assertVisible: ".*Текущая точность:.*"
+- assertVisible: ".*Состояние:.*"
+- takeScreenshot: "05-gps-panel"
+- tapOn: "(?i)закрыть"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_gps"

@@ -29,6 +29,7 @@ import android.widget.Toast;
 
 import com.linkedcamera.app.PreferenceKeys;
 import com.linkedcamera.app.MainActivity;
+import com.linkedcamera.app.R;
 import com.linkedcamera.app.cameracontroller.CameraController;
 
 import java.util.ArrayList;
@@ -312,6 +313,7 @@ public final class DarkCatSettingsActivity extends Activity {
         content.addView(advanced, match());
 
         Button save = button("Сохранить", v -> saveAndClose());
+        save.setId(R.id.cat_ui_settings_save);
         save.setTextSize(17f);
         LinearLayout.LayoutParams saveParams = match();
         saveParams.topMargin = dp(24);

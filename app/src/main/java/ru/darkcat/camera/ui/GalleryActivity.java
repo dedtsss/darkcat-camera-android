@@ -117,6 +117,8 @@ public final class GalleryActivity extends Activity {
             String seq = item.sequenceNumber > 0 ? String.format(Locale.US, "№%05d", item.sequenceNumber) : "Без №";
             holder.label.setText(seq + " · " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                     .format(new Date(item.createdAt)) + "\n" + (item.source == GalleryItem.Source.VAULT ? "Vault" : "Галерея"));
+            convertView.setContentDescription("DarkCat media · "
+                    + (item.source == GalleryItem.Source.VAULT ? "Vault" : "Галерея"));
             convertView.setBackgroundColor(selected.contains(key(item)) ? 0xffb9f6ca : 0xffeeeeee);
             convertView.setOnClickListener(v -> {
                 if (selectionMode) toggleItem(item);

@@ -1,0 +1,23 @@
+appId: ru.darkcat.camera
+name: CAT-32/33 Pixel 7 Field notification Stop all
+tags:
+  - cat-pixel7-hardware
+  - cat-32
+  - cat-33
+---
+# The runner expands the notification shade immediately before this flow.
+- extendedWaitUntil:
+    visible: "DarkCat Camera · Полевой режим"
+    timeout: 10000
+- assertNotVisible: "Откройте камеру для восстановления"
+- takeScreenshot: "33-field-notification"
+- tapOn: "Остановить всё"
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- assertVisible: "GPS Locker: выключен"
+- takeScreenshot: "32-stop-all"

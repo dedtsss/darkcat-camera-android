@@ -22,9 +22,36 @@ jobs:
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk darkcat-camera-field-debug.apk
           sha256sum darkcat-camera-field-debug.apk | tee darkcat-camera-field-debug.apk.sha256
+      - name: Package CAT UI APK metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir="cat-ui-artifact"
+          apk_name="app-debug.apk"
+          mkdir -p "$artifact_dir"
+          cp app/build/outputs/apk/debug/app-debug.apk "$artifact_dir/$apk_name"
+          apk_size="$(stat -c '%s' "$artifact_dir/$apk_name")"
+          apk_sha256="$(sha256sum "$artifact_dir/$apk_name" | awk '{print $1}')"
+          cat > "$artifact_dir/BUILD_INFO.txt" <<EOF
+          repository: ${GITHUB_REPOSITORY}
+          branch: ${GITHUB_REF_NAME}
+          commit SHA: $(git rev-parse HEAD)
+          build time (UTC): $(date -u '+%Y-%m-%dT%H:%M:%SZ')
+          Gradle task: testDebugUnitTest compileDebugAndroidTestJavaWithJavac assembleDebug lintDebug
+          APK filename: ${apk_name}
+          APK size (bytes): ${apk_size}
+          SHA-256: ${apk_sha256}
+          EOF
+          printf '%s  %s\n' "$apk_sha256" "$apk_name" > "$artifact_dir/SHA256SUMS.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: darkcat-camera-field-debug
           path: |
             darkcat-camera-field-debug.apk
             darkcat-camera-field-debug.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darkcat-camera-cat-ui-apk
+          path: cat-ui-artifact/
+          if-no-files-found: error
+          retention-days: 14

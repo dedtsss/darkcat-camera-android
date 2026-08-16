@@ -1,0 +1,25 @@
+appId: ru.darkcat.camera
+name: CAT-36 rapid capture stability
+tags:
+  - cat-36
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_shutter"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- takeScreenshot: "36-burst-stability"

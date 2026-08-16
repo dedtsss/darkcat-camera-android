@@ -1,0 +1,64 @@
+appId: ru.darkcat.camera
+name: CAT-27/28/29 Cloud lock simulation and foreground recovery
+tags:
+  - cloud-expanded
+  - cloud-lock-simulation
+  - cat-27
+  - cat-28
+  - cat-29
+---
+# Maestro 2.8.0 has no deterministic fixed-duration wait command. This records
+# Cloud lock/key behavior only; it cannot prove a physical 30-second lockscreen.
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Field ○"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- copyTextFrom:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- evalScript: ${output.beforeLockedVolumeSequence = maestro.copiedText}
+- pressKey: lock
+- pressKey: "volume up"
+- pressKey: power
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- copyTextFrom:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- evalScript: ${output.afterLockedVolumeSequence = maestro.copiedText}
+- takeScreenshot: "cloud-27-28-29-return"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.returnGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.returnGpsOwnership.includes("GPS Locker: Field Mode")}'
+- assertTrue: '${output.returnGpsOwnership.includes("Текущая точность:")}'
+- takeScreenshot: "cloud-29-gps-after-return"

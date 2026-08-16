@@ -1,0 +1,68 @@
+appId: ru.darkcat.camera
+name: CAT-34/35 Cloud haptic controls and OEM Night capability gate
+tags:
+  - cloud-expanded
+  - cat-34
+  - cat-35
+---
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_settings"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings"
+- extendedWaitUntil:
+    visible: "Камера 0\\.5 · основные категории"
+    timeout: 10000
+- assertWithAI:
+    assertion: "Ignore intentional mixed Russian and technical English labels. The static settings cards do not overlap, clip, or hide controls, and all visible labels and buttons are readable."
+    optional: false
+- takeScreenshot:
+    path: "cloud-settings-root"
+    cropOn:
+      id: "ru.darkcat.camera:id/cat_ui_settings_field"
+- runFlow:
+    when:
+      true: ${CLOUD_APPROVED_VISUAL_BASELINES == "true"}
+    commands:
+      - assertScreenshot:
+          path: "baselines/cloud-settings-field-card.png"
+          cropOn:
+            id: "ru.darkcat.camera:id/cat_ui_settings_field"
+          thresholdPercentage: 98
+          label: "Approved static Field-settings card baseline only"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings_field"
+- extendedWaitUntil:
+    visible: "Полевой режим"
+    timeout: 10000
+- assertVisible: "Volume+ как спуск в полевом режиме"
+- assertVisible: "Тест: кадр снят"
+- assertVisible: "Тест: отказ"
+- assertWithAI:
+    assertion: "Evaluate only the geometry of this Field Mode settings screen. Treat every text string, its language, spelling, and meaning—including the literal label Volume+—as expected opaque content. The Volume+ capture, success haptic, and failure haptic controls are fully within their cards and do not overlap, clip, or hide one another. Do not report a text-language difference as a defect."
+    optional: false
+- takeScreenshot: "cloud-34-haptic-controls"
+- pressKey: back
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_settings_capture"
+- extendedWaitUntil:
+    visible: 'OEM Night \(если камера заявляет capability\)'
+    timeout: 10000
+- pressKey: back
+- pressKey: back
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_night"
+    timeout: 15000
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_night"
+- assertWithAI:
+    assertion: "The OEM Night capability gate is honest: if this Cloud camera has no OEM Night extension, the Night control is visibly disabled or unavailable; otherwise it is an enabled capability-gated control."
+    optional: false
+- takeScreenshot: "cloud-35-night-capability"

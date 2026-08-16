@@ -1,0 +1,71 @@
+appId: ru.darkcat.camera
+name: CAT-30/31 Cloud Field OFF and persistent GPS ownership transitions
+tags:
+  - cloud-expanded
+  - cat-30
+  - cat-31
+---
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_field"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Field ○"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 10000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.fieldOffGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.fieldOffGpsOwnership.includes("GPS Locker: выключен")}'
+- takeScreenshot: "cloud-30-field-off-gps-off"
+- tapOn: "Закрыть"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ●"
+    timeout: 30000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- tapOn: "Держать постоянно"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_field"
+- extendedWaitUntil:
+    visible: "Field ○"
+    timeout: 10000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_gps"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/message"
+    timeout: 10000
+- copyTextFrom:
+    id: "android:id/message"
+- evalScript: ${output.userGpsOwnership = maestro.copiedText}
+- assertTrue: '${output.userGpsOwnership.includes("GPS Locker: постоянно (пользователь)")}'
+- takeScreenshot: "cloud-31-user-gps-survives"
+- tapOn: "Выключить постоянный GPS"

@@ -1,0 +1,86 @@
+appId: ru.darkcat.camera
+name: CAT-11/13/14 Cloud public Gallery, Vault and Android share chooser
+tags:
+  - cloud-expanded
+  - cloud-system-gallery-probe
+  - cat-11
+  - cat-13
+  - cat-14
+---
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_storage"
+    timeout: 30000
+# Gallery capture is independent of a previous Cloud flow.
+- runFlow:
+    when:
+      visible: "Vault"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_storage"
+- extendedWaitUntil:
+    visible: "Галерея"
+    timeout: 5000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- extendedWaitUntil:
+    visible: "Поделиться"
+    timeout: 15000
+- tapOn: "Поделиться"
+- assertWithAI:
+    assertion: "The Android system share chooser is open above DarkCat and exposes one or more available system targets or receiving applications. A recipient recommendation is not required."
+    optional: false
+- extractTextWithAI:
+    query: "Extract the visible title and receiving application names from the Android share chooser."
+    outputVariable: "shareChooserText"
+    optional: false
+- takeScreenshot: "cloud-14-share-chooser"
+- pressKey: back
+# This is deliberately an explicit system-app probe. A missing Photos package is a
+# CLOUD_LIMITATION with the Cloud video/hierarchy as evidence, never an app bug.
+- launchApp: com.google.android.apps.photos
+- assertWithAI:
+    assertion: "The Android system media or Google Photos UI is visible and shows a recently created image."
+    optional: false
+- takeScreenshot: "cloud-11-system-gallery"
+- launchApp:
+    appId: ru.darkcat.camera
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_storage"
+    timeout: 15000
+# Switch explicitly to Vault, capture, and prove the record is in DarkCat's own timeline.
+- runFlow:
+    when:
+      visible: "Галерея"
+    commands:
+      - tapOn:
+          id: "ru.darkcat.camera:id/cat_ui_storage"
+- extendedWaitUntil:
+    visible: "Vault"
+    timeout: 5000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_sequence"
+- extendedWaitUntil:
+    visible: "Все кадры"
+    timeout: 15000
+- assertVisible: "DarkCat media · Vault"
+- assertNoDefectsWithAI:
+    optional: false
+- takeScreenshot: "cloud-13-darkcat-vault-gallery"
+# The system-gallery screenshot above is evidence only: a Cloud image may not ship
+# Photos, and image timelines cannot prove absence without a deterministic query API.

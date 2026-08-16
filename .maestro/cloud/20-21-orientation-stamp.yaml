@@ -1,0 +1,52 @@
+appId: ru.darkcat.camera
+name: CAT-20/21 Cloud orientation, deterministic location and technical stamp
+tags:
+  - cloud-expanded
+  - cat-20
+  - cat-21
+---
+# setLocation is a Cloud coordinate mock, not a GNSS-quality assertion.
+- setLocation:
+    latitude: 55.755826
+    longitude: 37.617300
+- launchApp:
+    clearState: false
+    permissions:
+      android.permission.CAMERA: allow
+      android.permission.ACCESS_FINE_LOCATION: allow
+      android.permission.POST_NOTIFICATIONS: allow
+- extendedWaitUntil:
+    visible:
+      id: "ru.darkcat.camera:id/cat_ui_shutter"
+    timeout: 30000
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- takeScreenshot: "cloud-20-portrait"
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- assertWithAI:
+    assertion: "Ignore the dynamic camera-preview pixels. DarkCat's landscape UI chrome, including the top bar, shutter, lens control, and last-shot control, is completely visible. No control is clipped or overlaps another control."
+    optional: false
+- takeScreenshot: "cloud-20-landscape"
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "ru.darkcat.camera:id/cat_ui_top_bar"
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_shutter"
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    id: "ru.darkcat.camera:id/cat_ui_last_shot"
+- extendedWaitUntil:
+    visible: "Редактор"
+    timeout: 15000
+- assertWithAI:
+    assertion: "Inspect the black technical-stamp strip inside the saved image. Both stamp lines have fully legible, complete glyphs: 55,755826N 37,617300E, ±1,0m, and the complete second-line sequence №00001. The strip is inside the image; it is acceptable for its lower edge to be close to the image edge, but do not call it clipped when every character is visible."
+    optional: true
+- extractTextWithAI:
+    query: "Extract the technical-stamp coordinates, accuracy presentation, and sequence number from the displayed saved image."
+    outputVariable: "technicalStampText"
+    optional: false
+- takeScreenshot: "cloud-21-technical-stamp"

@@ -86,9 +86,11 @@ public final class DarkCatUi {
         if (root == null || root.findViewWithTag(ROOT_TAG) != null) return;
         root.addOnLayoutChangeListener((view, left, topEdge, right, bottomEdge, oldLeft, oldTop, oldRight, oldBottom) -> hideUpstreamChrome(activity));
 
-        LinearLayout top = new LinearLayout(activity); top.setTag(ROOT_TAG); top.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout top = new LinearLayout(activity); top.setId(R.id.cat_ui_top_bar); top.setTag(ROOT_TAG); top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(dp(activity, 7), dp(activity, 8), dp(activity, 7), dp(activity, 8)); top.setBackgroundColor(0xb8000000);
         TextView gps = statusChip(activity), sequence = statusChip(activity), sync = statusChip(activity), shield = statusChip(activity), field = statusChip(activity);
+        gps.setId(R.id.cat_ui_gps); sequence.setId(R.id.cat_ui_sequence); sync.setId(R.id.cat_ui_sync); shield.setId(R.id.cat_ui_storage); field.setId(R.id.cat_ui_field);
+        gps.setContentDescription("GPS: открыть live GPS panel"); sequence.setContentDescription("Открыть галерею DarkCat"); sync.setContentDescription("Состояние синхронизации"); field.setContentDescription("Field Mode: переключить");
         top.addView(gps, weighted()); top.addView(sequence, weighted()); top.addView(sync, weighted()); top.addView(shield, weighted()); top.addView(field, weighted());
         gps.setOnClickListener(v -> showGpsQuickPanel(activity));
         sequence.setOnClickListener(v -> openGallery(activity));
@@ -100,17 +102,17 @@ public final class DarkCatUi {
         LinearLayout bottom = new LinearLayout(activity); bottom.setOrientation(LinearLayout.VERTICAL); bottom.setGravity(Gravity.CENTER);
         bottom.setPadding(dp(activity, 7), dp(activity, 3), dp(activity, 7), dp(activity, 7)); bottom.setBackgroundColor(0xb8000000);
         LinearLayout compact = new LinearLayout(activity); compact.setGravity(Gravity.CENTER);
-        Button flash = control(activity, "⚡", v -> activity.clickedCycleFlash(v));
-        Button tags = control(activity, "Теги", v -> showTags(activity));
-        Button photoVideo = control(activity, "Видео", v -> activity.clickedSwitchVideo(v));
-        Button night = control(activity, "Ночь", v -> toggleNight(activity));
-        Button settings = control(activity, "⚙", v -> openProductSettings(activity));
+        Button flash = control(activity, "⚡", v -> activity.clickedCycleFlash(v)); flash.setId(R.id.cat_ui_flash); flash.setContentDescription("Вспышка");
+        Button tags = control(activity, "Теги", v -> showTags(activity)); tags.setId(R.id.cat_ui_tags); tags.setContentDescription("Метки кадра");
+        Button photoVideo = control(activity, "Видео", v -> activity.clickedSwitchVideo(v)); photoVideo.setId(R.id.cat_ui_photo_video); photoVideo.setContentDescription("Переключить фото или видео");
+        Button night = control(activity, "Ночь", v -> toggleNight(activity)); night.setId(R.id.cat_ui_night); night.setContentDescription("OEM Night");
+        Button settings = control(activity, "⚙", v -> openProductSettings(activity)); settings.setId(R.id.cat_ui_settings); settings.setContentDescription("Настройки DarkCat");
         compact.addView(flash, compactControl(activity)); compact.addView(tags, compactControl(activity)); compact.addView(photoVideo, compactControl(activity)); compact.addView(night, compactControl(activity)); compact.addView(settings, compactControl(activity));
         bottom.addView(compact, new LinearLayout.LayoutParams(-1, -2));
         HorizontalScrollView zoomScroll = new HorizontalScrollView(activity); zoomScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout zooms = new LinearLayout(activity); zooms.setGravity(Gravity.CENTER); zoomScroll.addView(zooms); bottom.addView(zoomScroll, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout zooms = new LinearLayout(activity); zooms.setId(R.id.cat_ui_zoom_presets); zooms.setGravity(Gravity.CENTER); zoomScroll.addView(zooms); bottom.addView(zoomScroll, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout primary = new LinearLayout(activity); primary.setGravity(Gravity.CENTER);
-        ImageButton last = lastShotButton(activity); Button shutter = control(activity, "●", v -> activity.clickedTakePhoto(v)); Button lens = control(activity, "Линза", v -> showLensSelector(activity));
+        ImageButton last = lastShotButton(activity); last.setId(R.id.cat_ui_last_shot); Button shutter = control(activity, "●", v -> activity.clickedTakePhoto(v)); shutter.setId(R.id.cat_ui_shutter); Button lens = control(activity, "Линза", v -> showLensSelector(activity)); lens.setId(R.id.cat_ui_lens); lens.setContentDescription("Выбор объектива");
         shutter.setTextSize(35f); shutter.setContentDescription("Снять кадр или начать и остановить видео"); last.setOnClickListener(v -> openLatest(activity));
         primary.addView(last, lastShotParams(activity)); primary.addView(shutter, shutterControl(activity)); primary.addView(lens, primaryControl(activity));
         bottom.addView(primary, new LinearLayout.LayoutParams(-1, -2));
