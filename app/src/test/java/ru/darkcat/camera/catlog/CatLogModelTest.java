@@ -37,6 +37,19 @@ public final class CatLogModelTest {
         assertEquals("[redacted]", CatPrivacy.text("Bearer abcdef"));
     }
 
+    @Test public void allowlistKeepsSafeStateAgesButNotRawLocation() {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("camera_id", 2);
+        attributes.put("gps_age_ms", 1500L);
+        attributes.put("longitude", "37.6173");
+
+        Map<String, Object> safe = CatPrivacy.allowAttributes(attributes);
+
+        assertEquals(2, safe.get("camera_id"));
+        assertEquals(1500L, safe.get("gps_age_ms"));
+        assertFalse(safe.containsKey("longitude"));
+    }
+
     @Test public void droppedEventsKeepLifetimeCountAfterEvidenceDrain() {
         DroppedEventCounter counter = new DroppedEventCounter();
         counter.record(); counter.record();
