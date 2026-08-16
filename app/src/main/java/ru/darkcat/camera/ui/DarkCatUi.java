@@ -45,9 +45,12 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import ru.darkcat.camera.catlog.CatLog;
 import ru.darkcat.camera.data.DarkCatDatabase;
 import ru.darkcat.camera.data.DarkCatPreferencePolicy;
 import ru.darkcat.camera.data.DarkCatSettings;
@@ -75,6 +78,7 @@ public final class DarkCatUi {
     private static final String CROSSHAIR_TAG = "darkcat-crosshair";
     private static final int ACTIVE_SHIELD_COLOR = 0xff72e59c;
     private static final int INACTIVE_SHIELD_COLOR = 0xffa7adb5;
+    private static final String NIGHT_RESTORE_PHOTO_MODE = "darkcat_night_restore_photo_mode";
     private static WeakReference<MainActivity> installedActivity = new WeakReference<>(null);
 
     @SuppressLint("SetTextI18n")
@@ -106,8 +110,9 @@ public final class DarkCatUi {
         Button tags = control(activity, "Теги", v -> showTags(activity)); tags.setId(R.id.cat_ui_tags); tags.setContentDescription("Метки кадра");
         Button photoVideo = control(activity, "Видео", v -> activity.clickedSwitchVideo(v)); photoVideo.setId(R.id.cat_ui_photo_video); photoVideo.setContentDescription("Переключить фото или видео");
         Button night = control(activity, "Ночь", v -> toggleNight(activity)); night.setId(R.id.cat_ui_night); night.setContentDescription("OEM Night");
+        Button problem = control(activity, "!", v -> markProblem(activity)); problem.setId(R.id.cat_ui_mark_problem); problem.setContentDescription("Отметить проблему для CAT Log");
         Button settings = control(activity, "⚙", v -> openProductSettings(activity)); settings.setId(R.id.cat_ui_settings); settings.setContentDescription("Настройки DarkCat");
-        compact.addView(flash, compactControl(activity)); compact.addView(tags, compactControl(activity)); compact.addView(photoVideo, compactControl(activity)); compact.addView(night, compactControl(activity)); compact.addView(settings, compactControl(activity));
+        compact.addView(flash, compactControl(activity)); compact.addView(tags, compactControl(activity)); compact.addView(photoVideo, compactControl(activity)); compact.addView(night, compactControl(activity)); compact.addView(problem, compactControl(activity)); compact.addView(settings, compactControl(activity));
         bottom.addView(compact, new LinearLayout.LayoutParams(-1, -2));
         HorizontalScrollView zoomScroll = new HorizontalScrollView(activity); zoomScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout zooms = new LinearLayout(activity); zooms.setId(R.id.cat_ui_zoom_presets); zooms.setGravity(Gravity.CENTER); zoomScroll.addView(zooms); bottom.addView(zoomScroll, new LinearLayout.LayoutParams(-1, -2));
@@ -117,10 +122,30 @@ public final class DarkCatUi {
         primary.addView(last, lastShotParams(activity)); primary.addView(shutter, shutterControl(activity)); primary.addView(lens, primaryControl(activity));
         bottom.addView(primary, new LinearLayout.LayoutParams(-1, -2));
         RelativeLayout.LayoutParams bottomParams = new RelativeLayout.LayoutParams(-1, -2); bottomParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM); root.addView(bottom, bottomParams);
+        final String[] lastLayoutEvidence = {null};
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
             Insets safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            topParams.topMargin = safe.top; bottomParams.bottomMargin = safe.bottom; top.requestLayout(); bottom.requestLayout(); return insets;
+            int[] rootInWindow = new int[2];
+            view.getLocationInWindow(rootInWindow);
+            // The activity can already be inset by decor-fitting on older/fullscreen combinations.
+            // Convert the window-safe coordinate to this parent's coordinate to avoid a double top inset.
+            int dashboardTop = DashboardInsets.topMargin(safe.top, rootInWindow[1]);
+            topParams.topMargin = dashboardTop;
+            bottomParams.bottomMargin = safe.bottom;
+            top.requestLayout(); bottom.requestLayout();
+            String evidence = view.getWidth() + "x" + view.getHeight() + ":" + safe.top + ":" + dashboardTop;
+            if (!evidence.equals(lastLayoutEvidence[0])) {
+                lastLayoutEvidence[0] = evidence;
+                Map<String, Object> attributes = new LinkedHashMap<>();
+                attributes.put("window_width", view.getWidth()); attributes.put("window_height", view.getHeight());
+                attributes.put("system_top_inset", safe.top); attributes.put("display_cutout_top", insets.getInsets(WindowInsetsCompat.Type.displayCutout()).top);
+                attributes.put("dashboard_top", dashboardTop);
+                attributes.put("orientation", activity.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE ? "landscape" : "portrait");
+                CatLog.event("ui", "layout.dashboard_safe_area", "apply_window_insets", "dashboard is anchored once to safe area", "computed", null, attributes);
+            }
+            return insets;
         });
+        CatLog.setSnapshotProvider(() -> snapshot(activity));
         ViewCompat.requestApplyInsets(root);
 
         Runnable update = new Runnable() {
@@ -130,7 +155,11 @@ public final class DarkCatUi {
                 gps.postDelayed(this, 1_000L);
             }
         };
-        LocationRepository.Listener locationListener = ignored -> gps.post(update);
+        final String[] lastGpsIssue = {null};
+        LocationRepository.Listener locationListener = ignored -> {
+            recordGpsStateTransition(activity, lastGpsIssue);
+            gps.post(update);
+        };
         LocationRepository.addListener(locationListener);
         top.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) { }
@@ -146,6 +175,7 @@ public final class DarkCatUi {
         FrameLayout preview = activity.findViewById(R.id.preview);
         if (preview != null) installCaptureOverlays(activity, preview);
         hideUpstreamChrome(activity);
+        CatLog.setSnapshotProvider(() -> snapshot(activity));
     }
 
     private static void installCaptureOverlays(MainActivity activity, FrameLayout preview) {
@@ -249,6 +279,8 @@ public final class DarkCatUi {
     private static void toggleUserOwnedGpsLocker(MainActivity activity, GpsLockerOwnership ownership) {
         if (ownership.isRequestedByUser()) {
             GpsLockerService.stopUser(activity);
+            CatLog.result("gps", "gps.locker_changed", "toggle_locker", "user-owned locker off", "stop requested", "PARTIAL",
+                    Collections.singletonMap("locker_owner", ownership.isRequestedByField() ? "field" : "none"));
             Toast.makeText(activity, ownership.isRequestedByField()
                     ? "Постоянный GPS выключен; GPS Locker остаётся для Field Mode"
                     : "Постоянный GPS Locker выключен", Toast.LENGTH_SHORT).show();
@@ -256,13 +288,19 @@ public final class DarkCatUi {
         }
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
+            CatLog.result("gps", "gps.locker_blocked", "toggle_locker", "fine location permission", "permission missing", "FAIL",
+                    Collections.singletonMap("permission_state", "location_denied"));
             Toast.makeText(activity, "Для GPS Locker нужна точная геолокация; откройте Настройки", Toast.LENGTH_LONG).show();
             return;
         }
         try {
             GpsLockerService.startForUserFromVisibleContext(activity);
+            CatLog.result("gps", "gps.locker_changed", "toggle_locker", "user-owned locker on", "start requested", "PARTIAL",
+                    Collections.singletonMap("locker_owner", ownership.isRequestedByField() ? "field_and_user" : "user"));
             Toast.makeText(activity, "Постоянный GPS Locker включён", Toast.LENGTH_SHORT).show();
         } catch (RuntimeException error) {
+            CatLog.result("gps", "gps.locker_failed", "toggle_locker", "locker starts", "start exception", "FAIL",
+                    Collections.singletonMap("gps_state", "start_error"));
             Toast.makeText(activity, "Не удалось включить постоянный GPS Locker", Toast.LENGTH_LONG).show();
         }
     }
@@ -270,6 +308,8 @@ public final class DarkCatUi {
     private static void toggleStorage(MainActivity activity) {
         StorageMode next = DarkCatSettings.isVaultMode(activity) ? StorageMode.MEDIASTORE : StorageMode.VAULT;
         DarkCatSettings.setStorageMode(activity, next); DarkCatPreferencePolicy.normalize(activity);
+        CatLog.result("storage", "storage.mode_changed", "toggle_storage", "chosen local storage mode", next.name(), "PASS",
+                Collections.singletonMap("storage_mode", next.name()));
         Toast.makeText(activity, next == StorageMode.VAULT ? "Vault включён" : "Сохранение в MediaStore Gallery", Toast.LENGTH_SHORT).show();
     }
 
@@ -277,23 +317,97 @@ public final class DarkCatUi {
     public static void reconcileNightMode(MainActivity activity) {
         if (activity == null || FieldModeState.isRunning() || !supportsOemNight(activity)) return;
         boolean requested = DarkCatSettings.nightMode(activity);
-        String wanted = requested ? "preference_photo_mode_x_night" : "preference_photo_mode_std";
         android.content.SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(activity);
-        if (!wanted.equals(preferences.getString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std"))) {
-            preferences.edit().putString(PreferenceKeys.PhotoModePreferenceKey, wanted).apply();
-            activity.updateForSettings(true, requested ? "Ночной режим OEM" : "Ночной режим выключен");
+        String current = preferences.getString(PreferenceKeys.PhotoModePreferenceKey, NightModeState.STANDARD);
+        String wanted;
+        if (requested) {
+            String previous = NightModeState.preNightMode(current);
+            if (!preferences.contains(NIGHT_RESTORE_PHOTO_MODE)) preferences.edit().putString(NIGHT_RESTORE_PHOTO_MODE, previous).apply();
+            wanted = NightModeState.X_NIGHT;
+        } else {
+            wanted = NightModeState.restoreMode(preferences.getString(NIGHT_RESTORE_PHOTO_MODE, NightModeState.STANDARD));
         }
+        if (!NightModeState.needsChange(current, wanted)) return;
+        long started = android.os.SystemClock.elapsedRealtime();
+        CatLog.event("night", requested ? "night.apply_started" : "night.restore_started", requested ? "enable" : "disable",
+                requested ? "one extension session transition" : "pre-Night photo mode restored", current, null,
+                nightAttributes(activity, requested, requested ? "camera_extension" : "standard_session", requested ? "apply" : "restore", 0L));
+        preferences.edit().putString(PreferenceKeys.PhotoModePreferenceKey, wanted).apply();
+        if (!requested) preferences.edit().remove(NIGHT_RESTORE_PHOTO_MODE).apply();
+        // The inherited Camera2 path performs exactly one controlled reopen for an extension boundary.
+        activity.updateForSettings(true, requested ? "Ночной режим OEM" : "Ночной режим выключен");
+        long duration = Math.max(0L, android.os.SystemClock.elapsedRealtime() - started);
+        CatLog.result("night", requested ? "night.apply_completed" : "night.restore_completed", requested ? "enable" : "disable",
+                requested ? "extension transition requested" : "previous camera mode transition requested", wanted, "PARTIAL",
+                nightAttributes(activity, requested, requested ? "camera_extension" : "standard_session", requested ? "apply" : "restore", duration));
+    }
+
+    private static Map<String, Object> nightAttributes(MainActivity activity, boolean enabled, String sessionType, String restore, long duration) {
+        Map<String, Object> attributes = new LinkedHashMap<>(snapshot(activity));
+        attributes.put("night_enabled", enabled); attributes.put("night_session_type", sessionType);
+        attributes.put("night_restore", restore); attributes.put("night_transition_ms", duration);
+        return attributes;
     }
 
     private static void toggleNight(MainActivity activity) {
         if (FieldModeState.isRunning()) { Toast.makeText(activity, "Для Night сначала остановите Field Mode", Toast.LENGTH_LONG).show(); return; }
         if (!supportsOemNight(activity)) { Toast.makeText(activity, "OEM Night capability не заявлен этой камерой", Toast.LENGTH_LONG).show(); return; }
         boolean enabled = !DarkCatSettings.nightMode(activity);
+        CatLog.event("night", "night.toggle_requested", "toggle", enabled ? "Night on" : "Night off", enabled ? "on" : "off", null,
+                nightAttributes(activity, enabled, "camera_extension", enabled ? "pending" : "restore_pending", 0L));
         DarkCatSettings.set(activity, "darkcat_night_mode", enabled);
-        // OEM Night owns its own multi-frame cadence; do not leave DarkCat in Max Speed semantics.
+        // OEM Night owns its multi-frame cadence; do not leave DarkCat in Max Speed semantics.
         if (enabled) DarkCatSettings.set(activity, "darkcat_capture_mode", DarkCatSettings.CAPTURE_SHARP);
         reconcileNightMode(activity);
         if (enabled) Toast.makeText(activity, "OEM Night: держите телефон неподвижно", Toast.LENGTH_LONG).show();
+    }
+
+    private static void markProblem(MainActivity activity) {
+        CatLog.markProblem();
+        Toast.makeText(activity, "Проблема отмечена в локальном CAT Log", Toast.LENGTH_SHORT).show();
+    }
+
+    private static Map<String, Object> snapshot(MainActivity activity) {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("screen", "camera"); attributes.put("foreground", true);
+        attributes.put("storage_mode", DarkCatSettings.storageMode(activity).name());
+        attributes.put("sequence", DarkCatSettings.currentPhotoSequence(activity));
+        attributes.put("field_state", FieldModeState.isRunning() ? "running" : "off");
+        attributes.put("locker_owner", lockerOwner(DarkCatSettings.gpsLockerOwnership(activity)));
+        attributes.put("night_enabled", DarkCatSettings.nightMode(activity));
+        GpsState gps = GpsLockerService.currentState(activity);
+        if (gps != null) { attributes.put("gps_state", gps.getIssue().name()); attributes.put("gps_accuracy_m", gps.getAccuracyMeters()); }
+        if (activity.getPreview() != null) {
+            attributes.put("camera_api", activity.getPreview().usingCamera2API() ? "camera2" : "camera1");
+            attributes.put("camera_state", activity.getPreview().isOpeningCamera() ? "opening" : activity.getPreview().isTakingPhoto() ? "capturing" : "ready");
+            if (activity.getPreview().getCameraController() != null) {
+                attributes.put("camera_id", activity.getPreview().getCameraController().getCameraId());
+                attributes.put("zoom", activity.getPreview().getCameraController().getZoom());
+            }
+        }
+        return attributes;
+    }
+
+    /** Records only a meaningful GPS state transition; normal location fixes do not create an event stream. */
+    private static void recordGpsStateTransition(MainActivity activity, String[] lastIssue) {
+        GpsState state = GpsLockerService.currentState(activity);
+        String issue = state == null ? "UNAVAILABLE" : state.getIssue().name();
+        if (issue.equals(lastIssue[0])) return;
+        lastIssue[0] = issue;
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("gps_state", issue);
+        if (state != null) {
+            attributes.put("gps_age_ms", state.getAgeMillis());
+            if (state.hasAccuracy()) attributes.put("gps_accuracy_m", state.getAccuracyMeters());
+        }
+        CatLog.result("gps", "gps.state_changed", "location_state", "GPS state is current", issue,
+                "NONE".equals(issue) ? "PASS" : "PARTIAL", attributes);
+    }
+
+    private static String lockerOwner(GpsLockerOwnership ownership) {
+        if (ownership.isRequestedByField() && ownership.isRequestedByUser()) return "field_and_user";
+        if (ownership.isRequestedByField()) return "field";
+        return ownership.isRequestedByUser() ? "user" : "none";
     }
 
     private static boolean supportsOemNight(MainActivity activity) {
@@ -303,15 +417,15 @@ public final class DarkCatUi {
     }
 
     private static void toggleField(MainActivity activity) {
-        if (FieldModeState.isRunning()) { FieldModeService.stop(activity); Toast.makeText(activity, "Field Mode выключен", Toast.LENGTH_SHORT).show(); return; }
+        if (FieldModeState.isRunning()) { FieldModeService.stop(activity); CatLog.result("field", "field.mode_changed", "toggle_field", "Field Mode off", "stop requested", "PARTIAL", Collections.singletonMap("field_state", "stopping")); Toast.makeText(activity, "Field Mode выключен", Toast.LENGTH_SHORT).show(); return; }
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(activity, "Нужно разрешение камеры: откройте Полевой режим в настройках", Toast.LENGTH_LONG).show(); openProductSettings(activity); return;
         }
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(activity, "Для Field Mode нужна точная геолокация: откройте Полевой режим в настройках", Toast.LENGTH_LONG).show(); openProductSettings(activity); return;
         }
-        try { FieldModeService.startFromVisibleActivity(activity); Toast.makeText(activity, "Field Mode запускается", Toast.LENGTH_SHORT).show(); }
-        catch (RuntimeException error) { Toast.makeText(activity, "Не удалось запустить Field Mode", Toast.LENGTH_LONG).show(); }
+        try { FieldModeService.startFromVisibleActivity(activity); CatLog.result("field", "field.mode_changed", "toggle_field", "Field Mode on", "start requested", "PARTIAL", Collections.singletonMap("field_state", "starting")); Toast.makeText(activity, "Field Mode запускается", Toast.LENGTH_SHORT).show(); }
+        catch (RuntimeException error) { CatLog.result("field", "field.mode_failed", "toggle_field", "Field Mode starts", "start exception", "FAIL", Collections.singletonMap("field_state", "error")); Toast.makeText(activity, "Не удалось запустить Field Mode", Toast.LENGTH_LONG).show(); }
     }
 
     private static void openLatest(MainActivity activity) {

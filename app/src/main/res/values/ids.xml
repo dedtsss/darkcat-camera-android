@@ -11,6 +11,7 @@
     <item name="cat_ui_tags" type="id" />
     <item name="cat_ui_photo_video" type="id" />
     <item name="cat_ui_night" type="id" />
+    <item name="cat_ui_mark_problem" type="id" />
     <item name="cat_ui_settings" type="id" />
     <item name="cat_ui_zoom_presets" type="id" />
     <item name="cat_ui_last_shot" type="id" />

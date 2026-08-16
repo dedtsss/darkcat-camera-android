@@ -3062,6 +3062,9 @@ public class ImageSaver extends Thread {
                 ? DarkCatCaptureCoordinator.claimPhotoCaptureTicket() : null;
         if( darkCatDirectCapture ) {
             try {
+                ru.darkcat.camera.catlog.CatLog.event("storage", "storage.write_started", "save_jpeg", "JPEG stored locally",
+                        DarkCatSettings.isVaultMode(main_activity) ? "vault" : "mediastore", null,
+                        java.util.Collections.singletonMap("storage_mode", DarkCatSettings.isVaultMode(main_activity) ? "VAULT" : "MEDIASTORE"));
                 String displayName = storageUtils.createMediaFilename(StorageUtils.MEDIA_TYPE_IMAGE,
                         filename_suffix, 0, ".jpg", request.current_date);
                 CaptureContext base = CaptureContext.fromIntent(main_activity.getIntent());
@@ -3092,10 +3095,15 @@ public class ImageSaver extends Thread {
                             capturedAt, durableContext);
                 }
                 DarkCatSettings.set(main_activity, "darkcat_storage_blocked", false);
+                ru.darkcat.camera.catlog.CatLog.result("storage", "storage.write_completed", "save_jpeg", "local write completed",
+                        DarkCatSettings.isVaultMode(main_activity) ? "vault" : "mediastore", "PASS",
+                        java.util.Collections.singletonMap("storage_result", "success"));
                 main_activity.savingImage(false);
                 return true;
             }
             catch(Exception error) {
+                ru.darkcat.camera.catlog.CatLog.result("storage", "storage.write_failed", "save_jpeg", "local write completed",
+                        "storage exception", "FAIL", java.util.Collections.singletonMap("storage_result", "failure"));
                 MyDebug.logStackTrace(TAG, "failed to store DarkCat owned JPEG", error);
                 main_activity.getPreview().showToast(null,
                         DarkCatSettings.isVaultMode(main_activity)

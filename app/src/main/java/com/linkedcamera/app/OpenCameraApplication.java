@@ -17,6 +17,7 @@ public class OpenCameraApplication extends Application {
             Log.d(TAG, "onCreate");
         super.onCreate();
         checkAppReplacingState();
+        ru.darkcat.camera.catlog.CatLog.initialize(this);
     }
 
     private void checkAppReplacingState() {

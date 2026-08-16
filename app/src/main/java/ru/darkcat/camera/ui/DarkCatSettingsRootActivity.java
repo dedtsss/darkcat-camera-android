@@ -23,6 +23,7 @@ public final class DarkCatSettingsRootActivity extends Activity {
             {"Синхронизация", "Очередь, провайдер и retry"},
             {"Галерея", "Все кадры и точки съёмки"},
             {"Видео", "Стабилизация и звук; ring buffer не используется"},
+            {"CAT Log", "Локальные события, отметка проблемы и ZIP export"},
             {"Расширенные", "Диагностика и inherited Linked Camera controls"}
     };
 
@@ -45,7 +46,9 @@ public final class DarkCatSettingsRootActivity extends Activity {
         Button open = new Button(this); open.setAllCaps(false); open.setText("Открыть");
         int testId = categoryButtonId(name);
         if (testId != View.NO_ID) open.setId(testId);
-        open.setOnClickListener(v -> startActivity(new Intent(this, DarkCatSettingsActivity.class).putExtra(EXTRA_CATEGORY, name)));
+        open.setOnClickListener(v -> startActivity("CAT Log".equals(name)
+                ? new Intent(this, DiagnosticsActivity.class)
+                : new Intent(this, DarkCatSettingsActivity.class).putExtra(EXTRA_CATEGORY, name)));
         card.addView(title); card.addView(detail); card.addView(open); list.addView(card, params);
     }
 

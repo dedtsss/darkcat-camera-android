@@ -1578,6 +1578,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
         super.onResume();
         this.app_is_paused = false; // must be set before initLocation() at least
+        ru.darkcat.camera.catlog.CatLog.foreground(true);
         ru.darkcat.camera.ui.DarkCatUi.reconcileNightMode(this);
         ru.darkcat.camera.ui.DarkCatUi.install(this);
         if( ru.darkcat.camera.data.DarkCatSettings.fieldModeEnabled(this)
@@ -1791,6 +1792,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             debug_time = System.currentTimeMillis();
         }
         super.onPause(); // docs say to call this before freeing other things
+        ru.darkcat.camera.catlog.CatLog.foreground(false);
         this.app_is_paused = true;
         darkCatFieldCameraKeptWarm = false;
 
@@ -5707,6 +5709,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             Log.d(TAG, "takePicture");
 
         final boolean photoRequest = photo_snapshot || !preview.isVideo();
+        ru.darkcat.camera.catlog.CatLog.event("camera", "camera.capture_requested", "capture", "camera accepts capture request",
+                photoRequest ? "photo" : "video", null, java.util.Collections.singletonMap("storage_mode",
+                ru.darkcat.camera.data.DarkCatSettings.storageMode(this).name()));
         if( preview.getCameraController() == null || preview.isOpeningCamera() || preview.isTakingPhoto() ) {
             onDarkCatPreCaptureRejected("Камера пока не готова");
             return;
@@ -5829,6 +5834,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     }
 
     private void onDarkCatPreCaptureRejected(String message) {
+        ru.darkcat.camera.catlog.CatLog.result("camera", "camera.capture_rejected", "capture", "camera is ready", message, "FAIL",
+                java.util.Collections.singletonMap("capture_outcome", "rejected"));
         if( darkCatHaptics != null )
             darkCatHaptics.onPreCaptureRejected();
         if( preview != null )
@@ -5837,6 +5844,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
     /** Called only from a low-level camera success callback, before JPEG processing/storage. */
     public ru.darkcat.camera.data.PhotoCaptureTicket onDarkCatCameraCaptureSucceeded() {
+        ru.darkcat.camera.catlog.CatLog.result("camera", "camera.capture_callback", "capture", "camera callback received", "received", "PASS",
+                java.util.Collections.singletonMap("capture_outcome", "camera_callback"));
         if( darkCatHaptics != null )
             darkCatHaptics.onCameraCaptureSucceeded();
         try {
@@ -5858,6 +5867,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
     /** Camera failures are distinct from post-capture storage/sync failures. */
     public void onDarkCatCameraCaptureFailed() {
+        ru.darkcat.camera.catlog.CatLog.result("camera", "camera.capture_failed", "capture", "camera callback succeeds", "camera failure callback", "FAIL",
+                java.util.Collections.singletonMap("capture_outcome", "camera_failure"));
         darkCatPendingCaptureFix = null;
         darkCatPendingCaptureWallTime = 0L;
         if( darkCatHaptics != null )
