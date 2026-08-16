@@ -86,6 +86,8 @@ dependencies {
     implementation 'com.burhanrashid52:photoeditor:3.1.0'
 
     testImplementation 'junit:junit:4.13.2'
+    // CatEvent serializes NDJSON through Android's org.json, whose local-JVM stub throws.
+    testImplementation 'org.json:json:20231013'
 
     // newer AndroidJUnit4 InstrumentedTest
     androidTestImplementation "androidx.test:runner:1.7.0"

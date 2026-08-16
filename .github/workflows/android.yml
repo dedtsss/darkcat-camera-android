@@ -3,11 +3,22 @@ name: Android build
 on:
   push:
     branches: [ main, 'feature/**', 'agent/**' ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    if: github.ref != 'refs/heads/agent/cat-log-mvp' || contains(github.event.head_commit.message, '[build-apk]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
