@@ -5,6 +5,8 @@ import org.junit.Test;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Calendar;
+import java.util.Date;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -58,5 +60,19 @@ public final class CatLogModelTest {
         assertEquals(0L, counter.drainPending());
         counter.clear();
         assertEquals(0L, counter.total());
+    }
+
+    @Test public void diagnosticsExportFilenameContainsSanitizedDeviceMetadata() {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(2026, Calendar.AUGUST, 16, 13, 55, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        Date exportedAt = calendar.getTime();
+
+        assertEquals("cat-Google-Pixel_7-20260816-1355.zip",
+                CatDiagnosticsExporter.exportFileName("Google", "Pixel 7", exportedAt));
+        assertEquals("cat-Xiaomi-2203129G-20260816-1355.zip",
+                CatDiagnosticsExporter.exportFileName("Xiaomi", "2203129G", exportedAt));
+        assertEquals("cat-unknown-unknown-20260816-1355.zip",
+                CatDiagnosticsExporter.exportFileName("../", String.valueOf((char) 0), exportedAt));
     }
 }
