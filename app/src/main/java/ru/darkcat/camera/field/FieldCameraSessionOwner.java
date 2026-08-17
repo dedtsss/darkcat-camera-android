@@ -47,12 +47,14 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
     private final AtomicBoolean captureInFlight = new AtomicBoolean(false);
 
     private volatile boolean started;
+    private volatile boolean standby;
     private volatile boolean ready;
     private volatile CameraCapturePort.Callback pendingCallback;
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader jpegReader;
     private ImageReader previewReader;
+    private CaptureRequest previewRequest;
     private String cameraId;
 
     public FieldCameraSessionOwner(Context context) {
@@ -65,6 +67,23 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
     public void start() {
         started = true;
         cameraHandler.post(this::openIfNeeded);
+    }
+
+    /** Keep the Camera2 session available for a trigger while removing idle repeating work. */
+    public void setStandby(boolean standby) {
+        this.standby = standby;
+        cameraHandler.post(() -> {
+            if (!started || session == null || camera == null || !ready) return;
+            try {
+                if (standby) {
+                    session.stopRepeating();
+                } else if (previewRequest != null) {
+                    session.setRepeatingRequest(previewRequest, null, cameraHandler);
+                }
+            } catch (CameraAccessException failure) {
+                Log.w(TAG, "unable to change Field repeating state", failure);
+            }
+        });
     }
 
     public void stop() {
@@ -170,7 +189,8 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                                         CameraDevice.TEMPLATE_PREVIEW);
                                 preview.addTarget(previewReader.getSurface());
                                 configureAuto(preview);
-                                configured.setRepeatingRequest(preview.build(), null, cameraHandler);
+                                previewRequest = preview.build();
+                                if (!standby) configured.setRepeatingRequest(previewRequest, null, cameraHandler);
                                 ready = true;
                                 Log.i(TAG, "service-owned Camera2 session ready id=" + cameraId);
                             } catch (Exception failure) {
@@ -275,6 +295,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
         }
         if (jpegReader != null) { jpegReader.close(); jpegReader = null; }
         if (previewReader != null) { previewReader.close(); previewReader = null; }
+        previewRequest = null;
     }
 
     private void closeSessionOnly() {

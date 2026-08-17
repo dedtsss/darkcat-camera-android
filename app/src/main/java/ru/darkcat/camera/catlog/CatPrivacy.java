@@ -25,7 +25,9 @@ public final class CatPrivacy {
                 "dashboard_top", "window_width", "window_height", "night_enabled", "night_session_type",
                 "night_transition_ms", "night_restore", "capture_outcome", "storage_operation", "storage_result",
                 "permission_state", "provider_enabled", "event_count", "dropped_count", "exit_reason",
-                "exit_description", "app_version", "build_number", "orientation_relevant");
+                "exit_description", "app_version", "build_number", "orientation_relevant",
+                "owner", "moving", "stationary_grace_ms", "destination", "bytes", "camera_ready",
+                "thermal_status", "power_save");
         ALLOWED_ATTRIBUTES = Collections.unmodifiableSet(values);
     }
 

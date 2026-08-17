@@ -327,7 +327,7 @@ public final class DarkCatCaptureCoordinator {
     }
 
     private static boolean canIntercept(Context context, boolean validSource) {
-        return DarkCatSettings.isSecureMode(context) && validSource;
+        return DarkCatSettings.effectiveIsVaultMode(context) && validSource;
     }
 
     private static void stageAndDispatch(Context context, Source source, boolean video, int sequence,

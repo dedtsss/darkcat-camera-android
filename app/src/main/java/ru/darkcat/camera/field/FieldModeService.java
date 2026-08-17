@@ -11,6 +11,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.VolumeProvider;
 import android.media.session.MediaSession;
@@ -68,10 +72,31 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     private PowerManager.WakeLock wakeLock;
     private FieldCameraSessionOwner cameraOwner;
     private FieldCaptureController captureController;
+    private final FieldStandbyPolicy standbyPolicy = new FieldStandbyPolicy();
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private boolean motionMonitoring;
+    private float lastAccelerationMagnitude = Float.NaN;
     // Service startup commonly comes from DarkCat Settings while MainActivity is paused. Treat
     // that state as background until MainActivity explicitly hands ownership back in onResume.
     private volatile boolean activityVisible;
     private long lastExternalTriggerElapsedMs;
+    private long lastHeartbeatElapsedMs;
+
+    private final SensorEventListener fieldMotionListener = new SensorEventListener() {
+        @Override public void onSensorChanged(SensorEvent event) {
+            float x = event.values.length > 0 ? event.values[0] : 0f;
+            float y = event.values.length > 1 ? event.values[1] : 0f;
+            float z = event.values.length > 2 ? event.values[2] : 0f;
+            float magnitude = (float) Math.sqrt(x * x + y * y + z * z);
+            boolean moving = !Float.isNaN(lastAccelerationMagnitude)
+                    && Math.abs(magnitude - lastAccelerationMagnitude) >= 1.25f;
+            lastAccelerationMagnitude = magnitude;
+            applyMotion(moving, android.os.SystemClock.elapsedRealtime());
+        }
+
+        @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+    };
 
     private final Runnable notificationTicker = new Runnable() {
         @Override public void run() {
@@ -137,6 +162,9 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         super.onCreate();
         activeService = this;
         cameraOwner = new FieldCameraSessionOwner(this);
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        accelerometer = sensorManager == null ? null
+                : sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         captureController = new FieldCaptureController(
                 () -> GpsLockerService.captureDecision(this),
                 cameraOwner,
@@ -209,6 +237,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         if (cameraOwner != null) cameraOwner.shutdown();
         releaseMediaSession();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        stopMotionMonitoring();
         artifactExecutor.shutdownNow();
         if (activeService == this) activeService = null;
         super.onDestroy();
@@ -228,10 +257,32 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                         ? FieldModeState.ACTIVE
                         : FieldModeState.DEGRADED,
                 DarkCatSettings.volumeShutterEnabled(this));
+        emitHeartbeatIfDue();
+    }
+
+    private void emitHeartbeatIfDue() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastHeartbeatElapsedMs != 0L && now - lastHeartbeatElapsedMs < 60_000L) return;
+        lastHeartbeatElapsedMs = now;
+        PowerManager manager = (PowerManager) getSystemService(POWER_SERVICE);
+        java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>();
+        attributes.put("camera_ready", isCameraReady());
+        attributes.put("field_state", standbyPolicy.state().name());
+        attributes.put("power_save", manager != null && manager.isPowerSaveMode());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && manager != null) {
+            attributes.put("thermal_status", manager.getCurrentThermalStatus());
+        }
+        ru.darkcat.camera.catlog.CatLog.event("system", "field.thermal_power_heartbeat", "heartbeat",
+                "Field runtime health remains observable", "alive", null, attributes);
     }
 
     private void ensureRuntimeStarted() {
         acquireWakeLock();
+        if (!activityVisible && cameraOwner != null) {
+            cameraOwner.start();
+            cameraOwner.setStandby(standbyPolicy.state() == FieldStandbyPolicy.State.STANDBY);
+            startMotionMonitoring();
+        }
         if (!DarkCatSettings.volumeShutterEnabled(this)) {
             releaseMediaSession();
             return;
@@ -269,7 +320,6 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
             }
         });
         mediaSession.setActive(true);
-        if (!activityVisible && cameraOwner != null) cameraOwner.start();
     }
 
     private void releaseMediaSession() {
@@ -349,14 +399,52 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
 
     private void activityBecameVisible() {
         activityVisible = true;
+        stopMotionMonitoring();
         if (cameraOwner != null) cameraOwner.stop();
+        ru.darkcat.camera.catlog.CatLog.event("field", "field.camera_ownership", "handoff_to_activity",
+                "visible Activity owns Camera2", "service released Camera2", null,
+                java.util.Collections.singletonMap("owner", "activity"));
         updateRuntimeState();
     }
 
     private void activityBecameBackground() {
         activityVisible = false;
-        if (cameraOwner != null) cameraOwner.start();
+        if (cameraOwner != null) {
+            cameraOwner.start();
+            cameraOwner.setStandby(standbyPolicy.state() == FieldStandbyPolicy.State.STANDBY);
+            startMotionMonitoring();
+        }
+        ru.darkcat.camera.catlog.CatLog.event("field", "field.camera_ownership", "handoff_to_service",
+                "persistent Field service owns Camera2", "service requested Camera2", null,
+                java.util.Collections.singletonMap("owner", "service"));
         updateRuntimeState();
+    }
+
+    private void startMotionMonitoring() {
+        if (motionMonitoring || sensorManager == null || accelerometer == null) return;
+        lastAccelerationMagnitude = Float.NaN;
+        // NORMAL plus batching keeps the persistent service out of the high-rate sampler path.
+        motionMonitoring = sensorManager.registerListener(fieldMotionListener, accelerometer,
+                SensorManager.SENSOR_DELAY_NORMAL, 1_000_000);
+    }
+
+    private void stopMotionMonitoring() {
+        if (sensorManager != null && motionMonitoring) sensorManager.unregisterListener(fieldMotionListener);
+        motionMonitoring = false;
+        lastAccelerationMagnitude = Float.NaN;
+    }
+
+    private void applyMotion(boolean moving, long nowMs) {
+        FieldStandbyPolicy.State before = standbyPolicy.state();
+        FieldStandbyPolicy.State after = standbyPolicy.observe(moving, nowMs);
+        if (before == after) return;
+        if (cameraOwner != null) cameraOwner.setStandby(after == FieldStandbyPolicy.State.STANDBY);
+        java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>();
+        attributes.put("field_state", after.name());
+        attributes.put("moving", moving);
+        attributes.put("stationary_grace_ms", FieldStandbyPolicy.STATIONARY_GRACE_MS);
+        ru.darkcat.camera.catlog.CatLog.event("field", "field.motion_state", "motion_transition",
+                "persistent Field motion policy", after.name(), null, attributes);
     }
 
     @Override public boolean requestCapture() {
@@ -365,6 +453,10 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         if (lastExternalTriggerElapsedMs != 0L && now - lastExternalTriggerElapsedMs < 300L) return true;
         lastExternalTriggerElapsedMs = now;
         CaptureStartResult result = captureController.requestCapture();
+        ru.darkcat.camera.catlog.CatLog.result("field", "field.capture_trigger", "trigger",
+                "Field capture accepted or GPS-blocked", result.getStatus().name(),
+                result.getStatus() == CaptureStartStatus.STARTED ? "PASS" : "PARTIAL",
+                java.util.Collections.singletonMap("camera_ready", isCameraReady()));
         return result.getStatus() == CaptureStartStatus.STARTED
                 || result.getStatus() == CaptureStartStatus.BLOCKED_BY_GPS;
     }
@@ -379,20 +471,31 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
 
     @Override public void onCaptureBlocked(CaptureDecision decision) {
         Log.i("DarkCatFieldInput", "capture blocked: " + decision.getBlockReason());
+        ru.darkcat.camera.catlog.CatLog.event("field", "field.capture_blocked", "gps_gate",
+                "capture has a valid shutter location", decision.getBlockReason().name(), null, null);
     }
 
     @Override public void onCameraCaptureSucceeded(LocationFix shutterLocation) {
         // Success haptic is emitted by FieldCaptureController before this callback.
+        ru.darkcat.camera.catlog.CatLog.result("field", "field.capture_result", "capture",
+                "Camera2 JPEG was delivered to Field pipeline", "JPEG delivered", "PASS", null);
     }
 
     @Override public void onCameraCaptureFailed() {
         Log.i("DarkCatFieldInput", "service-owned camera capture failed");
+        ru.darkcat.camera.catlog.CatLog.result("field", "field.capture_result", "capture",
+                "OEM/Camera2 JPEG delivered", "camera failure", "FAIL", null);
     }
 
     @Override public void onCameraCaptureArtifact(File durableJpeg, LocationFix shutterLocation,
                                                    long capturedAt) {
         if (durableJpeg == null || !durableJpeg.isFile()) return;
-        final boolean galleryDestination = DarkCatSettings.isMediaStoreMode(this);
+        final boolean galleryDestination = DarkCatSettings.effectiveIsMediaStoreMode(this);
+        java.util.Map<String, Object> storageAttributes = new java.util.LinkedHashMap<>();
+        storageAttributes.put("destination", galleryDestination ? "MEDIASTORE" : "VAULT");
+        storageAttributes.put("bytes", durableJpeg.length());
+        ru.darkcat.camera.catlog.CatLog.event("storage", "storage.field_capture_staged", "write",
+                "durable Field JPEG is journaled before publication", "staged", null, storageAttributes);
         final ru.darkcat.camera.data.PhotoCaptureTicket ticket;
         final CaptureContext captureContext;
         final RecoveryStore.PendingCapture galleryPending;
@@ -433,10 +536,15 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                     DarkCatSettings.set(this, "darkcat_storage_blocked", false);
                     return;
                 }
+                ru.darkcat.camera.catlog.CatLog.result("storage", "storage.field_capture_committed", "commit",
+                        "Field JPEG reaches effective destination", galleryDestination ? "MEDIASTORE" : "VAULT",
+                        "PASS", java.util.Collections.singletonMap("destination", galleryDestination ? "MEDIASTORE" : "VAULT"));
                 DarkCatSettings.set(this, "darkcat_storage_blocked", false);
                 if (!durableJpeg.delete()) Log.w("DarkCatFieldCamera", "unable to delete staged JPEG");
             } catch (Exception failure) {
                 DarkCatSettings.set(this, "darkcat_storage_blocked", true);
+                ru.darkcat.camera.catlog.CatLog.result("storage", "storage.field_capture_recovery", "recover",
+                        "Field JPEG remains restart-discoverable", "publication deferred", "PARTIAL", null);
                 Log.e("DarkCatFieldCamera", "field JPEG remains for recovery", failure);
             }
         });
@@ -463,7 +571,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
                         if (!file.delete()) throw new java.io.IOException("unable to delete recovered JPEG");
                         journal.clear(file);
                         DarkCatSettings.set(this, "darkcat_storage_blocked", false);
-                    } else if (DarkCatSettings.isVaultMode(this)) {
+                    } else if (DarkCatSettings.effectiveIsVaultMode(this)) {
                         // Legacy pre-journal files had no destination metadata; preserve their old
                         // vault recovery behavior rather than guessing a new Gallery route.
                         ru.darkcat.camera.vault.DarkCatCaptureCoordinator.interceptFile(this, file, false);
