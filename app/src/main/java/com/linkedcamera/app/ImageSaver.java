@@ -3051,7 +3051,8 @@ public class ImageSaver extends Thread {
         boolean darkCatDirectCapture = !raw_only
                 && !request.image_capture_intent
                 && request.image_format == Request.ImageFormat.STD
-                && request.process_type == Request.ProcessType.NORMAL
+                && (request.process_type == Request.ProcessType.NORMAL
+                    || request.process_type == Request.ProcessType.X_NIGHT)
                 && bitmap == null;
         // Vault's non-simple modes retain the upstream interception path. Gallery has no such
         // interception, so it must claim the callback ticket even when upstream owns a special
