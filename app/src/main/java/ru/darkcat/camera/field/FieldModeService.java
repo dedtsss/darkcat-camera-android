@@ -62,6 +62,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     public static final String ACTION_SYNC = "ru.darkcat.camera.field.SYNC";
     public static final String ACTION_ACTIVITY_VISIBLE = "ru.darkcat.camera.field.ACTIVITY_VISIBLE";
     public static final String ACTION_ACTIVITY_BACKGROUND = "ru.darkcat.camera.field.ACTIVITY_BACKGROUND";
+    private static final String EXTRA_ACTIVITY_VISIBLE = "ru.darkcat.camera.field.ACTIVITY_VISIBLE_START";
     private static final String CHANNEL = "darkcat_field_mode";
     private static final int NOTIFICATION_ID = 7301;
 
@@ -71,6 +72,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     private MediaSession mediaSession;
     private PowerManager.WakeLock wakeLock;
     private FieldCameraSessionOwner cameraOwner;
+    private final FieldCameraOwnership cameraOwnership = new FieldCameraOwnership();
     private FieldCaptureController captureController;
     private final FieldStandbyPolicy standbyPolicy = new FieldStandbyPolicy();
     private SensorManager sensorManager;
@@ -124,7 +126,11 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
             // This is a Field-owned request. It must not silently become the user's persistent
             // GPS Locker preference when Field Mode later stops.
             GpsLockerService.startForFieldFromVisibleContext(context);
-            ContextCompat.startForegroundService(context, new Intent(context, FieldModeService.class));
+            FieldModeService service = activeService;
+            if (service != null) service.activityBecameVisible();
+            Intent start = new Intent(context, FieldModeService.class)
+                    .putExtra(EXTRA_ACTIVITY_VISIBLE, true);
+            ContextCompat.startForegroundService(context, start);
         } catch (RuntimeException deniedByPlatform) {
             DarkCatSettings.set(context, "darkcat_field_mode", false);
             GpsLockerService.stopField(context);
@@ -177,6 +183,9 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
+        if (intent != null && intent.getBooleanExtra(EXTRA_ACTIVITY_VISIBLE, false)) {
+            activityBecameVisible();
+        }
         if (ACTION_ACTIVITY_VISIBLE.equals(action)) {
             activityBecameVisible();
             return START_NOT_STICKY;
@@ -278,8 +287,8 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
 
     private void ensureRuntimeStarted() {
         acquireWakeLock();
-        if (!activityVisible && cameraOwner != null) {
-            cameraOwner.start();
+        if (cameraOwnership.owner() == FieldCameraOwnership.Owner.SERVICE && cameraOwner != null) {
+            cameraOwner.start(cameraOwnership.generation());
             cameraOwner.setStandby(standbyPolicy.state() == FieldStandbyPolicy.State.STANDBY);
             startMotionMonitoring();
         }
@@ -398,9 +407,10 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     }
 
     private void activityBecameVisible() {
+        long generation = cameraOwnership.handoffToActivity();
         activityVisible = true;
         stopMotionMonitoring();
-        if (cameraOwner != null) cameraOwner.stop();
+        if (cameraOwner != null) cameraOwner.stop(generation);
         ru.darkcat.camera.catlog.CatLog.event("field", "field.camera_ownership", "handoff_to_activity",
                 "visible Activity owns Camera2", "service released Camera2", null,
                 java.util.Collections.singletonMap("owner", "activity"));
@@ -408,9 +418,10 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     }
 
     private void activityBecameBackground() {
+        long generation = cameraOwnership.handoffToService();
         activityVisible = false;
         if (cameraOwner != null) {
-            cameraOwner.start();
+            cameraOwner.start(generation);
             cameraOwner.setStandby(standbyPolicy.state() == FieldStandbyPolicy.State.STANDBY);
             startMotionMonitoring();
         }
@@ -466,7 +477,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     }
 
     @Override public void stopCaptureSession() {
-        if (cameraOwner != null) cameraOwner.stop();
+        if (cameraOwner != null) cameraOwner.stop(cameraOwnership.generation());
     }
 
     @Override public void onCaptureBlocked(CaptureDecision decision) {
