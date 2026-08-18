@@ -36,15 +36,15 @@ public final class CatLog {
         crashRecorder = new CatCrashRecorder(this.context);
         crashRecorder.install();
         if (session.recovered()) {
-            event("session", "session.interrupted_recovered", null, "previous session was not cleanly stopped", "recovered session evidence", null,
+            record("session", "session.interrupted_recovered", null, "previous session was not cleanly stopped", "recovered session evidence", null, null, null,
                     map("night_restore", "recovered_session"));
         }
         Map<String, Object> app = new LinkedHashMap<>();
         app.put("app_version", appVersion());
         app.put("build_number", appBuild());
         app.put("orientation_relevant", true);
-        event("session", "session.start", "start", "passive CAT logging active", session.recovered() ? "recovered" : "new", null, app);
-        event("app", "app.foreground", "foreground", "camera process available", "foreground", null, null);
+        record("session", "session.start", "start", "passive CAT logging active", session.recovered() ? "recovered" : "new", null, null, null, app);
+        record("app", "app.foreground", "foreground", "camera process available", "foreground", null, null, null, null);
         previousExit = crashRecorder.collectPreviousExit();
         pruneOldSessions();
     }
@@ -96,14 +96,16 @@ public final class CatLog {
     public static void stopSession() {
         CatLog current = get();
         if (current == null) return;
-        current.flush(500L);
-        long eventCountIncludingStop = current.writer.writtenCount()
-                + (current.writer.pendingDroppedCount() > 0L ? 1L : 0L) + 1L;
-        current.record("session", "session.stop", "stop", "clean stop requested", "stopped", "PASS", null, null,
-                map("event_count", eventCountIncludingStop, "dropped_count", current.writer.droppedCount()));
-        current.flush(500L);
-        current.session.markStopped();
-        current.recording.set(false);
+        synchronized (LOCK) {
+            current.flush(500L);
+            long eventCountIncludingStop = current.writer.writtenCount()
+                    + (current.writer.pendingDroppedCount() > 0L ? 1L : 0L) + 1L;
+            current.record("session", "session.stop", "stop", "clean stop requested", "stopped", "PASS", null, null,
+                    map("event_count", eventCountIncludingStop, "dropped_count", current.writer.droppedCount()));
+            current.flush(500L);
+            current.session.markStopped();
+            current.recording.set(false);
+        }
     }
 
     public static void foreground(boolean foreground) {
@@ -112,7 +114,12 @@ public final class CatLog {
 
     public static boolean isRecording() { return get() != null && get().recording.get(); }
     public static String sessionId() { return get() == null ? null : get().session.id(); }
-    public static long eventCount() { return get() == null ? 0 : get().writer.writtenCount(); }
+    public static long eventCount() {
+        CatLog current = get();
+        if (current == null) return 0L;
+        current.flush(500L);
+        return current.writer.writtenCount();
+    }
     public static long droppedCount() { return get() == null ? 0 : get().writer.droppedCount(); }
     public static Map<String, Object> motionEvidence() {
         CatLog current = get();
@@ -139,15 +146,17 @@ public final class CatLog {
     public static void clear() {
         CatLog current = get();
         if (current == null) return;
-        current.flush(500L);
-        current.writer.clear();
-        File root = rootDirectory(current.context);
-        File[] sessions = new File(root, "sessions").listFiles(File::isDirectory);
-        if (sessions != null) for (File directory : sessions) delete(directory);
-        current.session.directory().mkdirs();
-        current.session.markStarted();
-        current.recording.set(true);
-        current.record("session", "session.start", "clear", "fresh session after CAT data clear", "started", "PASS", null, null, null);
+        synchronized (LOCK) {
+            current.flush(500L);
+            current.writer.clear();
+            File root = rootDirectory(current.context);
+            File[] sessions = new File(root, "sessions").listFiles(File::isDirectory);
+            if (sessions != null) for (File directory : sessions) delete(directory);
+            current.session.directory().mkdirs();
+            current.session.markStarted();
+            current.recording.set(true);
+            current.record("session", "session.start", "clear", "fresh session after CAT data clear", "started", "PASS", null, null, null);
+        }
     }
 
     public static JSONObject status() {
@@ -155,6 +164,7 @@ public final class CatLog {
         JSONObject json = new JSONObject();
         if (current == null) return json;
         try {
+            current.flush(500L);
             json.put("recording", current.recording.get()).put("session_id", current.session.id())
                     .put("event_count", current.writer.writtenCount()).put("dropped_count", current.writer.droppedCount())
                     .put("test_case", CatTestContext.get() == null ? JSONObject.NULL : CatTestContext.get())
@@ -178,6 +188,7 @@ public final class CatLog {
     static JSONObject exitInfoJson() { return get() == null ? new JSONObject() : get().previousExit; }
     static JSONObject appInfoJson() throws org.json.JSONException { return get() == null ? new JSONObject() : get().session.appInfoJson(); }
     static JSONObject deviceInfoJson() throws org.json.JSONException { return get() == null ? new JSONObject() : get().session.deviceInfoJson(); }
+    static Object diagnosticsLock() { return LOCK; }
 
     static void resetForTests() {
         synchronized (LOCK) {
@@ -193,7 +204,7 @@ public final class CatLog {
         CatEvent event = CatEvent.builder(session.id(), component, name).trace(traceId, null)
                 .action(action).expected(expected).actual(actual).result(result).evidence(evidence).error(error)
                 .attributes(attributes).build();
-        writer.offer(event);
+        synchronized (LOCK) { writer.offer(event); }
     }
 
     private String appVersion() {

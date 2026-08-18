@@ -25,26 +25,28 @@ public final class CatDiagnosticsExporter {
     private CatDiagnosticsExporter() { }
 
     public static File export(Context context) throws IOException {
-        CatLog.flush(1_500L);
-        File source = CatLog.sessionDirectory();
-        if (source == null) throw new IOException("CAT Log is not initialized");
-        File share = new File(context.getCacheDir(), "darkcat-share");
-        if (!share.exists() && !share.mkdirs()) throw new IOException("Cannot create diagnostics share directory");
-        String name = exportFileName(Build.MANUFACTURER, Build.MODEL, new Date());
-        File output = new File(share, name);
-        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(output))) {
-            addFile(zip, new File(source, "cat-events.ndjson"), "cat-events.ndjson");
-            addJson(zip, "session.json", CatLog.sessionInfoJson());
-            addJson(zip, "app-info.json", CatLog.appInfoJson());
-            addJson(zip, "device-info.json", CatLog.deviceInfoJson());
-            addJson(zip, "exit-info.json", CatLog.exitInfoJson());
-            addJson(zip, "user-notes.json", userNotes(new File(source, "cat-events.ndjson")));
-        } catch (Exception error) {
-            if (output.exists()) output.delete();
-            if (error instanceof IOException) throw (IOException) error;
-            throw new IOException("Cannot create CAT diagnostics", error);
+        synchronized (CatLog.diagnosticsLock()) {
+            CatLog.flush(1_500L);
+            File source = CatLog.sessionDirectory();
+            if (source == null) throw new IOException("CAT Log is not initialized");
+            File share = new File(context.getCacheDir(), "darkcat-share");
+            if (!share.exists() && !share.mkdirs()) throw new IOException("Cannot create diagnostics share directory");
+            String name = exportFileName(Build.MANUFACTURER, Build.MODEL, new Date());
+            File output = new File(share, name);
+            try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(output))) {
+                addFile(zip, new File(source, "cat-events.ndjson"), "cat-events.ndjson");
+                addJson(zip, "session.json", CatLog.sessionInfoJson());
+                addJson(zip, "app-info.json", CatLog.appInfoJson());
+                addJson(zip, "device-info.json", CatLog.deviceInfoJson());
+                addJson(zip, "exit-info.json", CatLog.exitInfoJson());
+                addJson(zip, "user-notes.json", userNotes(new File(source, "cat-events.ndjson")));
+            } catch (Exception error) {
+                if (output.exists()) output.delete();
+                if (error instanceof IOException) throw (IOException) error;
+                throw new IOException("Cannot create CAT diagnostics", error);
+            }
+            return output;
         }
-        return output;
     }
 
     /** Keeps the user-visible device hint while preventing unsafe path characters in the share filename. */
