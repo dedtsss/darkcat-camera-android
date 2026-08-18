@@ -329,7 +329,7 @@ public final class DarkCatUi {
         }
         if (!NightModeState.needsChange(current, wanted)) return;
         long started = android.os.SystemClock.elapsedRealtime();
-        CatLog.event("night", requested ? "night.apply_started" : "night.restore_started", requested ? "enable" : "disable",
+        CatLog.event("night", requested ? "night.apply_requested" : "night.restore_requested", requested ? "enable" : "disable",
                 requested ? "one extension session transition" : "pre-Night photo mode restored", current, null,
                 nightAttributes(activity, requested, requested ? "camera_extension" : "standard_session", requested ? "apply" : "restore", 0L));
         preferences.edit().putString(PreferenceKeys.PhotoModePreferenceKey, wanted).apply();
@@ -337,9 +337,26 @@ public final class DarkCatUi {
         // The inherited Camera2 path performs exactly one controlled reopen for an extension boundary.
         activity.updateForSettings(true, requested ? "Ночной режим OEM" : "Ночной режим выключен");
         long duration = Math.max(0L, android.os.SystemClock.elapsedRealtime() - started);
-        CatLog.result("night", requested ? "night.apply_completed" : "night.restore_completed", requested ? "enable" : "disable",
-                requested ? "extension transition requested" : "previous camera mode transition requested", wanted, "PARTIAL",
-                nightAttributes(activity, requested, requested ? "camera_extension" : "standard_session", requested ? "apply" : "restore", duration));
+        CatLog.event("night", requested ? "night.apply_dispatched" : "night.restore_dispatched", requested ? "enable" : "disable",
+                requested ? "extension callback reports ready or failed" : "standard session is restored",
+                wanted, null, nightAttributes(activity, requested, requested ? "camera_extension" : "standard_session", requested ? "apply" : "restore", duration));
+    }
+
+    /** Restores a safe standard mode when the OEM extension rejects configuration. */
+    public static void onNightSessionFailed(Context context, long generation) {
+        if (!(context instanceof MainActivity)) return;
+        MainActivity activity = (MainActivity) context;
+        if (!DarkCatSettings.nightMode(activity)) return;
+        android.content.SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(activity);
+        String restore = NightModeState.restoreMode(preferences.getString(NIGHT_RESTORE_PHOTO_MODE, NightModeState.STANDARD));
+        DarkCatSettings.set(activity, "darkcat_night_mode", false);
+        preferences.edit().putString(PreferenceKeys.PhotoModePreferenceKey, restore)
+                .remove(NIGHT_RESTORE_PHOTO_MODE).apply();
+        Map<String, Object> attributes = nightAttributes(activity, false, "standard_session", "failure_fallback", 0L);
+        attributes.put("night_session_generation", generation);
+        CatLog.result("night", "night.fallback_restored", "configure_failed", "standard photo mode is restored after Night failure",
+                restore, "PASS", attributes);
+        activity.runOnUiThread(() -> activity.updateForSettings(true, "OEM Night недоступен; обычный режим восстановлен"));
     }
 
     private static Map<String, Object> nightAttributes(MainActivity activity, boolean enabled, String sessionType, String restore, long duration) {

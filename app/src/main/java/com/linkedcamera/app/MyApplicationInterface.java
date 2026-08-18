@@ -3748,7 +3748,7 @@ public class MyApplicationInterface extends BasicApplicationInterface {
         // ImageSaver's scoped MediaStore writer, using the same capture ticket/context.
         // queue. Success haptic already happened above and does not wait for this disk handoff.
         if( DarkCatSettings.isVaultMode(main_activity)
-                && getPhotoMode() == PhotoMode.Standard
+                && (getPhotoMode() == PhotoMode.Standard || getPhotoMode() == PhotoMode.X_Night)
                 && getImageFormatPref() == ImageSaver.Request.ImageFormat.STD
                 && !isImageCaptureIntent() ) {
             try {

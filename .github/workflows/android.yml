@@ -1,6 +1,7 @@
 name: Android build
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, 'feature/**', 'agent/**' ]
     paths-ignore:
@@ -18,7 +19,12 @@ concurrency:
 
 jobs:
   build:
-    if: github.ref != 'refs/heads/agent/cat-log-mvp' || contains(github.event.head_commit.message, '[build-apk]')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/heads/feature/') ||
+      contains(github.event.head_commit.message, '[build-apk]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

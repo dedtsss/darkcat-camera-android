@@ -40,6 +40,21 @@ public final class DarkCatSettings {
     public static boolean isVaultMode(Context context) { return storageMode(context) == StorageMode.VAULT; }
     public static boolean isMediaStoreMode(Context context) { return storageMode(context) == StorageMode.MEDIASTORE; }
 
+    /** Field captures always use Vault without changing the user's saved destination choice. */
+    public static StorageMode effectiveStorageMode(Context context) {
+        return effectiveStorageMode(fieldModeEnabled(context), storageMode(context));
+    }
+    /** Pure policy function kept separate so the Field/Vault contract is testable without Android. */
+    public static StorageMode effectiveStorageMode(boolean fieldEnabled, StorageMode configured) {
+        return fieldEnabled ? StorageMode.VAULT : (configured == null ? StorageMode.VAULT : configured);
+    }
+    public static boolean effectiveIsVaultMode(Context context) {
+        return effectiveStorageMode(context) == StorageMode.VAULT;
+    }
+    public static boolean effectiveIsMediaStoreMode(Context context) {
+        return effectiveStorageMode(context) == StorageMode.MEDIASTORE;
+    }
+
     private static SharedPreferences prefs(Context context) { return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext()); }
     /** Legacy alias retained for the encrypted Vault pipeline. */
     public static boolean isSecureMode(Context context) {

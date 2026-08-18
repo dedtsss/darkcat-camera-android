@@ -47,12 +47,15 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
     private final AtomicBoolean captureInFlight = new AtomicBoolean(false);
 
     private volatile boolean started;
+    private volatile long generation;
+    private volatile boolean standby;
     private volatile boolean ready;
     private volatile CameraCapturePort.Callback pendingCallback;
     private CameraDevice camera;
     private CameraCaptureSession session;
     private ImageReader jpegReader;
     private ImageReader previewReader;
+    private CaptureRequest previewRequest;
     private String cameraId;
 
     public FieldCameraSessionOwner(Context context) {
@@ -62,22 +65,49 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
         cameraHandler = new Handler(cameraThread.getLooper());
     }
 
-    public void start() {
+    public void start(long ownerGeneration) {
         started = true;
-        cameraHandler.post(this::openIfNeeded);
+        generation = ownerGeneration;
+        cameraHandler.post(() -> openIfNeeded(ownerGeneration));
     }
 
-    public void stop() {
-        started = false;
+    /** Keep the Camera2 session available for a trigger while removing idle repeating work. */
+    public void setStandby(boolean standby) {
+        this.standby = standby;
+        long expectedGeneration = generation;
         cameraHandler.post(() -> {
+            if (!isGenerationActive(expectedGeneration) || session == null || camera == null || !ready) return;
+            try {
+                if (standby) {
+                    session.stopRepeating();
+                } else if (previewRequest != null) {
+                    session.setRepeatingRequest(previewRequest, null, cameraHandler);
+                }
+            } catch (CameraAccessException failure) {
+                Log.w(TAG, "unable to change Field repeating state", failure);
+            }
+        });
+    }
+
+    public void stop(long ownerGeneration) {
+        started = false;
+        generation = ownerGeneration;
+        cameraHandler.post(() -> {
+            if (generation != ownerGeneration) return;
             failPendingCapture();
             closeCamera();
         });
     }
 
     public void shutdown() {
-        stop();
-        cameraHandler.post(() -> cameraThread.quitSafely());
+        final long shutdownGeneration = generation + 1L;
+        started = false;
+        generation = shutdownGeneration;
+        cameraHandler.post(() -> {
+            failPendingCapture();
+            closeCamera();
+            cameraThread.quitSafely();
+        });
     }
 
     public boolean isReady() {
@@ -88,24 +118,25 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
     public boolean requestCapture(Callback callback) {
         if (callback == null || !started || !isReady()
                 || !captureInFlight.compareAndSet(false, true)) return false;
+        long expectedGeneration = generation;
         pendingCallback = callback;
-        cameraHandler.post(() -> captureStill(callback));
+        cameraHandler.post(() -> captureStill(expectedGeneration, callback));
         return true;
     }
 
-    private void openIfNeeded() {
-        if (!started || ready || camera != null) return;
+    private void openIfNeeded(long expectedGeneration) {
+        if (!isGenerationActive(expectedGeneration) || ready || camera != null) return;
         if (cameraManager == null || ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "camera permission/manager unavailable");
-            scheduleRetry();
+            scheduleRetry(expectedGeneration);
             return;
         }
         try {
             cameraId = chooseBackCamera();
             if (cameraId == null) {
                 Log.w(TAG, "no camera id available; will retry");
-                scheduleRetry();
+                scheduleRetry(expectedGeneration);
                 return;
             }
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
@@ -117,66 +148,73 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                     ImageFormat.YUV_420_888, 2);
             jpegReader.setOnImageAvailableListener(this::onJpegAvailable, cameraHandler);
             previewReader.setOnImageAvailableListener(reader -> closeLatest(reader), cameraHandler);
-            cameraManager.openCamera(cameraId, stateCallback, cameraHandler);
+            cameraManager.openCamera(cameraId, new CameraDevice.StateCallback() {
+                @Override public void onOpened(CameraDevice opened) {
+                    if (!isGenerationActive(expectedGeneration)) {
+                        opened.close();
+                        return;
+                    }
+                    camera = opened;
+                    configureSession(expectedGeneration, opened);
+                }
+
+                @Override public void onDisconnected(CameraDevice disconnected) {
+                    if (camera != disconnected || generation != expectedGeneration) {
+                        disconnected.close();
+                        return;
+                    }
+                    camera = null;
+                    disconnected.close();
+                    ready = false;
+                    closeSessionOnly();
+                    scheduleRetry(expectedGeneration);
+                }
+
+                @Override public void onError(CameraDevice errored, int error) {
+                    Log.e(TAG, "camera error=" + error);
+                    if (camera != errored || generation != expectedGeneration) {
+                        errored.close();
+                        return;
+                    }
+                    camera = null;
+                    errored.close();
+                    ready = false;
+                    closeSessionOnly();
+                    scheduleRetry(expectedGeneration);
+                }
+            }, cameraHandler);
         } catch (Exception failure) {
             Log.w(TAG, "open failed; will retry", failure);
             closeCamera();
-            scheduleRetry();
+            scheduleRetry(expectedGeneration);
         }
     }
-
-    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
-        @Override public void onOpened(CameraDevice opened) {
-            if (!started) {
-                opened.close();
-                return;
-            }
-            camera = opened;
-            configureSession();
-        }
-
-        @Override public void onDisconnected(CameraDevice disconnected) {
-            if (camera == disconnected) camera = null;
-            disconnected.close();
-            ready = false;
-            closeSessionOnly();
-            scheduleRetry();
-        }
-
-        @Override public void onError(CameraDevice errored, int error) {
-            Log.e(TAG, "camera error=" + error);
-            if (camera == errored) camera = null;
-            errored.close();
-            ready = false;
-            closeSessionOnly();
-            scheduleRetry();
-        }
-    };
-
-    private void configureSession() {
-        if (camera == null || jpegReader == null || previewReader == null) return;
+    private void configureSession(long expectedGeneration, CameraDevice expectedCamera) {
+        if (!isGenerationActive(expectedGeneration) || camera != expectedCamera
+                || jpegReader == null || previewReader == null) return;
         try {
-            camera.createCaptureSession(java.util.Arrays.asList(
+            expectedCamera.createCaptureSession(java.util.Arrays.asList(
                     previewReader.getSurface(), jpegReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
                         @Override public void onConfigured(CameraCaptureSession configured) {
-                            if (!started || camera == null) {
+                            if (!isGenerationActive(expectedGeneration) || camera != expectedCamera) {
                                 configured.close();
                                 return;
                             }
                             session = configured;
                             try {
-                                CaptureRequest.Builder preview = camera.createCaptureRequest(
+                                CaptureRequest.Builder preview = expectedCamera.createCaptureRequest(
                                         CameraDevice.TEMPLATE_PREVIEW);
                                 preview.addTarget(previewReader.getSurface());
                                 configureAuto(preview);
-                                configured.setRepeatingRequest(preview.build(), null, cameraHandler);
+                                previewRequest = preview.build();
+                                if (!standby) configured.setRepeatingRequest(previewRequest, null, cameraHandler);
                                 ready = true;
                                 Log.i(TAG, "service-owned Camera2 session ready id=" + cameraId);
                             } catch (Exception failure) {
                                 Log.w(TAG, "repeating preview failed", failure);
                                 closeCamera();
-                                scheduleRetry();
+                                scheduleRetry(expectedGeneration);
                             }
                         }
 
@@ -185,18 +223,18 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
                             failed.close();
                             ready = false;
                             closeCamera();
-                            scheduleRetry();
+                            scheduleRetry(expectedGeneration);
                         }
                     }, cameraHandler);
         } catch (Exception failure) {
             Log.w(TAG, "create session failed", failure);
             closeCamera();
-            scheduleRetry();
+            scheduleRetry(expectedGeneration);
         }
     }
 
-    private void captureStill(Callback callback) {
-        if (!started || session == null || camera == null || jpegReader == null) {
+    private void captureStill(long expectedGeneration, Callback callback) {
+        if (!isGenerationActive(expectedGeneration) || session == null || camera == null || jpegReader == null) {
             finishFailure(callback);
             return;
         }
@@ -208,7 +246,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
             session.capture(still.build(), new CameraCaptureSession.CaptureCallback() {
                 @Override public void onCaptureFailed(CameraCaptureSession captureSession,
                                                        CaptureRequest request, CaptureFailure failure) {
-                    finishFailure(callback);
+                    if (generation == expectedGeneration) finishFailure(callback);
                 }
             }, cameraHandler);
         } catch (Exception failure) {
@@ -218,6 +256,7 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
     }
 
     private void onJpegAvailable(ImageReader reader) {
+        if (reader != jpegReader || !started) return;
         Image image = null;
         try {
             image = reader.acquireNextImage();
@@ -275,14 +314,21 @@ public final class FieldCameraSessionOwner implements CameraCapturePort {
         }
         if (jpegReader != null) { jpegReader.close(); jpegReader = null; }
         if (previewReader != null) { previewReader.close(); previewReader = null; }
+        previewRequest = null;
     }
 
     private void closeSessionOnly() {
         if (session != null) { session.close(); session = null; }
     }
 
-    private void scheduleRetry() {
-        if (started) cameraHandler.postDelayed(this::openIfNeeded, RETRY_DELAY_MS);
+    private void scheduleRetry(long expectedGeneration) {
+        if (isGenerationActive(expectedGeneration)) {
+            cameraHandler.postDelayed(() -> openIfNeeded(expectedGeneration), RETRY_DELAY_MS);
+        }
+    }
+
+    private boolean isGenerationActive(long expectedGeneration) {
+        return started && generation == expectedGeneration;
     }
 
     private String chooseBackCamera() throws CameraAccessException {

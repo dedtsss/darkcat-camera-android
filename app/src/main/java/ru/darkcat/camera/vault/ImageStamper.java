@@ -17,8 +17,10 @@ import androidx.exifinterface.media.ExifInterface;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import ru.darkcat.camera.data.CaptureContext;
 import ru.darkcat.camera.data.DarkCatSettings;
@@ -28,6 +30,31 @@ import ru.darkcat.camera.ui.WatermarkLayout;
 
 /** Flattens DarkCat's simple black technical block and optional centered crosshair. */
 public final class ImageStamper {
+    /* Bitmap re-encoding drops the OEM's capture metadata unless it is copied explicitly. Keep
+       the camera fields that are useful for diagnostics and downstream EXIF consumers. The
+       orientation is intentionally excluded because orient() has already flattened it. */
+    private static final String[] PRESERVED_EXIF_TAGS = new String[]{
+            ExifInterface.TAG_MAKE, ExifInterface.TAG_MODEL, ExifInterface.TAG_SOFTWARE,
+            ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL,
+            ExifInterface.TAG_DATETIME_DIGITIZED, ExifInterface.TAG_SUBSEC_TIME,
+            ExifInterface.TAG_SUBSEC_TIME_ORIGINAL, ExifInterface.TAG_SUBSEC_TIME_DIGITIZED,
+            ExifInterface.TAG_OFFSET_TIME, ExifInterface.TAG_OFFSET_TIME_ORIGINAL,
+            ExifInterface.TAG_OFFSET_TIME_DIGITIZED, ExifInterface.TAG_EXPOSURE_TIME,
+            ExifInterface.TAG_F_NUMBER, ExifInterface.TAG_FOCAL_LENGTH,
+            ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM, ExifInterface.TAG_ISO_SPEED_RATINGS,
+            ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, ExifInterface.TAG_FLASH,
+            ExifInterface.TAG_WHITE_BALANCE, ExifInterface.TAG_METERING_MODE,
+            ExifInterface.TAG_EXPOSURE_MODE, ExifInterface.TAG_EXPOSURE_PROGRAM,
+            ExifInterface.TAG_LENS_MAKE, ExifInterface.TAG_LENS_MODEL,
+            ExifInterface.TAG_LENS_SPECIFICATION, ExifInterface.TAG_MAKER_NOTE,
+            ExifInterface.TAG_USER_COMMENT, ExifInterface.TAG_IMAGE_DESCRIPTION,
+            ExifInterface.TAG_GPS_PROCESSING_METHOD, ExifInterface.TAG_GPS_LATITUDE,
+            ExifInterface.TAG_GPS_LATITUDE_REF, ExifInterface.TAG_GPS_LONGITUDE,
+            ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE,
+            ExifInterface.TAG_GPS_ALTITUDE_REF, ExifInterface.TAG_GPS_DATESTAMP,
+            ExifInterface.TAG_GPS_TIMESTAMP
+    };
+
     public static void stamp(File file, Context context, int sequence,
                              CaptureContext captureContext, long capturedAt) throws Exception {
         Location location = captureLocation(captureContext);
@@ -46,9 +73,14 @@ public final class ImageStamper {
                 DarkCatSettings.stampTags(context),
                 DarkCatSettings.stampCustomText(context));
         boolean drawCrosshair = DarkCatSettings.CROSSHAIR_STAMP.equals(DarkCatSettings.crosshair(context));
-        if (lines.isEmpty() && !drawCrosshair && !DarkCatSettings.watermarkEnabled(context)) return;
+        if (lines.isEmpty() && !drawCrosshair && !DarkCatSettings.watermarkEnabled(context)) {
+            writeCaptureLocationExif(file, captureContext, capturedAt);
+            return;
+        }
 
-        int orientation = new ExifInterface(file.getAbsolutePath()).getAttributeInt(
+        ExifInterface originalExif = new ExifInterface(file.getAbsolutePath());
+        Map<String, String> preservedExif = readPreservedExif(originalExif);
+        int orientation = originalExif.getAttributeInt(
                 ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
         BitmapFactory.Options decode = new BitmapFactory.Options();
         decode.inMutable = true;
@@ -68,7 +100,7 @@ public final class ImageStamper {
         if (drawCrosshair) drawCrosshair(canvas, result, context);
         if (!lines.isEmpty()) drawTechnicalBlock(canvas, result, lines);
 
-        replaceAtomically(file, result);
+        replaceAtomically(file, result, preservedExif, captureContext, capturedAt);
     }
 
     private static Bitmap orient(Bitmap source, int orientation) {
@@ -188,7 +220,35 @@ public final class ImageStamper {
         return location;
     }
 
-    private static void replaceAtomically(File file, Bitmap result) throws Exception {
+    private static Map<String, String> readPreservedExif(ExifInterface source) {
+        Map<String, String> attributes = new HashMap<>();
+        for (String tag : PRESERVED_EXIF_TAGS) {
+            String value = source.getAttribute(tag);
+            if (value != null) attributes.put(tag, value);
+        }
+        return attributes;
+    }
+
+    /** Adds the shutter-time location after any bitmap rewrite, without consulting live state. */
+    public static void writeCaptureLocationExif(File file, CaptureContext captureContext,
+                                                long capturedAt) {
+        if (captureContext == null || captureContext.captureLatitude == null
+                || captureContext.captureLongitude == null) return;
+        try {
+            Location location = captureLocation(captureContext);
+            if (location == null) return;
+            location.setTime(capturedAt);
+            ExifInterface exif = new ExifInterface(file.getAbsolutePath());
+            exif.setGpsInfo(location);
+            exif.saveAttributes();
+        } catch (Exception ignored) {
+            // The durable capture context/database remains authoritative if an OEM JPEG rejects
+            // EXIF rewriting.
+        }
+    }
+
+    private static void replaceAtomically(File file, Bitmap result, Map<String, String> preservedExif,
+                                          CaptureContext captureContext, long capturedAt) throws Exception {
         File temporary = new File(file.getParentFile(), "." + file.getName() + ".stamp.tmp");
         File backup = new File(file.getParentFile(), "." + file.getName() + ".stamp.bak");
         try {
@@ -198,6 +258,13 @@ public final class ImageStamper {
                 output.flush();
                 output.getFD().sync();
             }
+            ExifInterface stampedExif = new ExifInterface(temporary.getAbsolutePath());
+            for (Map.Entry<String, String> entry : preservedExif.entrySet())
+                stampedExif.setAttribute(entry.getKey(), entry.getValue());
+            stampedExif.setAttribute(ExifInterface.TAG_ORIENTATION,
+                    String.valueOf(ExifInterface.ORIENTATION_NORMAL));
+            stampedExif.saveAttributes();
+            writeCaptureLocationExif(temporary, captureContext, capturedAt);
             if (backup.exists() && !backup.delete())
                 throw new java.io.IOException("unable to prepare stamp backup");
             if (!file.renameTo(backup)) throw new java.io.IOException("unable to preserve recovery image");
