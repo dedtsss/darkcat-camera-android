@@ -9,6 +9,7 @@ final class DroppedEventCounter {
 
     void record() { total.incrementAndGet(); pending.incrementAndGet(); }
     long total() { return total.get(); }
+    long pending() { return pending.get(); }
     long drainPending() { return pending.getAndSet(0L); }
     void clear() { total.set(0L); pending.set(0L); }
 }

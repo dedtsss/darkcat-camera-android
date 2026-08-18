@@ -1,8 +1,11 @@
 package ru.darkcat.camera.catlog;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -30,6 +33,7 @@ final class BoundedCatWriter {
     BoundedCatWriter(File sessionDirectory, String sessionId) {
         output = new File(sessionDirectory, "cat-events.ndjson");
         this.sessionId = sessionId;
+        restoreExistingFile();
         executor.execute(this::run);
     }
 
@@ -43,6 +47,7 @@ final class BoundedCatWriter {
 
     long writtenCount() { return written.get(); }
     long droppedCount() { return dropped.total(); }
+    long pendingDroppedCount() { return dropped.pending(); }
     File output() { return output; }
 
     void flush(long timeoutMs) {
@@ -53,10 +58,48 @@ final class BoundedCatWriter {
     }
 
     void clear() {
+        // The barrier is required before deleting the file: the writer may already have
+        // taken an event from the queue while the UI requested Clear.
+        flush(1_500L);
         queue.clear();
         dropped.clear();
         written.set(0L);
         if (output.exists()) output.delete();
+    }
+
+    void close() {
+        flush(1_500L);
+        executor.shutdownNow();
+    }
+
+    private void restoreExistingFile() {
+        if (!output.isFile()) return;
+        File cleaned = new File(output.getParentFile(), output.getName() + ".recovered");
+        try (BufferedReader reader = new BufferedReader(new FileReader(output));
+             BufferedWriter writer = new BufferedWriter(new FileWriter(cleaned, false))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || "null".equals(trimmed)) {
+                    dropped.record();
+                    continue;
+                }
+                try {
+                    new org.json.JSONObject(trimmed);
+                    writer.write(trimmed);
+                    writer.newLine();
+                    written.incrementAndGet();
+                } catch (Exception malformed) {
+                    dropped.record();
+                }
+            }
+        } catch (Exception ignored) {
+            cleaned.delete();
+            return;
+        }
+        if (!cleaned.renameTo(output)) {
+            cleaned.delete();
+        }
     }
 
     private void run() {

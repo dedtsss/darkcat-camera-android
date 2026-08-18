@@ -448,6 +448,7 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     private void applyMotion(boolean moving, long nowMs) {
         FieldStandbyPolicy.State before = standbyPolicy.state();
         FieldStandbyPolicy.State after = standbyPolicy.observe(moving, nowMs);
+        ru.darkcat.camera.catlog.CatLog.updateMotionEvidence(after.name(), moving, nowMs);
         if (before == after) return;
         if (cameraOwner != null) cameraOwner.setStandby(after == FieldStandbyPolicy.State.STANDBY);
         java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>();

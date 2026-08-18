@@ -102,7 +102,10 @@ public final class CatDiagnosticsExporter {
         try (BufferedReader reader = new BufferedReader(new FileReader(events))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                JSONObject event = new JSONObject(line);
+                if (line.trim().isEmpty() || "null".equals(line.trim())) continue;
+                JSONObject event;
+                try { event = new JSONObject(line); }
+                catch (Exception malformed) { continue; }
                 if (!"user.note".equals(event.optString("event"))) continue;
                 JSONObject note = new JSONObject();
                 note.put("wall_clock_ms", event.optLong("wall_clock_ms"));

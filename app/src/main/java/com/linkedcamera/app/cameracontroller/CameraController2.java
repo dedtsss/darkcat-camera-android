@@ -71,6 +71,7 @@ import android.view.TextureView;
 import android.view.WindowMetrics;
 
 import ru.darkcat.camera.catlog.CatLog;
+import ru.darkcat.camera.catlog.PreviewHealthTracker;
 import ru.darkcat.camera.ui.DarkCatUi;
 import ru.darkcat.camera.ui.NightExtensionLifecycle;
 
@@ -303,6 +304,13 @@ public class CameraController2 extends CameraController {
     private boolean sounds_enabled = true;
 
     private boolean has_received_frame;
+    private final PreviewHealthTracker previewHealth = new PreviewHealthTracker();
+    private final Runnable previewHealthWatchdog = new Runnable() {
+        @Override public void run() {
+            emitPreviewHealth(previewHealth.onWatchdog(android.os.SystemClock.elapsedRealtime()));
+            if( handler != null ) handler.postDelayed(this, 1000L);
+        }
+    };
     private boolean capture_result_is_ae_scanning;
     private Integer capture_result_ae; // latest ae_state, null if not available
     private boolean is_flash_required; // whether capture_result_ae suggests FLASH_REQUIRED? Or in neither FLASH_REQUIRED nor CONVERGED, this stores the last known result
@@ -2403,6 +2411,35 @@ public class CameraController2 extends CameraController {
         return attributes;
     }
 
+    private void startPreviewHealth() {
+        if( handler == null ) return;
+        previewHealth.start(android.os.SystemClock.elapsedRealtime());
+        handler.removeCallbacks(previewHealthWatchdog);
+        handler.postDelayed(previewHealthWatchdog, 1000L);
+    }
+
+    private void stopPreviewHealth() {
+        previewHealth.stop();
+        if( handler != null ) handler.removeCallbacks(previewHealthWatchdog);
+    }
+
+    private void recordPreviewFrame() {
+        emitPreviewHealth(previewHealth.onFrame(android.os.SystemClock.elapsedRealtime()));
+    }
+
+    private void emitPreviewHealth(PreviewHealthTracker.Snapshot snapshot) {
+        if( snapshot == null ) return;
+        Map<String, Object> attributes = new java.util.LinkedHashMap<>();
+        attributes.put("preview_frames", snapshot.frames);
+        attributes.put("effective_fps", snapshot.effectiveFps);
+        attributes.put("max_frame_gap_ms", snapshot.maxFrameGapMs);
+        attributes.put("preview_stall", snapshot.stalled);
+        attributes.put("preview_frame_age_ms", snapshot.frameAgeMs);
+        CatLog.result("preview", snapshot.stalled ? "preview.stall" : "preview.heartbeat", "health",
+                "preview remains live with bounded frame cadence",
+                snapshot.stalled ? "stalled" : "alive", snapshot.stalled ? "FAIL" : "PASS", attributes);
+    }
+
     /** Closes the captureSession, if it exists.
      */
     private void closeCaptureSession() {
@@ -2442,6 +2479,7 @@ public class CameraController2 extends CameraController {
     public void release() {
         if( MyDebug.LOG )
             Log.d(TAG, "release: " + this);
+        stopPreviewHealth();
         closeCaptureSession();
         CameraDevice camera_to_close = this.camera;
         synchronized( background_camera_lock ) {
@@ -6741,6 +6779,7 @@ public class CameraController2 extends CameraController {
         synchronized( background_camera_lock ) {
             if( hasCaptureSession() ) {
                 try {
+                    startPreviewHealth();
                     setRepeatingRequest();
                 }
                 catch(CameraAccessException e) {
@@ -6754,6 +6793,7 @@ public class CameraController2 extends CameraController {
                 return;
             }
         }
+        startPreviewHealth();
         createCaptureSession(wait_until_started, runnable, on_failed, null, false);
     }
 
@@ -6772,6 +6812,7 @@ public class CameraController2 extends CameraController {
     }
 
     public void stopPreview(boolean close_capture_session) {
+        stopPreviewHealth();
         synchronized( background_camera_lock ) {
             if( camera == null || !hasCaptureSession() ) {
                 if( MyDebug.LOG )
@@ -8632,6 +8673,7 @@ public class CameraController2 extends CameraController {
                 }
             }
 
+            recordPreviewFrame();
             if( nightSessionHandle != null
                     && previewCaptureCallback.getRequestTagType(request) == RequestTagType.CAPTURE ) {
                 if( nightExtensionLifecycle.captureStarted(session, request) ) {
@@ -8731,6 +8773,11 @@ public class CameraController2 extends CameraController {
                 Log.d(TAG, "onCaptureProcessProgressed: " + progress);
 
             if( isNightExtensionCallback(session) && !nightExtensionLifecycle.acceptsProgress(session, request) ) return;
+            Map<String, Object> progressAttributes = nightCaptureAttributes(nightSessionHandle, nightCaptureHandle, "processing");
+            progressAttributes.put("progress", progress);
+            progressAttributes.putAll(CatLog.motionEvidence());
+            CatLog.event("night", "night.capture_progress", "process",
+                    "correlated Night progress is observable", "progressed", null, progressAttributes);
             final Activity activity = (Activity)context;
             activity.runOnUiThread(new Runnable() {
                 @Override
@@ -9632,6 +9679,7 @@ public class CameraController2 extends CameraController {
             /*if( MyDebug.LOG )
                 Log.d(TAG, "processCompleted");*/
 
+            recordPreviewFrame();
             if( !has_received_frame ) {
                 has_received_frame = true;
                 if( MyDebug.LOG )

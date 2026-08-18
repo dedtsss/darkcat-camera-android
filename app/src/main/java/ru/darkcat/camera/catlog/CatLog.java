@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Passive, local-only CAT Log facade used from existing camera/application paths. */
 public final class CatLog {
@@ -23,6 +24,9 @@ public final class CatLog {
     private final String traceId = CatEvent.traceId();
     private volatile CatSnapshotProvider snapshotProvider;
     private volatile JSONObject previousExit = new JSONObject();
+    private volatile String motionState = "UNKNOWN";
+    private volatile boolean motionMoving;
+    private final AtomicLong motionElapsedMs = new AtomicLong();
 
     private CatLog(Context context) {
         this.context = context.getApplicationContext();
@@ -92,8 +96,11 @@ public final class CatLog {
     public static void stopSession() {
         CatLog current = get();
         if (current == null) return;
+        current.flush(500L);
+        long eventCountIncludingStop = current.writer.writtenCount()
+                + (current.writer.pendingDroppedCount() > 0L ? 1L : 0L) + 1L;
         current.record("session", "session.stop", "stop", "clean stop requested", "stopped", "PASS", null, null,
-                map("event_count", current.writer.writtenCount(), "dropped_count", current.writer.droppedCount()));
+                map("event_count", eventCountIncludingStop, "dropped_count", current.writer.droppedCount()));
         current.flush(500L);
         current.session.markStopped();
         current.recording.set(false);
@@ -107,6 +114,24 @@ public final class CatLog {
     public static String sessionId() { return get() == null ? null : get().session.id(); }
     public static long eventCount() { return get() == null ? 0 : get().writer.writtenCount(); }
     public static long droppedCount() { return get() == null ? 0 : get().writer.droppedCount(); }
+    public static Map<String, Object> motionEvidence() {
+        CatLog current = get();
+        if (current == null) return Collections.emptyMap();
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("motion_state", current.motionState);
+        values.put("motion_moving", current.motionMoving);
+        long elapsed = current.motionElapsedMs.get();
+        values.put("motion_age_ms", elapsed == 0L ? 0L
+                : Math.max(0L, android.os.SystemClock.elapsedRealtime() - elapsed));
+        return values;
+    }
+    public static void updateMotionEvidence(String state, boolean moving, long elapsedMs) {
+        CatLog current = get();
+        if (current == null) return;
+        current.motionState = state == null ? "UNKNOWN" : state;
+        current.motionMoving = moving;
+        current.motionElapsedMs.set(elapsedMs);
+    }
     public static File sessionDirectory() { return get() == null ? null : get().session.directory(); }
     public static File rootDirectory(Context context) { return new File(context.getApplicationContext().getFilesDir(), "cat-log"); }
     public static void flush(long timeoutMs) { if (get() != null) get().writer.flush(timeoutMs); }
@@ -154,7 +179,13 @@ public final class CatLog {
     static JSONObject appInfoJson() throws org.json.JSONException { return get() == null ? new JSONObject() : get().session.appInfoJson(); }
     static JSONObject deviceInfoJson() throws org.json.JSONException { return get() == null ? new JSONObject() : get().session.deviceInfoJson(); }
 
-    static void resetForTests() { synchronized (LOCK) { instance = null; CatTestContext.clear(); } }
+    static void resetForTests() {
+        synchronized (LOCK) {
+            if (instance != null) instance.writer.close();
+            instance = null;
+            CatTestContext.clear();
+        }
+    }
 
     private void record(String component, String name, String action, String expected, String actual, String result,
                         String evidence, String error, Map<String, ?> attributes) {
