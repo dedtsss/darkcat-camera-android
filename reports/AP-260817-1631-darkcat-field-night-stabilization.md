@@ -1,25 +1,21 @@
-# AP-260817-1631 · Implementation report
+# AP-260817-1631 · Post-review implementation report
 
-## Scope and safety
+## Current verdict
 
-This candidate starts from `7ce9d5f53ed354fc9daa83d74e095c9c81ac9033` on the CAT Log MVP line. The existing Pixel OEM Night and Camera2 extension flow was retained; no CameraX or custom weaker Night implementation was introduced.
+The candidate at `3bdb2941ce01ac1be2e8671816184ce439baa4ba` is not a complete implementation of AP-260817-1631. The earlier terminal `SUCCESS` was superseded by the 2026-08-18 post-review audit in `dedtsss/agent-dispatch#325`.
 
-## Changes
+The candidate remains useful and its validation evidence remains valid for what it implements: GitHub Actions run `32037511790` succeeded, Draft PR #7 remains open and draft, and the branch is synchronized with the published remote head.
 
-`FieldCameraSessionOwner` now exposes an explicit standby transition that stops and resumes the existing Camera2 repeating request without closing/reopening the session. `FieldModeService` keeps the service persistent, uses a batched normal-rate accelerometer listener, records ownership transitions, and applies HOT → GRACE → STANDBY after three stationary minutes; motion returns the service to HOT.
+## Preserved useful work
 
-`DarkCatSettings.effectiveStorageMode` makes Field captures use Vault while preserving the configured preference. Field publication and legacy recovery use this effective policy. Field staging/commit/recovery, capture outcomes, motion transitions, ownership, and bounded thermal/power heartbeats are emitted through the existing CAT Log APIs and privacy allowlist.
+The current branch adds Field effective storage to Vault, HOT/GRACE/STANDBY behavior, Field/storage/thermal diagnostics, and associated tests. These changes should be preserved while the remaining contract gaps are completed.
 
-## Verification
+## Blocking gaps
 
-The following completed successfully locally:
+The task must continue on `agent/field-night-stabilization` because the current candidate does not yet close the primary Field/Camera2 ownership race, does not contain the required Night/CameraExtension lifecycle implementation, and does not route Night final JPEG output through the complete DarkCat stamp/metadata/effective-storage/recovery path.
 
-```text
-./gradlew testDebugUnitTest compileDebugAndroidTestJavaWithJavac assembleDebug lintDebug --no-daemon
-```
+CAT Log hardening is also incomplete: preview-health/FPS/stall diagnostics, Night progress and motion correlation, and integrity/lifecycle fixes for `null` records, `event_count`, and writer/clear/export behavior remain required. The current motion standby sensor choice also does not satisfy the requested low-power motion-sensor hierarchy/fallback design.
 
-The generated debug APK is `app/build/outputs/apk/debug/app-debug.apk` (7,212,687 bytes). Remote GitHub Actions validation is required for the final candidate and is reported in issue #325. Device validation remains PENDING for Pixel OEM Night quality and Xiaomi Field behavior.
+## Acceptance and release boundary
 
-## Release boundary
-
-One final `[build-apk]` candidate commit is used for the Draft PR into `agent/cat-log-mvp`. No merge, deploy, or change to DarkCat PR #5 is authorized.
+Physical Pixel OEM Night quality acceptance and Xiaomi Field HOT/GRACE/STANDBY, storage, and preview acceptance remain pending. No merge or deploy is authorized. DarkCat Camera PR #5 must remain untouched. Draft PR #7 is the continuation vehicle, and a new coherent `[build-apk]` candidate should only be produced after the blocking gaps are implemented and validated.
