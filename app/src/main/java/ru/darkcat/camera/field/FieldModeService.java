@@ -15,6 +15,8 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.TriggerEvent;
+import android.hardware.TriggerEventListener;
 import android.media.AudioManager;
 import android.media.VolumeProvider;
 import android.media.session.MediaSession;
@@ -77,7 +79,10 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     private final FieldStandbyPolicy standbyPolicy = new FieldStandbyPolicy();
     private SensorManager sensorManager;
     private Sensor accelerometer;
+    private Sensor stationaryDetector;
+    private Sensor significantMotion;
     private boolean motionMonitoring;
+    private FieldMotionSensorPolicy.Mode motionSensorMode;
     private float lastAccelerationMagnitude = Float.NaN;
     // Service startup commonly comes from DarkCat Settings while MainActivity is paused. Treat
     // that state as background until MainActivity explicitly hands ownership back in onResume.
@@ -98,6 +103,17 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         }
 
         @Override public void onAccuracyChanged(Sensor sensor, int accuracy) { }
+    };
+
+    private final TriggerEventListener fieldMotionTriggerListener = new TriggerEventListener() {
+        @Override public void onTrigger(TriggerEvent event) {
+            if (event == null || !motionMonitoring) return;
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (event.sensor == stationaryDetector) applyMotion(false, now);
+            else if (event.sensor == significantMotion) applyMotion(true, now);
+            // Trigger sensors are one-shot. Re-arm them after every accepted event.
+            armTriggerSensors();
+        }
     };
 
     private final Runnable notificationTicker = new Runnable() {
@@ -171,6 +187,10 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         accelerometer = sensorManager == null ? null
                 : sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        stationaryDetector = sensorManager == null ? null
+                : sensorManager.getDefaultSensor(Sensor.TYPE_STATIONARY_DETECT);
+        significantMotion = sensorManager == null ? null
+                : sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION);
         captureController = new FieldCaptureController(
                 () -> GpsLockerService.captureDecision(this),
                 cameraOwner,
@@ -432,17 +452,47 @@ public final class FieldModeService extends Service implements FieldCaptureBridg
     }
 
     private void startMotionMonitoring() {
-        if (motionMonitoring || sensorManager == null || accelerometer == null) return;
+        if (motionMonitoring || sensorManager == null) return;
         lastAccelerationMagnitude = Float.NaN;
-        // NORMAL plus batching keeps the persistent service out of the high-rate sampler path.
-        motionMonitoring = sensorManager.registerListener(fieldMotionListener, accelerometer,
-                SensorManager.SENSOR_DELAY_NORMAL, 1_000_000);
+        motionSensorMode = FieldMotionSensorPolicy.choose(stationaryDetector != null, significantMotion != null);
+        if (motionSensorMode != FieldMotionSensorPolicy.Mode.ACCELEROMETER_FALLBACK) {
+            motionMonitoring = armTriggerSensors();
+        }
+        if (!motionMonitoring && accelerometer != null) {
+            motionSensorMode = FieldMotionSensorPolicy.Mode.ACCELEROMETER_FALLBACK;
+            // This is only the compatibility fallback; trigger sensors are preferred above.
+            motionMonitoring = sensorManager.registerListener(fieldMotionListener, accelerometer,
+                    SensorManager.SENSOR_DELAY_NORMAL, 5_000_000);
+        }
+        if (motionMonitoring) {
+            java.util.Map<String, Object> attributes = new java.util.LinkedHashMap<>();
+            attributes.put("motion_sensor_mode", motionSensorMode.name());
+            ru.darkcat.camera.catlog.CatLog.event("field", "field.motion_sensor", "monitor",
+                    "low-power motion hierarchy is active", motionSensorMode.name(), null, attributes);
+        }
     }
 
     private void stopMotionMonitoring() {
-        if (sensorManager != null && motionMonitoring) sensorManager.unregisterListener(fieldMotionListener);
+        if (sensorManager != null && motionMonitoring) {
+            sensorManager.unregisterListener(fieldMotionListener);
+            if (stationaryDetector != null) sensorManager.cancelTriggerSensor(fieldMotionTriggerListener, stationaryDetector);
+            if (significantMotion != null) sensorManager.cancelTriggerSensor(fieldMotionTriggerListener, significantMotion);
+        }
         motionMonitoring = false;
+        motionSensorMode = null;
         lastAccelerationMagnitude = Float.NaN;
+    }
+
+    private boolean armTriggerSensors() {
+        if (sensorManager == null) return false;
+        boolean armed = false;
+        if (stationaryDetector != null) {
+            armed |= sensorManager.requestTriggerSensor(fieldMotionTriggerListener, stationaryDetector);
+        }
+        if (significantMotion != null) {
+            armed |= sensorManager.requestTriggerSensor(fieldMotionTriggerListener, significantMotion);
+        }
+        return armed;
     }
 
     private void applyMotion(boolean moving, long nowMs) {
