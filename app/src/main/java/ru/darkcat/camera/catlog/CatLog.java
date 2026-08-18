@@ -27,6 +27,7 @@ public final class CatLog {
     private volatile String motionState = "UNKNOWN";
     private volatile boolean motionMoving;
     private final AtomicLong motionElapsedMs = new AtomicLong();
+    private volatile Map<String, Object> motionAggregates = Collections.emptyMap();
 
     private CatLog(Context context) {
         this.context = context.getApplicationContext();
@@ -130,14 +131,26 @@ public final class CatLog {
         long elapsed = current.motionElapsedMs.get();
         values.put("motion_age_ms", elapsed == 0L ? 0L
                 : Math.max(0L, android.os.SystemClock.elapsedRealtime() - elapsed));
+        values.putAll(current.motionAggregates);
         return values;
     }
     public static void updateMotionEvidence(String state, boolean moving, long elapsedMs) {
+        updateMotionEvidence(state, moving, elapsedMs, Collections.emptyMap());
+    }
+    public static void updateMotionEvidence(String state, boolean moving, long elapsedMs,
+                                            Map<String, ?> aggregates) {
         CatLog current = get();
         if (current == null) return;
         current.motionState = state == null ? "UNKNOWN" : state;
         current.motionMoving = moving;
         current.motionElapsedMs.set(elapsedMs);
+        Map<String, Object> copy = new LinkedHashMap<>();
+        if (aggregates != null) {
+            for (Map.Entry<String, ?> entry : aggregates.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) copy.put(entry.getKey(), entry.getValue());
+            }
+        }
+        current.motionAggregates = Collections.unmodifiableMap(copy);
     }
     public static File sessionDirectory() { return get() == null ? null : get().session.directory(); }
     public static File rootDirectory(Context context) { return new File(context.getApplicationContext().getFilesDir(), "cat-log"); }

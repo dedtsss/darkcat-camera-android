@@ -72,6 +72,8 @@ import android.view.WindowMetrics;
 
 import ru.darkcat.camera.catlog.CatLog;
 import ru.darkcat.camera.catlog.PreviewHealthTracker;
+import ru.darkcat.camera.capture.NightMotionEvidence;
+import ru.darkcat.camera.capture.NightMotionSampler;
 import ru.darkcat.camera.ui.DarkCatUi;
 import ru.darkcat.camera.ui.NightExtensionLifecycle;
 
@@ -196,6 +198,7 @@ public class CameraController2 extends CameraController {
     private final NightExtensionLifecycle nightExtensionLifecycle = new NightExtensionLifecycle();
     private NightExtensionLifecycle.SessionHandle nightSessionHandle;
     private NightExtensionLifecycle.CaptureHandle nightCaptureHandle;
+    private final NightMotionSampler nightMotionSampler;
 
     private CaptureRequest.Builder previewBuilder;
     private boolean previewIsVideoMode;
@@ -2133,6 +2136,8 @@ public class CameraController2 extends CameraController {
                 handler.post(command);
             }
         };
+        nightMotionSampler = new NightMotionSampler(
+                (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE), handler);
 
         final CameraManager manager = (CameraManager)context.getSystemService(Context.CAMERA_SERVICE);
 
@@ -2411,6 +2416,26 @@ public class CameraController2 extends CameraController {
         return attributes;
     }
 
+    private void updateNightMotionEvidence() {
+        NightMotionEvidence evidence = nightMotionSampler.snapshot();
+        CatLog.updateMotionEvidence(evidence.state(), evidence.moving(), evidence.lastSampleElapsedMs(),
+                evidence.attributes());
+    }
+
+    private void startNightMotionSampling() {
+        boolean started = nightMotionSampler.start();
+        updateNightMotionEvidence();
+        Map<String, Object> attributes = nightCaptureAttributes(nightSessionHandle, nightCaptureHandle, "sampling");
+        attributes.putAll(CatLog.motionEvidence());
+        CatLog.event("night", "night.motion_sampling", "sample", "bounded Night motion sampling is active",
+                started ? "started" : "unavailable", null, attributes);
+    }
+
+    private void stopNightMotionSampling() {
+        updateNightMotionEvidence();
+        nightMotionSampler.stop();
+    }
+
     private void startPreviewHealth() {
         if( handler == null ) return;
         previewHealth.start(android.os.SystemClock.elapsedRealtime());
@@ -2446,6 +2471,7 @@ public class CameraController2 extends CameraController {
         synchronized( background_camera_lock ) {
             CameraExtensionSession extension_to_close = extensionSession;
             if( nightSessionHandle != null ) {
+                stopNightMotionSampling();
                 if( nightExtensionLifecycle.closed(nightSessionHandle, extension_to_close) ) {
                     CatLog.result("night", "night.session_closed", "close", "active Night session is closed",
                             "closed", "PASS", nightAttributes(nightSessionHandle, "closed"));
@@ -7349,6 +7375,9 @@ public class CameraController2 extends CameraController {
                                 nightCaptureHandle = nightExtensionLifecycle.requestCapture(
                                         nightSessionHandle, extensionSession, extensionCapture);
                             }
+                            if( nightCaptureHandle != null ) {
+                                startNightMotionSampling();
+                            }
                             int sequenceId = extensionSession.capture(extensionCapture, executor, previewExtensionCaptureCallback);
                             if( nightCaptureHandle != null ) {
                                 nightExtensionLifecycle.bindSequence(nightCaptureHandle, sequenceId);
@@ -7381,6 +7410,7 @@ public class CameraController2 extends CameraController {
                 }
                 catch(CameraAccessException e) {
                     MyDebug.logStackTrace(TAG, "failed to take picture", e);
+                    if( nightCaptureHandle != null ) stopNightMotionSampling();
                     //noinspection UnusedAssignment
                     ok = false;
                     jpeg_todo = false;
@@ -7390,6 +7420,7 @@ public class CameraController2 extends CameraController {
                 }
                 catch(IllegalStateException e) {
                     MyDebug.logStackTrace(TAG, "captureSession already closed!", e);
+                    if( nightCaptureHandle != null ) stopNightMotionSampling();
                     //noinspection UnusedAssignment
                     ok = false;
                     jpeg_todo = false;
@@ -8732,8 +8763,11 @@ public class CameraController2 extends CameraController {
                     return;
                 }
                 nightCaptureHandle = null;
+                stopNightMotionSampling();
+                Map<String, Object> completionAttributes = nightCaptureAttributes(nightSessionHandle, completedCapture, "sequence_completed");
+                completionAttributes.putAll(CatLog.motionEvidence());
                 CatLog.result("night", "night.capture_sequence_completed", "capture", "correlated Night capture sequence completes",
-                        "sequence_completed", "PASS", nightCaptureAttributes(nightSessionHandle, completedCapture, "sequence_completed"));
+                        "sequence_completed", "PASS", completionAttributes);
             }
 
             // since we don't receive the request, we can't check for a request tag type of
@@ -8773,6 +8807,7 @@ public class CameraController2 extends CameraController {
                 Log.d(TAG, "onCaptureProcessProgressed: " + progress);
 
             if( isNightExtensionCallback(session) && !nightExtensionLifecycle.acceptsProgress(session, request) ) return;
+            updateNightMotionEvidence();
             Map<String, Object> progressAttributes = nightCaptureAttributes(nightSessionHandle, nightCaptureHandle, "processing");
             progressAttributes.put("progress", progress);
             progressAttributes.putAll(CatLog.motionEvidence());
@@ -8800,6 +8835,7 @@ public class CameraController2 extends CameraController {
                 ? nightCaptureHandle != null && nightExtensionLifecycle.acceptsProgress(session, nightCaptureHandle.request)
                 : nightExtensionLifecycle.aborted(session, sequenceId);
         if( !accepted ) return;
+        stopNightMotionSampling();
         nightCaptureHandle = null;
         ErrorCallback errorCallback = null;
         synchronized( background_camera_lock ) {
@@ -8812,8 +8848,10 @@ public class CameraController2 extends CameraController {
                 picture_cb = null;
             }
         }
+        Map<String, Object> failureAttributes = nightCaptureAttributes(nightSessionHandle, failedCapture, reason);
+        failureAttributes.putAll(CatLog.motionEvidence());
         CatLog.result("night", "night.capture_failed", "capture", "Night capture completes with correlated JPEG",
-                reason, "FAIL", nightCaptureAttributes(nightSessionHandle, failedCapture, reason));
+                reason, "FAIL", failureAttributes);
         if( errorCallback != null ) errorCallback.onError();
     }
 

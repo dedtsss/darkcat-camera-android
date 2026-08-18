@@ -30,7 +30,8 @@ public final class CatPrivacy {
                 "thermal_status", "power_save", "night_session_generation", "night_extension",
                 "night_session_state", "night_capture_id", "progress", "motion_state", "motion_moving",
                 "motion_age_ms", "preview_frames", "effective_fps", "max_frame_gap_ms", "preview_stall",
-                "preview_frame_age_ms", "motion_sensor_mode");
+                "preview_frame_age_ms", "motion_sensor_mode", "motion_sample_count", "motion_moving_count",
+                "motion_stable_count", "motion_mean_delta_mps2", "motion_peak_delta_mps2", "motion_window_ms");
         ALLOWED_ATTRIBUTES = Collections.unmodifiableSet(values);
     }
 
