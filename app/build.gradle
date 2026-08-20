@@ -3,8 +3,8 @@ plugins { id 'com.android.application' }
 android { namespace 'com.darkcat.camera'; compileSdk 35
     defaultConfig {
         applicationId 'com.darkcat.camera'; minSdk 26; targetSdk 35
-        versionCode (System.getenv('TEST_VERSION_CODE') ?: '1').toInteger()
-        versionName (System.getenv('TEST_VERSION_NAME') ?: '0.1.0')
+        versionCode = (System.getenv('TEST_VERSION_CODE') ?: '1').toInteger()
+        versionName = (System.getenv('TEST_VERSION_NAME') ?: '0.1.0')
         buildConfigField 'String', 'GIT_SHA', '"' + (System.getenv('GIT_SHA') ?: 'local') + '"'
         buildConfigField 'String', 'BUILD_TIMESTAMP', '"' + (System.getenv('BUILD_TIMESTAMP') ?: new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")) + '"'
         buildConfigField 'String', 'BRUCE_DIAGNOSTICS_URL', '"' + (System.getenv('BRUCE_DIAGNOSTICS_URL') ?: '') + '"'
