@@ -12,7 +12,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import androidx.camera.core.*;
-import androidx.camera.lifecycle.LifecycleService;
+import androidx.lifecycle.LifecycleService;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.NotificationCompat;

@@ -15,3 +15,10 @@ and exposes Download APK only when the final URL is HTTPS. Tagged cloud builds
 create `latest.json` and `SHA256SUMS`; this is not evidence of physical-device
 acceptance. Tagged GitHub Actions builds publish the APK, `latest.json`, and
 `SHA256SUMS` to Bruce over SFTP using CI-held GitHub secrets.
+
+The branch-scoped test channel uses `versionName` `0.1.0-test.<run_number>` and
+monotonic `versionCode` `100000 + run_number`. Its manifest includes
+`channel: "test"`, build/publication timestamps, and the permanent HTTPS APK
+URL. The successful Actions artifact is consumed by the Bruce TEST publisher,
+which validates the SHA-256, preserves a versioned archive, and atomically
+switches the permanent `/test/` pointer only after the complete set is ready.
