@@ -1,10 +1,12 @@
 package com.darkcat.camera;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.*;
 import android.widget.*;
 import androidx.activity.ComponentActivity;
