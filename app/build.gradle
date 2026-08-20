@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' }
+
+android { namespace 'com.darkcat.camera'; compileSdk 35
+    defaultConfig {
+        applicationId 'com.darkcat.camera'; minSdk 26; targetSdk 35
+        versionCode 1; versionName '0.1.0'
+        buildConfigField 'String', 'GIT_SHA', '"' + (System.getenv('GIT_SHA') ?: 'local') + '"'
+        buildConfigField 'String', 'BUILD_TIMESTAMP', '"' + (System.getenv('BUILD_TIMESTAMP') ?: new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")) + '"'
+        buildConfigField 'String', 'BRUCE_DIAGNOSTICS_URL', '"' + (System.getenv('BRUCE_DIAGNOSTICS_URL') ?: '') + '"'
+        buildConfigField 'String', 'BRUCE_LATEST_URL', '"' + (System.getenv('BRUCE_LATEST_URL') ?: '') + '"'
+    }
+    buildFeatures { buildConfig true }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.9.2'
+    implementation 'androidx.camera:camera-camera2:1.4.0'
+    implementation 'androidx.camera:camera-lifecycle:1.4.0'
+    implementation 'androidx.camera:camera-view:1.4.0'
+    implementation 'androidx.lifecycle:lifecycle-service:2.8.6'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
+}
