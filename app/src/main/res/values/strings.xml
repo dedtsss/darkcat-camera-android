@@ -1,6 +1,13 @@
 <resources>
-    <string name="app_name">DarkCat Camera</string><string name="capture">Capture</string>
-    <string name="start_camera">Start camera</string><string name="working">Working mode</string>
-    <string name="diagnostics">Diagnostics</string><string name="about">About</string>
-    <string name="upload_diagnostics">Upload diagnostics</string><string name="check_updates">Check for updates</string>
+    <string name="app_name">DarkCat Camera</string>
+    <string name="camera_label">DarkCat Camera · MVP-1</string>
+    <string name="camera_starting">Starting camera service…</string>
+    <string name="capture">Capture</string>
+    <string name="info_diagnostics">Info and diagnostics</string>
+    <string name="start_camera">Start camera</string>
+    <string name="working">Working mode</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="about">About</string>
+    <string name="upload_diagnostics">Upload diagnostics</string>
+    <string name="check_updates">Check for updates</string>
 </resources>

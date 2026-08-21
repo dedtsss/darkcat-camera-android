@@ -4,16 +4,19 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.*;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.view.*;
-import android.widget.*;
+import android.view.KeyEvent;
+import android.view.View;
+import android.widget.TextView;
 import androidx.activity.ComponentActivity;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import java.util.*;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 /** Normal operator UI. It never binds or configures a camera use case itself. */
 public final class MainActivity extends ComponentActivity {
@@ -30,15 +33,23 @@ public final class MainActivity extends ComponentActivity {
     private boolean hasPermissions(){ return ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED; }
     @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){ super.onRequestPermissionsResult(r,p,g); if(r==PERMISSIONS&&hasPermissions())startCameraService(); else state.setText("Camera and location permission are required"); }
     private void buildUi(){
-        FrameLayout root=new FrameLayout(this); preview=new PreviewView(this); preview.setScaleType(PreviewView.ScaleType.FILL_CENTER); root.addView(preview,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.VERTICAL); top.setPadding(28,24,28,12); top.setBackgroundColor(0x99000000);
-        TextView title=new TextView(this); title.setText("DARKCAT CAMERA  ·  MVP-1"); title.setTextColor(Color.WHITE); title.setTextSize(16); top.addView(title);
-        state=new TextView(this); state.setText("Starting camera service…"); state.setTextColor(0xffd7e8ff); state.setTextSize(14); top.addView(state);
-        root.addView(top,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
-        LinearLayout controls=new LinearLayout(this); controls.setGravity(Gravity.CENTER); controls.setPadding(20,12,20,24); controls.setBackgroundColor(0xcc101010);
-        Button capture=new Button(this); capture.setText(R.string.capture); capture.setTextSize(18); capture.setOnClickListener(v->send(CameraCaptureService.ACTION_CAPTURE)); controls.addView(capture,new LinearLayout.LayoutParams(0,70,2));
-        Button info=new Button(this); info.setText("Info"); info.setOnClickListener(v->showInfo()); controls.addView(info,new LinearLayout.LayoutParams(0,70,1));
-        root.addView(controls,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM)); setContentView(root);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
+        setContentView(R.layout.activity_main);
+        preview=findViewById(R.id.preview);
+        preview.setScaleType(PreviewView.ScaleType.FILL_CENTER);
+        state=findViewById(R.id.camera_state);
+        View status=findViewById(R.id.status_overlay);
+        View controls=findViewById(R.id.camera_controls);
+        final int statusStart=status.getPaddingStart(), statusTop=status.getPaddingTop(), statusEnd=status.getPaddingEnd(), statusBottom=status.getPaddingBottom();
+        final int controlsStart=controls.getPaddingStart(), controlsTop=controls.getPaddingTop(), controlsEnd=controls.getPaddingEnd(), controlsBottom=controls.getPaddingBottom();
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.camera_root),(view,insets)->{
+            Insets safe=insets.getInsets(WindowInsetsCompat.Type.systemBars()|WindowInsetsCompat.Type.displayCutout());
+            status.setPaddingRelative(statusStart+safe.left,statusTop+safe.top,statusEnd+safe.right,statusBottom);
+            controls.setPaddingRelative(controlsStart+safe.left,controlsTop,controlsEnd+safe.right,controlsBottom+safe.bottom);
+            return insets;
+        });
+        findViewById(R.id.capture_button).setOnClickListener(v->send(CameraCaptureService.ACTION_CAPTURE));
+        findViewById(R.id.info_button).setOnClickListener(v->showInfo());
     }
     private void startCameraService(){ Intent i=new Intent(this,CameraCaptureService.class).setAction(CameraCaptureService.ACTION_START); ContextCompat.startForegroundService(this,i); bindService(i,connection,BIND_AUTO_CREATE); }
     private void send(String action){ Intent i=new Intent(this,CameraCaptureService.class).setAction(action); if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)ContextCompat.startForegroundService(this,i); }

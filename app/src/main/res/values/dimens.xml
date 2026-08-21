@@ -1,0 +1,15 @@
+<resources>
+    <dimen name="camera_overlay_horizontal_padding">16dp</dimen>
+    <dimen name="camera_status_top_padding">8dp</dimen>
+    <dimen name="camera_status_bottom_padding">10dp</dimen>
+    <dimen name="camera_status_gap">2dp</dimen>
+    <dimen name="camera_controls_horizontal_padding">20dp</dimen>
+    <dimen name="camera_controls_top_padding">12dp</dimen>
+    <dimen name="camera_controls_bottom_padding">16dp</dimen>
+    <dimen name="camera_controls_height">112dp</dimen>
+    <dimen name="camera_shutter_size">80dp</dimen>
+    <dimen name="camera_info_touch_size">56dp</dimen>
+    <dimen name="camera_info_icon_size">24dp</dimen>
+    <dimen name="camera_status_title_size">11sp</dimen>
+    <dimen name="camera_status_text_size">14sp</dimen>
+</resources>

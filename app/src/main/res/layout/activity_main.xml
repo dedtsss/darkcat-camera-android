@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/camera_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/status_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical"
+        android:background="@drawable/camera_status_background"
+        android:paddingStart="@dimen/camera_overlay_horizontal_padding"
+        android:paddingTop="@dimen/camera_status_top_padding"
+        android:paddingEnd="@dimen/camera_overlay_horizontal_padding"
+        android:paddingBottom="@dimen/camera_status_bottom_padding">
+
+        <TextView
+            android:id="@+id/camera_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/camera_label"
+            android:textAllCaps="true"
+            android:textColor="#CCFFFFFF"
+            android:textSize="@dimen/camera_status_title_size"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/camera_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/camera_status_gap"
+            android:maxLines="2"
+            android:text="@string/camera_starting"
+            android:textColor="#FFD7E8FF"
+            android:textSize="@dimen/camera_status_text_size" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/camera_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="@dimen/camera_controls_height"
+        android:layout_gravity="bottom"
+        android:background="@drawable/camera_controls_background"
+        android:paddingStart="@dimen/camera_controls_horizontal_padding"
+        android:paddingTop="@dimen/camera_controls_top_padding"
+        android:paddingEnd="@dimen/camera_controls_horizontal_padding"
+        android:paddingBottom="@dimen/camera_controls_bottom_padding">
+
+        <ImageButton
+            android:id="@+id/capture_button"
+            android:layout_width="@dimen/camera_shutter_size"
+            android:layout_height="@dimen/camera_shutter_size"
+            android:layout_gravity="center"
+            android:background="@drawable/camera_shutter_background"
+            android:contentDescription="@string/capture"
+            android:padding="0dp" />
+
+        <ImageButton
+            android:id="@+id/info_button"
+            android:layout_width="@dimen/camera_info_touch_size"
+            android:layout_height="@dimen/camera_info_touch_size"
+            android:layout_gravity="center_vertical|end"
+            android:background="@drawable/camera_info_background"
+            android:contentDescription="@string/info_diagnostics"
+            android:padding="16dp"
+            android:src="@drawable/ic_info" />
+    </FrameLayout>
+</FrameLayout>
