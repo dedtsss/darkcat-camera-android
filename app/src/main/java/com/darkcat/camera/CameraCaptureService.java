@@ -44,6 +44,7 @@ public final class CameraCaptureService extends LifecycleService {
     public Location getLastLocation(){ return lastLocation; }
     public boolean isWorking(){ return working; }
     @Override public int onStartCommand(Intent intent,int flags,int id) {
+        super.onStartCommand(intent, flags, id);
         if(intent!=null && ACTION_STOP.equals(intent.getAction())) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return START_NOT_STICKY; }
         Notification n=notification();
         if(Build.VERSION.SDK_INT>=29) startForeground(7,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA|ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);

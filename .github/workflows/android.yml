@@ -25,6 +25,16 @@ jobs:
           GIT_SHA: ${{ github.sha }}
           BRUCE_DIAGNOSTICS_URL: ${{ vars.BRUCE_DIAGNOSTICS_URL }}
         run: gradle testDebugUnitTest lintDebug assembleDebug
+      - name: Upload lint diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: darkcat-camera-lint
+          path: |
+            app/build/reports/lint-results-debug.*
+            app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Create Bruce publication manifest
         if: startsWith(github.ref, 'refs/tags/')
         run: |
