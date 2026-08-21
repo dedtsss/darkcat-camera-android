@@ -42,7 +42,7 @@ public final class MainActivity extends ComponentActivity {
     }
     private void startCameraService(){ Intent i=new Intent(this,CameraCaptureService.class).setAction(CameraCaptureService.ACTION_START); ContextCompat.startForegroundService(this,i); bindService(i,connection,BIND_AUTO_CREATE); }
     private void send(String action){ Intent i=new Intent(this,CameraCaptureService.class).setAction(action); if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)ContextCompat.startForegroundService(this,i); }
-    @Override public boolean dispatchKeyEvent(KeyEvent event){ if(event.getKeyCode()==KeyEvent.KEYCODE_VOLUME_UP){ if(event.getAction()==KeyEvent.ACTION_UP)send(CameraCaptureService.ACTION_CAPTURE); return true; } return super.dispatchKeyEvent(event); }
+    @Override public boolean onKeyUp(int keyCode,KeyEvent event){ if(keyCode==KeyEvent.KEYCODE_VOLUME_UP){ send(CameraCaptureService.ACTION_CAPTURE); return true; } return super.onKeyUp(keyCode,event); }
     private void updateState(){ if(service==null)return; state.setText(service.isWorking()?"WORKING  ·  "+(service.getLastLocation()==null?"GPS searching":"GPS fixed")+"  ·  Volume+ captures":"Paused"); }
     private void showInfo(){
         String[] items={"About",Diagnostics.about(),"\nDiagnostics are local, bounded, and credential-free.","\nHTTPS endpoints are configured only by CI/runtime deployment."};
