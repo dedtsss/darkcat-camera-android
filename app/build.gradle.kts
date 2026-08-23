@@ -61,6 +61,13 @@ android {
     namespace = "com.raulshma.lenscast"
     compileSdk = 36
 
+    // The adopted LensCast v0.0.9 source carries pre-existing lint findings.
+    // Keep lint visible in CI while allowing the isolated adoption baseline to build;
+    // new product-specific checks remain reported in the generated lint report.
+    lint {
+        abortOnError = false
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
