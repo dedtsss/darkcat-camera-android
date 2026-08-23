@@ -3,7 +3,6 @@ name: Android
 on:
   push:
     branches: ["agent/lenscast-adoption-baseline"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -136,9 +135,8 @@ jobs:
             "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST:$remote_dir/"
       - uses: actions/upload-artifact@v4
         with:
-          name: lenscast-test-publication-${{ github.run_id }}
+          name: lenscast-test-publication-metadata-${{ github.run_id }}
           path: |
-            app/build/outputs/apk/debug/latest.apk
             app/build/outputs/apk/debug/latest.json
             app/build/outputs/apk/debug/SHA256SUMS
           retention-days: 3
