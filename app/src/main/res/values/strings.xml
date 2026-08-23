@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">LensCast</string>
+    <string name="app_name">DarkCat Camera (LensCast Test)</string>
+    <string name="update_notification_title">DarkCat Camera update available</string>
+    <string name="update_notification_text">Version %1$s is ready to download</string>
+    <string name="update_notification_channel">App updates</string>
+    <string name="update_notification_channel_description">Notifications about available DarkCat Camera test updates</string>
 </resources>

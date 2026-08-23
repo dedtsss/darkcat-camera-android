@@ -61,6 +61,11 @@ android {
     namespace = "com.raulshma.lenscast"
     compileSdk = 36
 
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     signingConfigs {
         create("release") {
             val keystorePath = rootProject.file("lenscast-release.jks")
@@ -73,11 +78,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.raulshma.lenscast"
+        applicationId = "com.dedtsss.darkcat.lenscast.test"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = project.findProperty("versionName") as String? ?: "0.0.6"
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = project.findProperty("versionName") as String? ?: "0.0.9-test"
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://darkcat.bruce-group.net/lenscast-test/latest.json\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -106,10 +112,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures {
-        compose = true
-    }
-
     splits {
         abi {
             isEnable = true
@@ -164,4 +166,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.uiautomator)
 }

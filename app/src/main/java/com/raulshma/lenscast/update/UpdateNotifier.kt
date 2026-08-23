@@ -31,8 +31,8 @@ class UpdateNotifier(private val context: Context) {
                 (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("LensCast Update Available")
-            .setContentText("Version $version is ready to download")
+            .setContentTitle(context.getString(com.raulshma.lenscast.R.string.update_notification_title))
+            .setContentText(context.getString(com.raulshma.lenscast.R.string.update_notification_text, version))
             .setSmallIcon(android.R.drawable.ic_menu_upload)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -48,10 +48,10 @@ class UpdateNotifier(private val context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "App Updates",
+            context.getString(com.raulshma.lenscast.R.string.update_notification_channel),
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Notifications about available app updates"
+            description = context.getString(com.raulshma.lenscast.R.string.update_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
     }
