@@ -1,0 +1,144 @@
+name: Android
+
+on:
+  push:
+    branches: ["agent/lenscast-adoption-baseline"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build, unit test, lint, and assemble test APK
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lenscast-test-build-${{ github.run_id }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/**
+            app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 3
+
+  emulator-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build debug APK
+        run: ./gradlew assembleDebug -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
+      - name: Enable KVM
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -yqq qemu-kvm
+          sudo chmod 666 /dev/kvm
+      - name: Run Android emulator smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -camera-back virtualscene
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lenscast-test-smoke-${{ github.run_id }}
+          path: |
+            app/build/outputs/androidTest-results/**
+            app/build/reports/androidTests/**
+          if-no-files-found: ignore
+          retention-days: 3
+
+  publish-lenscast-test:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/agent/lenscast-adoption-baseline'
+    needs: [build, emulator-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Assemble publishable test APK
+        run: ./gradlew assembleDebug -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
+      - name: Create isolated publication manifest
+        env:
+          APK_URL: https://darkcat.bruce-group.net/lenscast-test/latest.apk
+        run: |
+          set -euo pipefail
+          apk=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)
+          test -n "$apk"
+          cp "$apk" app/build/outputs/apk/debug/latest.apk
+          sha=$(sha256sum app/build/outputs/apk/debug/latest.apk | awk '{print $1}')
+          sha256sum app/build/outputs/apk/debug/latest.apk > app/build/outputs/apk/debug/SHA256SUMS
+          version="0.0.9-test.${GITHUB_RUN_NUMBER}"
+          jq -n --arg versionName "$version" --argjson versionCode "$((100000 + GITHUB_RUN_NUMBER))" \
+            --arg gitSha "$GITHUB_SHA" --arg buildRunId "$GITHUB_RUN_ID" --arg channel "lenscast-test" \
+            --arg apk "$APK_URL" --arg sha256 "$sha" \
+            '{versionName,versionCode,gitSha,buildRunId,channel,apk,sha256}' > app/build/outputs/apk/debug/latest.json
+      - name: Publish isolated Bruce lenscast-test channel
+        env:
+          BRUCE_SFTP_HOST: ${{ secrets.BRUCE_SFTP_HOST }}
+          BRUCE_SFTP_USER: ${{ secrets.BRUCE_SFTP_USER }}
+          BRUCE_SFTP_PATH: ${{ secrets.BRUCE_SFTP_PATH }}
+          BRUCE_SFTP_KEY: ${{ secrets.BRUCE_SFTP_KEY }}
+          BRUCE_SFTP_KNOWN_HOSTS: ${{ secrets.BRUCE_SFTP_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          key_file=$(mktemp)
+          known_hosts_file=$(mktemp)
+          trap 'rm -f "$key_file" "$known_hosts_file"' EXIT
+          umask 077
+          printf '%s\n' "$BRUCE_SFTP_KEY" > "$key_file"
+          printf '%s\n' "$BRUCE_SFTP_KNOWN_HOSTS" > "$known_hosts_file"
+          remote_dir="${BRUCE_SFTP_PATH%/}/lenscast-test"
+          ssh -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
+            "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST" "mkdir -p '$remote_dir'"
+          scp -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
+            app/build/outputs/apk/debug/latest.apk app/build/outputs/apk/debug/latest.json app/build/outputs/apk/debug/SHA256SUMS \
+            "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST:$remote_dir/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lenscast-test-publication-${{ github.run_id }}
+          path: |
+            app/build/outputs/apk/debug/latest.apk
+            app/build/outputs/apk/debug/latest.json
+            app/build/outputs/apk/debug/SHA256SUMS
+          retention-days: 3

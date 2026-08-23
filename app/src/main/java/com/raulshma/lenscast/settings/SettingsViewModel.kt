@@ -1,0 +1,434 @@
+package com.raulshma.lenscast.settings
+
+import android.app.Activity
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.raulshma.lenscast.camera.CameraService
+import com.raulshma.lenscast.camera.model.CameraSettings
+import com.raulshma.lenscast.camera.model.FocusMode
+import com.raulshma.lenscast.camera.model.HdrMode
+import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.Resolution
+import com.raulshma.lenscast.camera.model.WhiteBalance
+import com.raulshma.lenscast.core.PowerManager
+import com.raulshma.lenscast.data.SettingsDataStore
+import com.raulshma.lenscast.data.StreamAuthSettings
+import com.raulshma.lenscast.streaming.StreamingManager
+import com.raulshma.lenscast.streaming.rtsp.RtspInputFormat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class SettingsViewModel(
+    private val cameraService: CameraService,
+    private val settingsDataStore: SettingsDataStore,
+    private val streamingManager: StreamingManager? = null,
+    private val powerManager: PowerManager? = null,
+) : ViewModel() {
+
+    private val _settings = MutableStateFlow(CameraSettings())
+    val settings: StateFlow<CameraSettings> = _settings.asStateFlow()
+
+    private val _authSettings = MutableStateFlow(StreamAuthSettings())
+    val authSettings: StateFlow<StreamAuthSettings> = _authSettings.asStateFlow()
+
+    private val _streamingPort = MutableStateFlow(8080)
+    val streamingPort: StateFlow<Int> = _streamingPort.asStateFlow()
+
+    private val _webStreamingEnabled = MutableStateFlow(true)
+    val webStreamingEnabled: StateFlow<Boolean> = _webStreamingEnabled.asStateFlow()
+
+    private val _jpegQuality = MutableStateFlow(80)
+    val jpegQuality: StateFlow<Int> = _jpegQuality.asStateFlow()
+
+    private val _showPreview = MutableStateFlow(true)
+    val showPreview: StateFlow<Boolean> = _showPreview.asStateFlow()
+
+    private val _streamAudioEnabled = MutableStateFlow(true)
+    val streamAudioEnabled: StateFlow<Boolean> = _streamAudioEnabled.asStateFlow()
+
+    private val _streamAudioBitrateKbps = MutableStateFlow(128)
+    val streamAudioBitrateKbps: StateFlow<Int> = _streamAudioBitrateKbps.asStateFlow()
+
+    private val _streamAudioChannels = MutableStateFlow(1)
+    val streamAudioChannels: StateFlow<Int> = _streamAudioChannels.asStateFlow()
+
+    private val _streamAudioEchoCancellation = MutableStateFlow(true)
+    val streamAudioEchoCancellation: StateFlow<Boolean> = _streamAudioEchoCancellation.asStateFlow()
+
+    private val _recordingAudioEnabled = MutableStateFlow(true)
+    val recordingAudioEnabled: StateFlow<Boolean> = _recordingAudioEnabled.asStateFlow()
+
+    private val _rtspEnabled = MutableStateFlow(false)
+    val rtspEnabled: StateFlow<Boolean> = _rtspEnabled.asStateFlow()
+
+    private val _rtspPort = MutableStateFlow(8554)
+    val rtspPort: StateFlow<Int> = _rtspPort.asStateFlow()
+
+    private val _rtspInputFormat = MutableStateFlow(RtspInputFormat.AUTO)
+    val rtspInputFormat: StateFlow<RtspInputFormat> = _rtspInputFormat.asStateFlow()
+
+    private val _adaptiveBitrateEnabled = MutableStateFlow(false)
+    val adaptiveBitrateEnabled: StateFlow<Boolean> = _adaptiveBitrateEnabled.asStateFlow()
+
+    private val _mdnsEnabled = MutableStateFlow(true)
+    val mdnsEnabled: StateFlow<Boolean> = _mdnsEnabled.asStateFlow()
+
+    var activityRef: Activity? = null
+
+    private val _isIgnoringBatteryOptimizations = mutableStateOf(false)
+    val isIgnoringBatteryOptimizations = _isIgnoringBatteryOptimizations
+
+    init {
+        refreshBatteryOptimizationStatus()
+    }
+
+    fun refreshBatteryOptimizationStatus() {
+        _isIgnoringBatteryOptimizations.value = powerManager?.isIgnoringBatteryOptimizations() == true
+    }
+
+    fun requestIgnoreBatteryOptimization() {
+        activityRef?.let { activity ->
+            powerManager?.requestIgnoreBatteryOptimization(activity)
+        }
+    }
+
+    val availableZoomRange: StateFlow<ClosedFloatingPointRange<Float>> = cameraService.availableZoomRange
+    val availableExposureRange: StateFlow<ClosedRange<Int>> = cameraService.availableExposureRange
+    val availableIsoRange: StateFlow<ClosedRange<Int>> = cameraService.availableIsoRange
+
+    init {
+        viewModelScope.launch {
+            settingsDataStore.settings.collect { saved ->
+                _settings.value = saved
+                cameraService.applySettings(saved)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.authSettings.collect { auth ->
+                _authSettings.value = auth
+                streamingManager?.updateAuthSettings(auth)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.streamingPort.collect { port ->
+                _streamingPort.value = port
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.webStreamingEnabled.collect { enabled ->
+                _webStreamingEnabled.value = enabled
+                streamingManager?.setWebStreamingEnabled(enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.jpegQuality.collect { quality ->
+                _jpegQuality.value = quality
+                streamingManager?.setJpegQuality(quality)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.showPreview.collect { show ->
+                _showPreview.value = show
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.streamAudioEnabled.collect { enabled ->
+                _streamAudioEnabled.value = enabled
+                streamingManager?.setStreamAudioEnabled(enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.streamAudioBitrateKbps.collect { bitrate ->
+                _streamAudioBitrateKbps.value = bitrate
+                streamingManager?.setStreamAudioBitrateKbps(bitrate)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.streamAudioChannels.collect { channels ->
+                _streamAudioChannels.value = channels
+                streamingManager?.setStreamAudioChannels(channels)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.streamAudioEchoCancellation.collect { enabled ->
+                _streamAudioEchoCancellation.value = enabled
+                streamingManager?.setStreamAudioEchoCancellation(enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.recordingAudioEnabled.collect { enabled ->
+                _recordingAudioEnabled.value = enabled
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.rtspEnabled.collect { enabled ->
+                _rtspEnabled.value = enabled
+                streamingManager?.setRtspEnabled(enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.rtspPort.collect { port ->
+                _rtspPort.value = port
+                streamingManager?.setRtspPort(port)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.rtspInputFormat.collect { format ->
+                _rtspInputFormat.value = format
+                streamingManager?.setRtspInputFormat(format)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.adaptiveBitrateEnabled.collect { enabled ->
+                _adaptiveBitrateEnabled.value = enabled
+                streamingManager?.setAdaptiveBitrateEnabled(enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.mdnsEnabled.collect { enabled ->
+                _mdnsEnabled.value = enabled
+                streamingManager?.setMdnsEnabled(enabled)
+            }
+        }
+    }
+
+    fun updateExposure(value: Int) {
+        update { it.copy(exposureCompensation = value) }
+    }
+
+    fun updateIso(iso: Int?) {
+        update { it.copy(iso = iso) }
+    }
+
+    fun updateFocusMode(mode: String) {
+        update { it.copy(focusMode = FocusMode.valueOf(mode)) }
+    }
+
+    fun updateFocusDistance(distance: Float?) {
+        update { it.copy(focusDistance = distance) }
+    }
+
+    fun updateWhiteBalance(mode: String) {
+        update { it.copy(whiteBalance = WhiteBalance.valueOf(mode)) }
+    }
+
+    fun updateColorTemperature(temp: Int?) {
+        update { it.copy(colorTemperature = temp) }
+    }
+
+    fun updateZoom(ratio: Float) {
+        update { it.copy(zoomRatio = ratio) }
+    }
+
+    fun updateResolution(name: String) {
+        update { it.copy(resolution = Resolution.valueOf(name)) }
+    }
+
+    fun updateFrameRate(rate: Int) {
+        update { it.copy(frameRate = rate) }
+    }
+
+    fun updateHdrMode(mode: String) {
+        update { it.copy(hdrMode = HdrMode.valueOf(mode)) }
+    }
+
+    fun updateIso(value: String) {
+        val iso = if (value == "Auto") null else value.toIntOrNull()
+        update { it.copy(iso = iso) }
+    }
+
+    fun updateStabilization(enabled: Boolean) {
+        update { it.copy(stabilization = enabled) }
+    }
+
+    fun updateSceneMode(mode: String) {
+        val sceneMode = if (mode == "OFF") null else mode
+        update { it.copy(sceneMode = sceneMode) }
+    }
+
+    fun updateNightVisionMode(mode: String) {
+        update { it.copy(nightVisionMode = NightVisionMode.valueOf(mode)) }
+    }
+
+    fun updateStreamingPort(port: Int) {
+        _streamingPort.value = port
+        viewModelScope.launch {
+            settingsDataStore.saveStreamingPort(port)
+        }
+    }
+
+    fun updateWebStreamingEnabled(enabled: Boolean) {
+        _webStreamingEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveWebStreamingEnabled(enabled)
+            streamingManager?.setWebStreamingEnabled(enabled)
+        }
+    }
+
+    fun updateJpegQuality(quality: Int) {
+        _jpegQuality.value = quality
+        viewModelScope.launch {
+            settingsDataStore.saveJpegQuality(quality)
+            streamingManager?.setJpegQuality(quality)
+        }
+    }
+
+    fun updateShowPreview(show: Boolean) {
+        _showPreview.value = show
+        viewModelScope.launch {
+            settingsDataStore.saveShowPreview(show)
+        }
+    }
+
+    fun updateStreamAudioEnabled(enabled: Boolean) {
+        _streamAudioEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveStreamAudioEnabled(enabled)
+            streamingManager?.setStreamAudioEnabled(enabled)
+        }
+    }
+
+    fun updateStreamAudioBitrateKbps(bitrateKbps: Int) {
+        val sanitized = bitrateKbps.coerceIn(32, 320)
+        _streamAudioBitrateKbps.value = sanitized
+        viewModelScope.launch {
+            settingsDataStore.saveStreamAudioBitrateKbps(sanitized)
+            streamingManager?.setStreamAudioBitrateKbps(sanitized)
+        }
+    }
+
+    fun updateStreamAudioChannels(channels: Int) {
+        val sanitized = channels.coerceIn(1, 2)
+        _streamAudioChannels.value = sanitized
+        viewModelScope.launch {
+            settingsDataStore.saveStreamAudioChannels(sanitized)
+            streamingManager?.setStreamAudioChannels(sanitized)
+        }
+    }
+
+    fun updateStreamAudioEchoCancellation(enabled: Boolean) {
+        _streamAudioEchoCancellation.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveStreamAudioEchoCancellation(enabled)
+            streamingManager?.setStreamAudioEchoCancellation(enabled)
+        }
+    }
+
+    fun updateRecordingAudioEnabled(enabled: Boolean) {
+        _recordingAudioEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveRecordingAudioEnabled(enabled)
+        }
+    }
+
+    fun updateRtspEnabled(enabled: Boolean) {
+        _rtspEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveRtspEnabled(enabled)
+            streamingManager?.setRtspEnabled(enabled)
+        }
+    }
+
+    fun updateRtspPort(port: Int) {
+        _rtspPort.value = port
+        viewModelScope.launch {
+            settingsDataStore.saveRtspPort(port)
+            streamingManager?.setRtspPort(port)
+        }
+    }
+
+    fun updateRtspInputFormat(name: String) {
+        val format = runCatching { RtspInputFormat.valueOf(name) }.getOrDefault(RtspInputFormat.AUTO)
+        _rtspInputFormat.value = format
+        viewModelScope.launch {
+            settingsDataStore.saveRtspInputFormat(format)
+            streamingManager?.setRtspInputFormat(format)
+        }
+    }
+
+    fun updateAdaptiveBitrateEnabled(enabled: Boolean) {
+        _adaptiveBitrateEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveAdaptiveBitrateEnabled(enabled)
+            streamingManager?.setAdaptiveBitrateEnabled(enabled)
+        }
+    }
+
+    fun updateMdnsEnabled(enabled: Boolean) {
+        _mdnsEnabled.value = enabled
+        viewModelScope.launch {
+            settingsDataStore.saveMdnsEnabled(enabled)
+            streamingManager?.setMdnsEnabled(enabled)
+        }
+    }
+
+    fun updateAuthEnabled(enabled: Boolean) {
+        val newAuth = _authSettings.value.copy(enabled = enabled)
+        _authSettings.value = newAuth
+        viewModelScope.launch {
+            settingsDataStore.saveAuthSettings(newAuth)
+            streamingManager?.updateAuthSettings(newAuth)
+        }
+    }
+
+    fun updateAuthUsername(username: String) {
+        val newAuth = _authSettings.value.copy(
+            username = username,
+            rtspDigestHa1 = "",
+        )
+        _authSettings.value = newAuth
+        viewModelScope.launch {
+            settingsDataStore.saveAuthSettings(newAuth)
+            streamingManager?.updateAuthSettings(newAuth)
+        }
+    }
+
+    fun updateAuthPassword(password: String) {
+        val hash = StreamAuthSettings.hashPassword(password)
+        val username = _authSettings.value.username
+        val digestHa1 = StreamAuthSettings.computeRtspDigestHa1(username, password)
+        val newAuth = _authSettings.value.copy(
+            passwordHash = hash,
+            rtspDigestHa1 = digestHa1,
+        )
+        _authSettings.value = newAuth
+        viewModelScope.launch {
+            settingsDataStore.saveAuthSettings(newAuth)
+            streamingManager?.updateAuthSettings(newAuth)
+        }
+    }
+
+    fun resetToDefaults() {
+        val defaults = CameraSettings()
+        _settings.value = defaults
+        viewModelScope.launch {
+            settingsDataStore.saveSettings(defaults)
+            cameraService.applySettings(defaults)
+        }
+    }
+
+    private fun update(transform: (CameraSettings) -> CameraSettings) {
+        val newSettings = transform(_settings.value)
+        _settings.value = newSettings
+        viewModelScope.launch {
+            settingsDataStore.saveSettings(newSettings)
+            cameraService.applySettings(newSettings)
+        }
+    }
+
+    class Factory(
+        private val cameraService: CameraService,
+        private val settingsDataStore: SettingsDataStore,
+        private val streamingManager: StreamingManager? = null,
+        private val powerManager: PowerManager? = null,
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            return SettingsViewModel(cameraService, settingsDataStore, streamingManager, powerManager) as T
+        }
+    }
+}
