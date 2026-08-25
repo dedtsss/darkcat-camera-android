@@ -49,6 +49,15 @@
     <string name="cloudy">Облачно</string>
     <string name="indoor">В помещении</string>
     <string name="fluorescent">Люминесцентный свет</string>
+    <string name="minimize_latency">Минимальная задержка</string>
+    <string name="maximize_quality">Максимальное качество</string>
+    <string name="high">Высокое</string>
+    <string name="medium">Среднее</string>
+    <string name="low">Низкое</string>
+    <string name="face_detection">Распознавание лиц</string>
+    <string name="night">Ночь</string>
+    <string name="sunset">Закат</string>
+    <string name="fireworks">Фейерверк</string>
     <string name="resolution_sd_480p">SD 480p</string>
     <string name="resolution_hd_720p">HD 720p</string>
     <string name="resolution_fhd_1080p">Full HD 1080p</string>

@@ -49,6 +49,15 @@
     <string name="cloudy">Cloudy</string>
     <string name="indoor">Indoor</string>
     <string name="fluorescent">Fluorescent</string>
+    <string name="minimize_latency">Minimize latency</string>
+    <string name="maximize_quality">Maximize quality</string>
+    <string name="high">High</string>
+    <string name="medium">Medium</string>
+    <string name="low">Low</string>
+    <string name="face_detection">Face detection</string>
+    <string name="night">Night</string>
+    <string name="sunset">Sunset</string>
+    <string name="fireworks">Fireworks</string>
     <string name="resolution_sd_480p">SD 480p</string>
     <string name="resolution_hd_720p">HD 720p</string>
     <string name="resolution_fhd_1080p">Full HD 1080p</string>

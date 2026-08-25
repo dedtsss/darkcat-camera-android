@@ -993,14 +993,14 @@ private fun HorizontalQuickSettingsBar(
                 label = when (settings.whiteBalance) {
                     WhiteBalance.AUTO -> "AWB"
                     WhiteBalance.MANUAL -> "${settings.colorTemperature ?: 5500}K"
-                    else -> settings.whiteBalance.name.take(3)
+                    else -> localizedQuickSettingOption(settings.whiteBalance.name).take(3)
                 },
                 isActive = activeSetting == QuickSettingType.WHITE_BALANCE,
                 onClick = { onSettingTap(QuickSettingType.WHITE_BALANCE) }
             )
             QuickSettingPill(
                 icon = Icons.Default.Bolt,
-                label = settings.focusMode.name.take(3),
+                label = localizedQuickSettingOption(settings.focusMode.name).take(3),
                 isActive = activeSetting == QuickSettingType.FOCUS,
                 onClick = { onSettingTap(QuickSettingType.FOCUS) }
             )
@@ -1012,13 +1012,19 @@ private fun HorizontalQuickSettingsBar(
             )
             QuickSettingPill(
                 icon = Icons.Default.HdrOn,
-                label = settings.hdrMode.name,
+                label = localizedQuickSettingOption(settings.hdrMode.name),
                 isActive = activeSetting == QuickSettingType.HDR,
                 onClick = { onSettingTap(QuickSettingType.HDR) }
             )
             QuickSettingPill(
                 icon = Icons.Default.Image,
-                label = settings.resolution.name.replace("_", " ").take(5),
+                label = when (settings.resolution) {
+                    Resolution.SD_480P -> "480p"
+                    Resolution.HD_720P -> "720p"
+                    Resolution.FHD_1080P -> "1080p"
+                    Resolution.QHD_1440P -> "1440p"
+                    Resolution.UHD_4K -> "4K"
+                },
                 isActive = activeSetting == QuickSettingType.RESOLUTION,
                 onClick = { onSettingTap(QuickSettingType.RESOLUTION) }
             )
@@ -1380,6 +1386,15 @@ private fun localizedQuickSettingOption(option: String): String = when (option) 
     "FHD_1080P" -> stringResource(R.string.resolution_fhd_1080p)
     "QHD_1440P" -> stringResource(R.string.resolution_qhd_1440p)
     "UHD_4K" -> stringResource(R.string.resolution_uhd_4k)
+    "MINIMIZE_LATENCY" -> stringResource(R.string.minimize_latency)
+    "MAXIMIZE_QUALITY" -> stringResource(R.string.maximize_quality)
+    "HIGH" -> stringResource(R.string.high)
+    "MEDIUM" -> stringResource(R.string.medium)
+    "LOW" -> stringResource(R.string.low)
+    "FACE_DETECTION" -> stringResource(R.string.face_detection)
+    "NIGHT" -> stringResource(R.string.night)
+    "SUNSET" -> stringResource(R.string.sunset)
+    "FIREWORKS" -> stringResource(R.string.fireworks)
     "ON" -> stringResource(R.string.on)
     "OFF" -> stringResource(R.string.off)
     else -> option.replace("_", " ")
