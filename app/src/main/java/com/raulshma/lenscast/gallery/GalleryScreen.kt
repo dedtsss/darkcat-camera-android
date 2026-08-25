@@ -26,9 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.ui.components.LensCastTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,16 +53,16 @@ fun GalleryScreen(
     val batchDeleting by viewModel.batchDeleting.collectAsState()
 
     val overview = remember(allItems) { buildGalleryOverview(allItems) }
-    val sections = remember(galleryItems) { buildGallerySections(galleryItems) }
+    val sections = remember(galleryItems, context) { buildGallerySections(context, galleryItems) }
 
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
 
     if (showBatchDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showBatchDeleteDialog = false },
-            title = { Text("Delete selected") },
+            title = { Text(stringResource(R.string.delete_selected)) },
             text = {
-                Text("Delete ${selectedIds.size} selected item${if (selectedIds.size == 1) "" else "s"}?")
+                Text(stringResource(R.string.delete_selected_confirmation, selectedIds.size))
             },
             confirmButton = {
                 TextButton(
@@ -70,12 +72,12 @@ fun GalleryScreen(
                     },
                     enabled = !batchDeleting,
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBatchDeleteDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )
@@ -93,7 +95,7 @@ fun GalleryScreen(
                 )
             } else {
                 LensCastTopBar(
-                    title = "Gallery",
+                    title = stringResource(R.string.gallery),
                     onNavigateBack = onNavigateBack,
                     actions = {
                         IconButton(
@@ -102,7 +104,7 @@ fun GalleryScreen(
                         ) {
                             Icon(
                                 Icons.Default.SelectAll,
-                                contentDescription = "Select media",
+                                contentDescription = stringResource(R.string.select_media),
                             )
                         }
                     },

@@ -28,6 +28,7 @@ import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.core.UseCase
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.camera.model.CameraLensInfo
 import com.raulshma.lenscast.camera.model.CameraSettings
 import com.raulshma.lenscast.camera.model.CameraState
@@ -318,14 +319,14 @@ class CameraService(private val context: Context) {
             _availableLenses.value = listOf(
                 CameraLensInfo(
                     id = "0",
-                    label = "Back",
+                    label = context.getString(R.string.camera_back),
                     lensFacing = CameraSelector.LENS_FACING_BACK,
                     focalLength = 0f,
                     cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
                 ),
                 CameraLensInfo(
                     id = "1",
-                    label = "Front",
+                    label = context.getString(R.string.camera_front),
                     lensFacing = CameraSelector.LENS_FACING_FRONT,
                     focalLength = 0f,
                     cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA,
@@ -349,13 +350,13 @@ class CameraService(private val context: Context) {
 
     private fun buildCameraLabel(lensFacing: Int, focalLength: Float, cameraId: String): String {
         if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-            return "Front"
+            return context.getString(R.string.camera_front)
         }
         // Back camera label based on focal length ranges
         return when {
-            focalLength <= 0f -> "Camera $cameraId"
-            focalLength < 2.5f -> "Ultrawide"
-            focalLength < 5f -> "Wide"
+            focalLength <= 0f -> context.getString(R.string.camera_named, cameraId)
+            focalLength < 2.5f -> context.getString(R.string.camera_ultrawide)
+            focalLength < 5f -> context.getString(R.string.camera_wide)
             focalLength < 8f -> "2x"
             focalLength < 15f -> "3x"
             focalLength < 25f -> "5x"

@@ -36,12 +36,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.streaming.rtsp.RtspInputFormat
 import com.raulshma.lenscast.update.UpdateViewModel
 import com.raulshma.lenscast.update.model.UpdateState
@@ -108,7 +110,7 @@ fun AppSettingsScreen(
     Scaffold(
         topBar = {
             LensCastTopBar(
-                title = "App Settings",
+                title = stringResource(R.string.app_settings),
                 onNavigateBack = onNavigateBack,
             )
         }
@@ -121,14 +123,14 @@ fun AppSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                SettingsSection(title = "Updates") {
+                SettingsSection(title = stringResource(R.string.updates)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Current Version",
+                            text = stringResource(R.string.current_version),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
@@ -141,14 +143,14 @@ fun AppSettingsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     if (lastCheckTime > 0) {
                         Text(
-                            text = "Last checked: ${DateUtils.getRelativeTimeSpanString(lastCheckTime, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}",
+                            text = stringResource(R.string.last_checked, DateUtils.getRelativeTimeSpanString(lastCheckTime, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     SwitchSetting(
-                        title = "Auto-check on App Start",
+                        title = stringResource(R.string.auto_check_on_start),
                         checked = autoCheckEnabled,
                         onCheckedChange = { updateViewModel.setAutoCheckEnabled(it) }
                     )
@@ -159,12 +161,12 @@ fun AppSettingsScreen(
                                 onClick = { updateViewModel.checkForUpdate() },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Check for Updates")
+                                Text(stringResource(R.string.check_for_updates))
                             }
                             if (state is UpdateState.UpToDate) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "You're on the latest version (latest: ${state.remoteVersion})",
+                                    text = stringResource(R.string.latest_version, state.remoteVersion),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
@@ -173,11 +175,11 @@ fun AppSettingsScreen(
                         is UpdateState.Checking -> {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Checking for updates...", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.checking_for_updates), style = MaterialTheme.typography.bodySmall)
                         }
                         is UpdateState.UpdateAvailable -> {
                             Text(
-                                text = "Update ${state.version} available",
+                                text = stringResource(R.string.update_available, state.version),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -199,13 +201,13 @@ fun AppSettingsScreen(
                                     onClick = { updateViewModel.downloadUpdate() },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Download")
+                                    Text(stringResource(R.string.download))
                                 }
                                 OutlinedButton(
                                     onClick = { updateViewModel.dismissUpdate() },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Dismiss")
+                                    Text(stringResource(R.string.dismiss))
                                 }
                             }
                         }
@@ -216,7 +218,7 @@ fun AppSettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Downloading... ${(state.progress * 100).toInt()}%",
+                                text = stringResource(R.string.downloading, (state.progress * 100).toInt()),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -225,7 +227,7 @@ fun AppSettingsScreen(
                                 onClick = { updateViewModel.installUpdate(activity) },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Install Update")
+                                Text(stringResource(R.string.install_update))
                             }
                         }
                         is UpdateState.Error -> {
@@ -245,7 +247,7 @@ fun AppSettingsScreen(
                                 onClick = { updateViewModel.clearError(); updateViewModel.checkForUpdate() },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Retry")
+                                Text(stringResource(R.string.retry))
                             }
                         }
                     }
@@ -253,9 +255,9 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Display") {
+                SettingsSection(title = stringResource(R.string.display)) {
                     SwitchSetting(
-                        title = "Show Camera Preview",
+                        title = stringResource(R.string.show_camera_preview),
                         checked = showPreview,
                         onCheckedChange = { viewModel.updateShowPreview(it) }
                     )
@@ -263,31 +265,31 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Streaming") {
+                SettingsSection(title = stringResource(R.string.streaming)) {
                     SwitchSetting(
-                        title = "Enable Web Streaming",
+                        title = stringResource(R.string.enable_web_streaming),
                         checked = webStreamingEnabled,
                         onCheckedChange = { viewModel.updateWebStreamingEnabled(it) }
                     )
                     SliderSetting(
-                        title = "Streaming Port",
+                        title = stringResource(R.string.streaming_port),
                         value = streamingPort.toFloat(),
                         range = 1024f..65535f,
                         onValueChange = { viewModel.updateStreamingPort(it.toInt()) }
                     )
                     SliderSetting(
-                        title = "JPEG Quality",
+                        title = stringResource(R.string.jpeg_quality),
                         value = jpegQuality.toFloat(),
                         range = 10f..100f,
                         onValueChange = { viewModel.updateJpegQuality(it.toInt()) }
                     )
                     SwitchSetting(
-                        title = "Adaptive Bitrate",
+                        title = stringResource(R.string.adaptive_bitrate),
                         checked = adaptiveBitrateEnabled,
                         onCheckedChange = { viewModel.updateAdaptiveBitrateEnabled(it) }
                     )
                     SwitchSetting(
-                        title = "Network Discovery (mDNS)",
+                        title = stringResource(R.string.network_discovery),
                         checked = mdnsEnabled,
                         onCheckedChange = { viewModel.updateMdnsEnabled(it) }
                     )
@@ -295,7 +297,7 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Background") {
+                SettingsSection(title = stringResource(R.string.background)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -303,12 +305,12 @@ fun AppSettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Disable Battery Optimization",
+                                text = stringResource(R.string.disable_battery_optimization),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                text = "Prevents the system from stopping the app in the background",
+                                text = stringResource(R.string.battery_optimization_description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -323,21 +325,21 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "RTSP Stream") {
+                SettingsSection(title = stringResource(R.string.rtsp_stream)) {
                     SwitchSetting(
-                        title = "Enable RTSP Streaming",
+                        title = stringResource(R.string.enable_rtsp_streaming),
                         checked = rtspEnabled,
                         onCheckedChange = { viewModel.updateRtspEnabled(it) }
                     )
                     if (rtspEnabled) {
                         SliderSetting(
-                            title = "RTSP Port",
+                            title = stringResource(R.string.rtsp_port),
                             value = rtspPort.toFloat(),
                             range = 1024f..65535f,
                             onValueChange = { viewModel.updateRtspPort(it.toInt()) }
                         )
                         DropdownSetting(
-                            title = "RTSP Encoder Input Format",
+                            title = stringResource(R.string.rtsp_encoder_input_format),
                             options = RtspInputFormat.entries.map { it.name },
                             selected = rtspInputFormat.name,
                             onSelect = { viewModel.updateRtspInputFormat(it) }
@@ -347,31 +349,31 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Audio") {
+                SettingsSection(title = stringResource(R.string.audio)) {
                     SwitchSetting(
-                        title = "Include Audio in Live Stream",
+                        title = stringResource(R.string.include_audio_live_stream),
                         checked = streamAudioEnabled,
                         onCheckedChange = { viewModel.updateStreamAudioEnabled(it) }
                     )
                     SwitchSetting(
-                        title = "Echo Cancellation & Noise Suppression",
+                        title = stringResource(R.string.echo_noise_suppression),
                         checked = streamAudioEchoCancellation,
                         onCheckedChange = { viewModel.updateStreamAudioEchoCancellation(it) }
                     )
                     SliderSetting(
-                        title = "Live Audio Bitrate (kbps)",
+                        title = stringResource(R.string.live_audio_bitrate),
                         value = streamAudioBitrateKbps.toFloat(),
                         range = 32f..320f,
                         onValueChange = { viewModel.updateStreamAudioBitrateKbps(it.toInt()) }
                     )
                     DropdownSetting(
-                        title = "Live Audio Channels",
+                        title = stringResource(R.string.live_audio_channels),
                         options = listOf("Mono", "Stereo"),
                         selected = if (streamAudioChannels == 2) "Stereo" else "Mono",
                         onSelect = { viewModel.updateStreamAudioChannels(if (it == "Stereo") 2 else 1) }
                     )
                     SwitchSetting(
-                        title = "Include Audio in Recordings",
+                        title = stringResource(R.string.include_audio_recordings),
                         checked = recordingAudioEnabled,
                         onCheckedChange = { viewModel.updateRecordingAudioEnabled(it) }
                     )
@@ -379,9 +381,9 @@ fun AppSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Security") {
+                SettingsSection(title = stringResource(R.string.security)) {
                     SwitchSetting(
-                        title = "Stream Authentication",
+                        title = stringResource(R.string.stream_authentication),
                         checked = authSettings.enabled,
                         onCheckedChange = { viewModel.updateAuthEnabled(it) }
                     )
@@ -389,7 +391,7 @@ fun AppSettingsScreen(
                         OutlinedTextField(
                             value = authSettings.username,
                             onValueChange = { viewModel.updateAuthUsername(it) },
-                            label = { Text("Username") },
+                            label = { Text(stringResource(R.string.username)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -399,8 +401,8 @@ fun AppSettingsScreen(
                         OutlinedTextField(
                             value = passwordText,
                             onValueChange = { passwordText = it },
-                            label = { Text("Password") },
-                            placeholder = { Text("Enter new password") },
+                            label = { Text(stringResource(R.string.password)) },
+                            placeholder = { Text(stringResource(R.string.enter_new_password)) },
                             visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,

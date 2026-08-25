@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.camera.CameraService
 import com.raulshma.lenscast.capture.PhotoCaptureHelper
 import com.raulshma.lenscast.capture.model.IntervalCaptureConfig
@@ -181,7 +182,7 @@ class CaptureViewModel(
         if (config.includeAudio && !hasAudioPermission()) {
             Toast.makeText(
                 context,
-                "Microphone permission not granted. Recording video without audio.",
+                R.string.microphone_permission_recording,
                 Toast.LENGTH_SHORT
             ).show()
         }

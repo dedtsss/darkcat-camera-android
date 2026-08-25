@@ -30,10 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.camera.model.FocusMode
 import com.raulshma.lenscast.camera.model.HdrMode
 import com.raulshma.lenscast.camera.model.NightVisionMode
@@ -79,14 +81,14 @@ fun CameraSettingsScreen(
     Scaffold(
         topBar = {
             LensCastTopBar(
-                title = "Camera Settings",
+                title = stringResource(R.string.camera_settings),
                 onNavigateBack = onNavigateBack,
                 actions = {
                     TextButton(onClick = onNavigateToAppSettings) {
-                        Text("App Settings")
+                        Text(stringResource(R.string.app_settings))
                     }
                     TextButton(onClick = { viewModel.resetToDefaults() }) {
-                        Text("Reset", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.reset), color = MaterialTheme.colorScheme.error)
                     }
                 },
             )
@@ -100,9 +102,9 @@ fun CameraSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                SettingsSection(title = "Display") {
+                SettingsSection(title = stringResource(R.string.display)) {
                     SwitchSetting(
-                        title = "Show Camera Preview",
+                        title = stringResource(R.string.show_camera_preview),
                         checked = showPreview,
                         onCheckedChange = { viewModel.updateShowPreview(it) }
                     )
@@ -110,9 +112,9 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Exposure") {
+                SettingsSection(title = stringResource(R.string.exposure)) {
                     SliderSetting(
-                        title = "Exposure Compensation",
+                        title = stringResource(R.string.quick_setting_exposure),
                         value = settings.exposureCompensation.toFloat(),
                         range = exposureRange.start.toFloat()..exposureRange.endInclusive.toFloat(),
                         onValueChange = { viewModel.updateExposure(it.toInt()) }
@@ -127,16 +129,16 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Focus") {
+                SettingsSection(title = stringResource(R.string.focus)) {
                     DropdownSetting(
-                        title = "Focus Mode",
+                        title = stringResource(R.string.quick_setting_focus),
                         options = FocusMode.entries.map { it.name },
                         selected = settings.focusMode.name,
                         onSelect = { viewModel.updateFocusMode(it) }
                     )
                     if (settings.focusMode == FocusMode.MANUAL) {
                         SliderSetting(
-                            title = "Focus Distance",
+                            title = stringResource(R.string.focus_distance),
                             value = settings.focusDistance ?: 0f,
                             range = 0f..10f,
                             onValueChange = { viewModel.updateFocusDistance(it) }
@@ -146,16 +148,16 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "White Balance") {
+                SettingsSection(title = stringResource(R.string.quick_setting_white_balance)) {
                     DropdownSetting(
-                        title = "White Balance",
+                        title = stringResource(R.string.quick_setting_white_balance),
                         options = WhiteBalance.entries.map { it.name },
                         selected = settings.whiteBalance.name,
                         onSelect = { viewModel.updateWhiteBalance(it) }
                     )
                     if (settings.whiteBalance == WhiteBalance.MANUAL) {
                         SliderSetting(
-                            title = "Color Temperature (K)",
+                            title = stringResource(R.string.color_temperature),
                             value = (settings.colorTemperature ?: 5500).toFloat(),
                             range = 2000f..9000f,
                             onValueChange = { viewModel.updateColorTemperature(it.toInt()) }
@@ -165,9 +167,9 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Lens") {
+                SettingsSection(title = stringResource(R.string.lens)) {
                     SliderSetting(
-                        title = "Zoom",
+                        title = stringResource(R.string.zoom),
                         value = settings.zoomRatio,
                         range = zoomRange,
                         onValueChange = { viewModel.updateZoom(it) }
@@ -176,15 +178,15 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Capture") {
+                SettingsSection(title = stringResource(R.string.capture)) {
                     DropdownSetting(
-                        title = "Resolution",
+                        title = stringResource(R.string.quick_setting_resolution),
                         options = Resolution.entries.map { it.name },
                         selected = settings.resolution.name,
                         onSelect = { viewModel.updateResolution(it) }
                     )
                     SliderSetting(
-                        title = "Frame Rate",
+                        title = stringResource(R.string.quick_setting_frame_rate),
                         value = settings.frameRate.toFloat(),
                         range = 15f..60f,
                         onValueChange = { viewModel.updateFrameRate(it.toInt()) }
@@ -199,9 +201,9 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Video") {
+                SettingsSection(title = stringResource(R.string.video)) {
                     SwitchSetting(
-                        title = "Image Stabilization",
+                        title = stringResource(R.string.image_stabilization),
                         checked = settings.stabilization,
                         onCheckedChange = { viewModel.updateStabilization(it) }
                     )
@@ -209,9 +211,9 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Night Vision / IR") {
+                SettingsSection(title = stringResource(R.string.night_vision_ir)) {
                     DropdownSetting(
-                        title = "Mode",
+                        title = stringResource(R.string.mode),
                         options = NightVisionMode.entries.map { it.name },
                         selected = settings.nightVisionMode.name,
                         onSelect = { viewModel.updateNightVisionMode(it) }
@@ -219,9 +221,9 @@ fun CameraSettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (settings.nightVisionMode) {
-                            NightVisionMode.ON -> "Forces night scene mode with maximum exposure and reduced frame rate for best low-light performance."
-                            NightVisionMode.AUTO -> "Automatically adapts to lighting conditions using night portrait mode with auto flash."
-                            NightVisionMode.OFF -> "Standard camera behavior without low-light enhancements."
+                            NightVisionMode.ON -> stringResource(R.string.night_vision_on_description)
+                            NightVisionMode.AUTO -> stringResource(R.string.night_vision_auto_description)
+                            NightVisionMode.OFF -> stringResource(R.string.night_vision_off_description)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -230,9 +232,9 @@ fun CameraSettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Scene") {
+                SettingsSection(title = stringResource(R.string.scene)) {
                     DropdownSetting(
-                        title = "Scene Mode",
+                        title = stringResource(R.string.scene_mode),
                         options = listOf("OFF", "FACE_DETECTION", "NIGHT", "HDR", "SUNSET", "FIREWORKS"),
                         selected = settings.sceneMode ?: "OFF",
                         onSelect = { viewModel.updateSceneMode(it) }
@@ -310,13 +312,23 @@ fun DropdownSetting(
         ) {
             options.forEach { option ->
                 FilterChip(
-                    label = option.replace("_", " "),
+                    label = localizedSettingOption(option),
                     selected = option == selected,
                     onClick = { onSelect(option) }
                 )
             }
         }
     }
+}
+
+@Composable
+private fun localizedSettingOption(option: String): String = when (option) {
+    "Auto", "AUTO" -> stringResource(R.string.auto)
+    "ON" -> stringResource(R.string.on)
+    "OFF" -> stringResource(R.string.off)
+    "Mono" -> stringResource(R.string.mono)
+    "Stereo" -> stringResource(R.string.stereo)
+    else -> option.replace("_", " ")
 }
 
 @Composable

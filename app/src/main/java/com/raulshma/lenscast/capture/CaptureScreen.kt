@@ -38,9 +38,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.capture.model.CaptureMode
 import com.raulshma.lenscast.capture.model.FlashMode
 import com.raulshma.lenscast.capture.model.RecordingConfig
@@ -76,7 +78,7 @@ fun CaptureScreen(
 
     Scaffold(
         topBar = {
-            LensCastTopBar(title = "Capture", onNavigateBack = onNavigateBack)
+            LensCastTopBar(title = stringResource(R.string.capture), onNavigateBack = onNavigateBack)
         }
     ) { padding ->
         LazyColumn(
@@ -87,7 +89,7 @@ fun CaptureScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                SettingsSection(title = "Quick Capture") {
+                SettingsSection(title = stringResource(R.string.quick_capture)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -101,7 +103,7 @@ fun CaptureScreen(
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Text("Photo", modifier = Modifier.padding(start = 8.dp))
+                            Text(stringResource(R.string.photo), modifier = Modifier.padding(start = 8.dp))
                         }
                         Button(
                             onClick = { viewModel.toggleRecording() },
@@ -116,7 +118,7 @@ fun CaptureScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                if (isRecording) "Stop" else "Record",
+                                if (isRecording) stringResource(R.string.stop) else stringResource(R.string.record),
                                 modifier = Modifier.padding(start = 8.dp)
                             )
                         }
@@ -125,9 +127,9 @@ fun CaptureScreen(
             }
 
             item {
-                SettingsSection(title = "Interval Photography") {
+                SettingsSection(title = stringResource(R.string.interval_photography)) {
                     SliderSetting(
-                        title = "Interval (seconds)",
+                        title = stringResource(R.string.interval_seconds),
                         value = intervalConfig.intervalSeconds.toFloat(),
                         range = 1f..3600f,
                         onValueChange = {
@@ -137,7 +139,7 @@ fun CaptureScreen(
                         }
                     )
                     SliderSetting(
-                        title = "Total Captures",
+                        title = stringResource(R.string.total_captures),
                         value = intervalConfig.totalCaptures.toFloat(),
                         range = 1f..1000f,
                         onValueChange = {
@@ -147,7 +149,7 @@ fun CaptureScreen(
                         }
                     )
                     SliderSetting(
-                        title = "JPEG Quality",
+                        title = stringResource(R.string.jpeg_quality),
                         value = intervalConfig.imageQuality.toFloat(),
                         range = 10f..100f,
                         onValueChange = {
@@ -157,7 +159,7 @@ fun CaptureScreen(
                         }
                     )
                     DropdownSetting(
-                        title = "Capture Mode",
+                        title = stringResource(R.string.capture_mode),
                         options = CaptureMode.entries.map { it.name },
                         selected = intervalConfig.captureMode.name,
                         onSelect = {
@@ -167,7 +169,7 @@ fun CaptureScreen(
                         }
                     )
                     DropdownSetting(
-                        title = "Flash Mode",
+                        title = stringResource(R.string.flash_mode),
                         options = FlashMode.entries.map { it.name },
                         selected = intervalConfig.flashMode.name,
                         onSelect = {
@@ -190,7 +192,7 @@ fun CaptureScreen(
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Text("Stop Interval", modifier = Modifier.padding(start = 8.dp))
+                            Text(stringResource(R.string.stop_interval), modifier = Modifier.padding(start = 8.dp))
                         }
                     } else {
                         Button(
@@ -202,16 +204,16 @@ fun CaptureScreen(
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Text("Start Interval", modifier = Modifier.padding(start = 8.dp))
+                            Text(stringResource(R.string.start_interval), modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 }
             }
 
             item {
-                SettingsSection(title = "Scheduled Recording") {
+                SettingsSection(title = stringResource(R.string.scheduled_recording)) {
                     SwitchSetting(
-                        title = "Include Audio",
+                        title = stringResource(R.string.include_audio),
                         checked = recordingConfig.includeAudio,
                         onCheckedChange = {
                             viewModel.updateRecordingConfig(
@@ -220,7 +222,7 @@ fun CaptureScreen(
                         }
                     )
                     DropdownSetting(
-                        title = "Recording Quality",
+                        title = stringResource(R.string.recording_quality),
                         options = RecordingQuality.entries.map { it.name },
                         selected = recordingConfig.quality.name,
                         onSelect = {
@@ -230,7 +232,7 @@ fun CaptureScreen(
                         }
                     )
                     SliderSetting(
-                        title = "Duration (seconds, 0 = unlimited)",
+                        title = stringResource(R.string.duration_seconds),
                         value = recordingConfig.durationSeconds.toFloat(),
                         range = 0f..3600f,
                         onValueChange = {
@@ -240,7 +242,7 @@ fun CaptureScreen(
                         }
                     )
                     SliderSetting(
-                        title = "Repeat Interval (seconds, 0 = no repeat)",
+                        title = stringResource(R.string.repeat_interval_seconds),
                         value = recordingConfig.repeatIntervalSeconds.toFloat(),
                         range = 0f..3600f,
                         onValueChange = {
@@ -285,21 +287,21 @@ fun CaptureScreen(
                             )
                             Text(
                                 scheduledStartTime?.let {
-                                    "Start: ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it))}"
-                                } ?: "Set Start Time",
+                                    stringResource(R.string.start_time, SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)))
+                                } ?: stringResource(R.string.set_start_time),
                                 modifier = Modifier.padding(start = 4.dp)
                             )
                         }
                         if (scheduledStartTime != null) {
                             IconButton(onClick = { viewModel.updateScheduledStartTime(null) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Clear schedule")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.clear_schedule))
                             }
                         }
                     }
 
                     if (isRecording) {
                         Text(
-                            text = "Recording: ${formatDuration(recordingElapsedMs)}",
+                            text = stringResource(R.string.recording_duration, formatDuration(recordingElapsedMs)),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -311,7 +313,7 @@ fun CaptureScreen(
                             )
                         ) {
                             Icon(Icons.Default.Videocam, null, Modifier.size(18.dp))
-                            Text("Stop Recording", Modifier.padding(start = 8.dp))
+                            Text(stringResource(R.string.stop_recording), Modifier.padding(start = 8.dp))
                         }
                     } else {
                         Row(
@@ -324,7 +326,7 @@ fun CaptureScreen(
                             ) {
                                 Icon(Icons.Default.Videocam, null, Modifier.size(18.dp))
                                 Text(
-                                    if (scheduledStartTime != null) "Schedule" else "Start Now",
+                                    if (scheduledStartTime != null) stringResource(R.string.schedule) else stringResource(R.string.start_now),
                                     Modifier.padding(start = 8.dp)
                                 )
                             }
@@ -359,12 +361,12 @@ private fun ScheduleTimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = { onConfirm(timePickerState.hour, timePickerState.minute) }) {
-                Text("OK")
+                Text(stringResource(R.string.ok))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         },
         text = {

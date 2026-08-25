@@ -57,6 +57,26 @@ val buildWebUi by tasks.registering(Exec::class) {
     }
 }
 
+val verifyRussianStrings by tasks.registering {
+    description = "Verifies that every default Android string has a Russian translation"
+    group = "verification"
+
+    doLast {
+        fun stringNames(path: String): Set<String> = file(path)
+            .readText()
+            .let { xml -> Regex("""<string\s+name="([^"]+)"""").findAll(xml) }
+            .map { it.groupValues[1] }
+            .toSet()
+
+        val defaultNames = stringNames("src/main/res/values/strings.xml")
+        val russianNames = stringNames("src/main/res/values-ru/strings.xml")
+        val missing = (defaultNames - russianNames).sorted()
+        check(missing.isEmpty()) {
+            "Missing Russian translations for: ${missing.joinToString()}."
+        }
+    }
+}
+
 android {
     namespace = "com.raulshma.lenscast"
     compileSdk = 36
@@ -137,6 +157,7 @@ tasks.matching {
 
 tasks.matching { it.name == "preBuild" }.configureEach {
     dependsOn(buildWebUi)
+    dependsOn(verifyRussianStrings)
 }
 
 dependencies {

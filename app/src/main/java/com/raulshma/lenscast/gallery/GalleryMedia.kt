@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.capture.model.CaptureHistory
 import com.raulshma.lenscast.capture.model.CaptureType
 import java.io.File
@@ -55,14 +56,14 @@ fun buildGalleryOverview(items: List<CaptureHistory>): GalleryOverview {
     )
 }
 
-fun buildGallerySections(items: List<CaptureHistory>): List<GallerySection> {
+fun buildGallerySections(context: Context, items: List<CaptureHistory>): List<GallerySection> {
     return items
         .groupBy { it.timestamp.toLocalDate() }
         .toSortedMap(compareByDescending { it })
         .map { (day, entries) ->
             GallerySection(
                 key = day.toString(),
-                title = formatGallerySectionTitle(day),
+                title = formatGallerySectionTitle(context, day),
                 subtitle = galleryDayFormatter.format(day),
                 items = entries.sortedByDescending { it.timestamp },
                 totalBytes = entries.sumOf { it.fileSizeBytes.coerceAtLeast(0L) },
@@ -113,7 +114,7 @@ fun shareGalleryMedia(context: Context, items: List<CaptureHistory>) {
     context.startActivity(
         Intent.createChooser(
             intent,
-            "Share ${items.size} item${if (items.size == 1) "" else "s"}",
+            context.getString(R.string.share_items, items.size),
         )
     )
 }
@@ -125,11 +126,11 @@ fun openMediaExternal(context: Context, item: CaptureHistory) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
-    context.startActivity(Intent.createChooser(intent, "Open ${item.fileName}"))
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_media, item.fileName)))
 }
 
-fun formatFileSize(bytes: Long): String {
-    if (bytes <= 0) return "Unknown size"
+fun formatFileSize(context: Context, bytes: Long): String {
+    if (bytes <= 0) return context.getString(R.string.unknown_size)
     val units = listOf("B", "KB", "MB", "GB", "TB")
     var value = bytes.toDouble()
     var unitIndex = 0
@@ -162,11 +163,11 @@ fun formatViewerDateTime(timestamp: Long): String {
     return viewerDateTimeFormatter.format(timestamp.toZonedDateTime())
 }
 
-private fun formatGallerySectionTitle(day: LocalDate): String {
+private fun formatGallerySectionTitle(context: Context, day: LocalDate): String {
     val today = LocalDate.now()
     return when (day) {
-        today -> "Today"
-        today.minusDays(1) -> "Yesterday"
+        today -> context.getString(R.string.today)
+        today.minusDays(1) -> context.getString(R.string.yesterday)
         else -> galleryDayFormatter.format(day)
     }
 }

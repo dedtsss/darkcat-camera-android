@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import com.raulshma.lenscast.MainActivity
+import com.raulshma.lenscast.R
 
 class StreamingService : Service() {
 
@@ -37,9 +38,9 @@ class StreamingService : Service() {
 
     private fun startStreamingForeground(url: String?, includeAudio: Boolean) {
         val message = if (!url.isNullOrEmpty()) {
-            if (includeAudio) "Streaming video and audio to $url" else "Streaming to $url"
+            if (includeAudio) getString(R.string.streaming_video_and_audio_to, url) else getString(R.string.streaming_to, url)
         } else {
-            if (includeAudio) "Streaming camera feed with audio" else "Streaming camera feed"
+            if (includeAudio) getString(R.string.streaming_camera_with_audio) else getString(R.string.streaming_camera)
         }
         val notification = buildNotification(message)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -60,7 +61,7 @@ class StreamingService : Service() {
     }
 
     private fun pauseStreamingForeground(url: String?) {
-        val message = if (!url.isNullOrEmpty()) "Paused - $url" else "Streaming paused"
+        val message = if (!url.isNullOrEmpty()) getString(R.string.streaming_paused_url, url) else getString(R.string.streaming_paused)
         val notification = buildNotification(message)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -81,7 +82,7 @@ class StreamingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("LensCast Streaming")
+            .setContentTitle(getString(R.string.streaming_notification_title))
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setOngoing(true)
@@ -93,7 +94,7 @@ class StreamingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Streaming",
+                getString(R.string.streaming_notification_channel),
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)

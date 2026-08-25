@@ -7,6 +7,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.InfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -98,6 +99,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -116,6 +118,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -125,6 +128,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.camera.model.CameraLensInfo
 import com.raulshma.lenscast.camera.model.CameraSettings
 import com.raulshma.lenscast.camera.model.CameraState
@@ -194,8 +198,9 @@ fun CameraScreen(
         viewModel.onAudioPermissionResult(granted)
     }
 
-    val coroutineScope = rememberCoroutineScope()
-    val flashAlpha = remember { Animatable(0f) }
+    var shutterFeedbackSequence by remember { mutableIntStateOf(0) }
+    var shutterOutlineVisible by remember { mutableStateOf(false) }
+    var shutterButtonPressed by remember { mutableStateOf(false) }
 
     var quickSettingsExpanded by remember { mutableStateOf(false) }
     var activeSetting by remember { mutableStateOf<QuickSettingType?>(null) }
@@ -212,6 +217,16 @@ fun CameraScreen(
             requestedMissingAudioPermission = true
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+
+    LaunchedEffect(shutterFeedbackSequence) {
+        if (shutterFeedbackSequence == 0) return@LaunchedEffect
+        shutterOutlineVisible = true
+        shutterButtonPressed = true
+        delay(100)
+        shutterButtonPressed = false
+        delay(30)
+        shutterOutlineVisible = false
     }
 
     when (cameraState) {
@@ -243,7 +258,8 @@ fun CameraScreen(
                 connectionQualityStats = connectionQualityStats,
                 quickSettingsExpanded = quickSettingsExpanded,
                 activeSetting = activeSetting,
-                flashAlpha = flashAlpha,
+                shutterOutlineVisible = shutterOutlineVisible,
+                shutterButtonPressed = shutterButtonPressed,
                 isPinching = isPinching,
                 pinchZoomRatio = pinchZoomRatio,
                 onPinchStateChange = { pinching, ratio ->
@@ -259,10 +275,7 @@ fun CameraScreen(
                 },
                 onCapture = {
                     viewModel.capturePhoto()
-                    coroutineScope.launch {
-                        flashAlpha.snapTo(1f)
-                        flashAlpha.animateTo(0f, animationSpec = tween(150))
-                    }
+                    shutterFeedbackSequence++
                 },
                 onWebStreamToggle = { viewModel.toggleWebStreaming() },
                 onRtspStreamToggle = { viewModel.toggleRtspStreaming() },
@@ -319,7 +332,8 @@ private fun ImmersiveCameraView(
     connectionQualityStats: com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkStatsSnapshot?,
     quickSettingsExpanded: Boolean,
     activeSetting: QuickSettingType?,
-    flashAlpha: Animatable<Float, *>,
+    shutterOutlineVisible: Boolean,
+    shutterButtonPressed: Boolean,
     isPinching: Boolean,
     pinchZoomRatio: Float,
     onToggleQuickSettings: () -> Unit,
@@ -364,7 +378,7 @@ private fun ImmersiveCameraView(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Preview Hidden",
+                        text = stringResource(R.string.preview_hidden),
                         color = Color.White.copy(alpha = 0.35f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -372,11 +386,11 @@ private fun ImmersiveCameraView(
             }
         }
 
-        if (flashAlpha.value > 0f) {
+        if (shutterOutlineVisible) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White.copy(alpha = flashAlpha.value))
+                    .border(2.dp, Color.White.copy(alpha = 0.78f))
             )
         }
 
@@ -446,8 +460,9 @@ private fun ImmersiveCameraView(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (streamStatus.isActive) "Not on WiFi"
-                        else "Not on WiFi — server may not be reachable",
+                        text = stringResource(
+                            if (streamStatus.isActive) R.string.not_on_wifi else R.string.not_on_wifi_server
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White
                     )
@@ -463,6 +478,7 @@ private fun ImmersiveCameraView(
             quickSettingsExpanded = quickSettingsExpanded,
             activeSetting = activeSetting,
             isRecording = isRecording,
+            shutterButtonPressed = shutterButtonPressed,
             onWebStreamToggle = onWebStreamToggle,
             onRtspStreamToggle = onRtspStreamToggle,
             onCapture = onCapture,
@@ -542,7 +558,7 @@ private fun CameraTopOverlay(
         ) {
             CameraControlButton(
                 icon = Icons.Default.Cameraswitch,
-                contentDescription = "Switch camera",
+                contentDescription = stringResource(R.string.switch_camera),
                 onClick = onSwitchCamera
             )
             if (streamStatus.isActive) {
@@ -565,18 +581,18 @@ private fun CameraTopOverlay(
             )
             CameraControlButton(
                 icon = if (showPreview) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                contentDescription = if (showPreview) "Hide preview" else "Show preview",
+                contentDescription = stringResource(if (showPreview) R.string.hide_preview else R.string.show_preview),
                 onClick = onTogglePreview
             )
             CameraControlButton(
                 icon = Icons.Default.Collections,
-                contentDescription = "Gallery",
+                contentDescription = stringResource(R.string.gallery),
                 onClick = onNavigateToGallery
             )
             Box {
                 CameraControlButton(
                     icon = Icons.Default.MoreVert,
-                    contentDescription = "More options",
+                    contentDescription = stringResource(R.string.more_options),
                     onClick = { menuExpanded = true }
                 )
                 DropdownMenu(
@@ -596,7 +612,7 @@ private fun CameraTopOverlay(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    "Camera controls",
+                                    stringResource(R.string.camera_controls),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -617,7 +633,7 @@ private fun CameraTopOverlay(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    "Capture tools",
+                                    stringResource(R.string.capture_tools),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -638,7 +654,7 @@ private fun CameraTopOverlay(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    "Settings",
+                                    stringResource(R.string.settings),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -688,6 +704,7 @@ private fun CameraBottomOverlay(
     quickSettingsExpanded: Boolean,
     activeSetting: QuickSettingType?,
     isRecording: Boolean,
+    shutterButtonPressed: Boolean,
     onWebStreamToggle: () -> Unit,
     onRtspStreamToggle: () -> Unit,
     onCapture: () -> Unit,
@@ -727,12 +744,13 @@ private fun CameraBottomOverlay(
             )
         }
 
-        ShutterRow(
+            ShutterRow(
             isWebStreaming = streamStatus.isWebActive,
             isRtspStreaming = streamStatus.isRtspActive,
             isWebEnabled = streamStatus.isWebEnabled,
             isRtspEnabled = streamStatus.isRtspEnabled,
-            isRecording = isRecording,
+                isRecording = isRecording,
+                shutterButtonPressed = shutterButtonPressed,
             quickSettingsExpanded = quickSettingsExpanded,
             onWebStreamToggle = onWebStreamToggle,
             onRtspStreamToggle = onRtspStreamToggle,
@@ -750,6 +768,7 @@ private fun ShutterRow(
     isWebEnabled: Boolean,
     isRtspEnabled: Boolean,
     isRecording: Boolean,
+    shutterButtonPressed: Boolean,
     quickSettingsExpanded: Boolean,
     onWebStreamToggle: () -> Unit,
     onRtspStreamToggle: () -> Unit,
@@ -801,7 +820,7 @@ private fun ShutterRow(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isWebStreaming) Icons.Default.Stop else Icons.Default.Wifi,
-                                contentDescription = if (isWebStreaming) "Stop web stream" else "Start web stream",
+                                contentDescription = stringResource(if (isWebStreaming) R.string.stop_web_stream else R.string.start_web_stream),
                                 tint = if (isWebEnabled || isWebStreaming) Color.White else Color.White.copy(alpha = 0.35f),
                                 modifier = Modifier.size(24.dp)
                             )
@@ -823,7 +842,7 @@ private fun ShutterRow(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Flip,
-                                contentDescription = "Collapse quick settings",
+                                contentDescription = stringResource(R.string.collapse_quick_settings),
                                 tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(22.dp)
                             )
@@ -862,7 +881,7 @@ private fun ShutterRow(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isRtspStreaming) Icons.Default.Stop else Icons.Default.Videocam,
-                                contentDescription = if (isRtspStreaming) "Stop RTSP stream" else "Start RTSP stream",
+                                contentDescription = stringResource(if (isRtspStreaming) R.string.stop_rtsp_stream else R.string.start_rtsp_stream),
                                 tint = if (isRtspEnabled || isRtspStreaming) Color.White else Color.White.copy(alpha = 0.35f),
                                 modifier = Modifier.size(24.dp)
                             )
@@ -880,7 +899,7 @@ private fun ShutterRow(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord,
-                        contentDescription = if (isRecording) "Stop recording" else "Record video",
+                        contentDescription = stringResource(if (isRecording) R.string.stop_recording else R.string.record_video),
                         tint = if (isRecording) Color.White else Color(0xFFD32F2F),
                         modifier = Modifier.size(24.dp)
                     )
@@ -891,7 +910,7 @@ private fun ShutterRow(
                 modifier = Modifier.size(70.dp),
                 contentAlignment = Alignment.Center
             ) {
-                ShutterButton(onClick = onCapture)
+                ShutterButton(isPressed = shutterButtonPressed, onClick = onCapture)
             }
         }
     }
@@ -899,10 +918,14 @@ private fun ShutterRow(
 
 @Composable
 private fun ShutterButton(
+    isPressed: Boolean,
     onClick: () -> Unit,
 ) {
-    val scale = remember { Animatable(1f) }
-    val coroutineScope = rememberCoroutineScope()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = tween(100),
+        label = "shutter_button_press",
+    )
 
     Box(
         modifier = Modifier
@@ -915,23 +938,17 @@ private fun ShutterButton(
             modifier = Modifier
                 .size(56.dp)
                 .graphicsLayer {
-                    scaleX = scale.value
-                    scaleY = scale.value
+                    scaleX = scale
+                    scaleY = scale
                 },
             color = Color.White,
             shape = CircleShape,
-            onClick = {
-                coroutineScope.launch {
-                    scale.snapTo(0.85f)
-                    scale.animateTo(1f, spring(stiffness = Spring.StiffnessHigh))
-                }
-                onClick()
-            }
+            onClick = onClick
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.Camera,
-                    contentDescription = "Capture photo",
+                    contentDescription = stringResource(R.string.capture_photo),
                     tint = Color(0xFF1A1A1A),
                     modifier = Modifier.size(24.dp)
                 )
@@ -1133,16 +1150,16 @@ private fun QuickSettingSheet(
         ) {
             Text(
                 text = when (type) {
-                    QuickSettingType.EXPOSURE -> "Exposure Compensation"
+                    QuickSettingType.EXPOSURE -> stringResource(R.string.quick_setting_exposure)
                     QuickSettingType.ISO -> "ISO"
-                    QuickSettingType.WHITE_BALANCE -> "White Balance"
-                    QuickSettingType.FOCUS -> "Focus Mode"
-                    QuickSettingType.ZOOM -> "Zoom"
+                    QuickSettingType.WHITE_BALANCE -> stringResource(R.string.quick_setting_white_balance)
+                    QuickSettingType.FOCUS -> stringResource(R.string.quick_setting_focus)
+                    QuickSettingType.ZOOM -> stringResource(R.string.zoom)
                     QuickSettingType.HDR -> "HDR"
-                    QuickSettingType.RESOLUTION -> "Resolution"
-                    QuickSettingType.FRAME_RATE -> "Frame Rate"
-                    QuickSettingType.STABILIZATION -> "Stabilization"
-                    QuickSettingType.NIGHT_VISION -> "Night Vision / IR"
+                    QuickSettingType.RESOLUTION -> stringResource(R.string.quick_setting_resolution)
+                    QuickSettingType.FRAME_RATE -> stringResource(R.string.quick_setting_frame_rate)
+                    QuickSettingType.STABILIZATION -> stringResource(R.string.quick_setting_stabilization)
+                    QuickSettingType.NIGHT_VISION -> stringResource(R.string.night_vision_ir)
                 },
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
@@ -1201,7 +1218,7 @@ private fun QuickSettingSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Image Stabilization",
+                            text = stringResource(R.string.image_stabilization),
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -1218,7 +1235,7 @@ private fun QuickSettingSheet(
                 QuickSettingType.NIGHT_VISION -> {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Mode",
+                            text = stringResource(R.string.mode),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.labelMedium
                         )
@@ -1234,9 +1251,9 @@ private fun QuickSettingSheet(
                                     label = {
                                         Text(
                                             text = when (mode) {
-                                                NightVisionMode.ON -> "IR On"
-                                                NightVisionMode.AUTO -> "Auto"
-                                                NightVisionMode.OFF -> "Off"
+                                                NightVisionMode.ON -> stringResource(R.string.night_vision_on)
+                                                NightVisionMode.AUTO -> stringResource(R.string.auto)
+                                                NightVisionMode.OFF -> stringResource(R.string.off)
                                             }
                                         )
                                     },
@@ -1247,9 +1264,9 @@ private fun QuickSettingSheet(
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = when (settings.nightVisionMode) {
-                                NightVisionMode.ON -> "Forces night scene mode with maximum exposure and reduced frame rate for best low-light performance."
-                                NightVisionMode.AUTO -> "Automatically adapts to lighting conditions using night portrait mode with auto flash."
-                                NightVisionMode.OFF -> "Standard camera behavior without low-light enhancements."
+                                NightVisionMode.ON -> stringResource(R.string.night_vision_on_description)
+                                NightVisionMode.AUTO -> stringResource(R.string.night_vision_auto_description)
+                                NightVisionMode.OFF -> stringResource(R.string.night_vision_off_description)
                             },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
@@ -1336,7 +1353,7 @@ private fun ProChipSelector(
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Text(
-                    text = option.replace("_", " "),
+                    text = localizedQuickSettingOption(option),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                     color = textColor,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1345,6 +1362,27 @@ private fun ProChipSelector(
             }
         }
     }
+}
+
+@Composable
+private fun localizedQuickSettingOption(option: String): String = when (option) {
+    "Auto", "AUTO" -> stringResource(R.string.auto)
+    "MANUAL" -> stringResource(R.string.manual)
+    "MACRO" -> stringResource(R.string.macro)
+    "CONTINUOUS_PICTURE" -> stringResource(R.string.continuous_picture)
+    "CONTINUOUS_VIDEO" -> stringResource(R.string.continuous_video)
+    "DAYLIGHT" -> stringResource(R.string.daylight)
+    "CLOUDY" -> stringResource(R.string.cloudy)
+    "INDOOR" -> stringResource(R.string.indoor)
+    "FLUORESCENT" -> stringResource(R.string.fluorescent)
+    "SD_480P" -> stringResource(R.string.resolution_sd_480p)
+    "HD_720P" -> stringResource(R.string.resolution_hd_720p)
+    "FHD_1080P" -> stringResource(R.string.resolution_fhd_1080p)
+    "QHD_1440P" -> stringResource(R.string.resolution_qhd_1440p)
+    "UHD_4K" -> stringResource(R.string.resolution_uhd_4k)
+    "ON" -> stringResource(R.string.on)
+    "OFF" -> stringResource(R.string.off)
+    else -> option.replace("_", " ")
 }
 
 @Composable
@@ -1378,14 +1416,14 @@ private fun CameraPermissionRequest(
             }
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Camera access required",
+                text = stringResource(R.string.camera_access_required),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "LensCast needs camera access for the live preview and microphone for audio streaming and recordings.",
+                text = stringResource(R.string.camera_permission_explanation),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -1399,7 +1437,7 @@ private fun CameraPermissionRequest(
                 )
             ) {
                 Text(
-                    text = "Grant permission",
+                    text = stringResource(R.string.grant_permission),
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
@@ -1481,7 +1519,7 @@ private fun CameraInitializingScreen() {
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "Initializing camera\u2026",
+                    stringResource(R.string.initializing_camera),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1522,7 +1560,7 @@ private fun ErrorDisplay(
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Camera error",
+                text = stringResource(R.string.camera_error),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.error,
                 fontWeight = FontWeight.SemiBold
@@ -1542,7 +1580,7 @@ private fun ErrorDisplay(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Text("Retry")
+                Text(stringResource(R.string.retry))
             }
         }
     }
@@ -1701,7 +1739,7 @@ private fun ServerStatusButton(
     Box(modifier = modifier) {
         CameraControlButton(
             icon = Icons.Default.Wifi,
-            contentDescription = "Web server status",
+            contentDescription = stringResource(R.string.web_server_status),
             onClick = { expanded = true },
             tint = iconTint,
         )
@@ -1715,7 +1753,7 @@ private fun ServerStatusButton(
                 text = {
                     Column {
                         Text(
-                            "Web Server",
+                            stringResource(R.string.web_server),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -1730,7 +1768,7 @@ private fun ServerStatusButton(
                             )
                         } else {
                             Text(
-                                "Server offline",
+                                stringResource(R.string.server_offline),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             )
@@ -1738,10 +1776,10 @@ private fun ServerStatusButton(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             when {
-                                streamStatus.clientCount > 0 -> "${streamStatus.clientCount} viewer(s) connected"
-                                streamStatus.isActive -> "Live stream active"
-                                streamStatus.isServerRunning -> "Server ready"
-                                else -> "Offline"
+                                streamStatus.clientCount > 0 -> stringResource(R.string.viewers_connected, streamStatus.clientCount)
+                                streamStatus.isActive -> stringResource(R.string.live_stream_active)
+                                streamStatus.isServerRunning -> stringResource(R.string.server_ready)
+                                else -> stringResource(R.string.offline)
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -1762,7 +1800,7 @@ private fun ServerStatusButton(
                                 tint = MaterialTheme.colorScheme.onSurface,
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Copy URL", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.copy_url), style = MaterialTheme.typography.bodyMedium)
                         }
                     },
                     onClick = {
@@ -1803,7 +1841,7 @@ private fun ServerStatusButton(
                                 tint = MaterialTheme.colorScheme.onSurface,
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Copy RTSP URL", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.copy_rtsp_url), style = MaterialTheme.typography.bodyMedium)
                         }
                     },
                     onClick = {
@@ -1828,7 +1866,7 @@ private fun ServerStatusButton(
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                if (streamStatus.isServerRunning) "Turn off server" else "Turn on server",
+                                stringResource(if (streamStatus.isServerRunning) R.string.turn_off_server else R.string.turn_on_server),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
@@ -1856,10 +1894,10 @@ private fun ThermalWarningOverlay(
     modifier: Modifier = Modifier,
 ) {
     val (color, label) = when (thermalState) {
-        ThermalState.MODERATE -> LensOrange to "Thermal: Moderate"
-        ThermalState.SEVERE -> LensRed to "Thermal: Severe"
-        ThermalState.CRITICAL -> MaterialTheme.colorScheme.error to "Thermal: Critical!"
-        else -> LensOrange to "Thermal: Warm"
+        ThermalState.MODERATE -> LensOrange to stringResource(R.string.thermal_moderate)
+        ThermalState.SEVERE -> LensRed to stringResource(R.string.thermal_severe)
+        ThermalState.CRITICAL -> MaterialTheme.colorScheme.error to stringResource(R.string.thermal_critical)
+        else -> LensOrange to stringResource(R.string.thermal_warm)
     }
     Surface(
         modifier = modifier,
@@ -1966,7 +2004,7 @@ private fun ConnectionQualityIndicator(
                 )
                 if (activeClients > 0) {
                     Text(
-                        text = "${activeClients} client${if (activeClients != 1) "s" else ""} · ${minThroughputKbps}kbps",
+                    text = stringResource(R.string.active_clients_throughput, activeClients, minThroughputKbps),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color.White.copy(alpha = 0.5f)
@@ -1989,26 +2027,26 @@ private fun ConnectionQualityIndicator(
                     modifier = Modifier.padding(12.dp)
                 ) {
                     Text(
-                        text = "Connection Quality",
+                        text = stringResource(R.string.connection_quality),
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    ConnectionStatRow(label = "Quality", value = label, valueColor = dotColor)
-                    ConnectionStatRow(label = "Bandwidth", value = "${estimatedBandwidthKbps} kbps")
-                    ConnectionStatRow(label = "Min Throughput", value = "${stats.minThroughputKbps} kbps")
-                    ConnectionStatRow(label = "Avg Throughput", value = "${stats.avgThroughputKbps} kbps")
-                    ConnectionStatRow(label = "Latency", value = "${stats.worstLatencyMs} ms")
-                    ConnectionStatRow(label = "Avg Frame", value = "${stats.avgFrameSizeBytes / 1024} KB")
-                    ConnectionStatRow(label = "Clients", value = "${stats.activeClients}")
-                    ConnectionStatRow(label = "Total Sent", value = formatBytes(stats.totalBytesSent))
+                    ConnectionStatRow(label = stringResource(R.string.quality), value = label, valueColor = dotColor)
+                    ConnectionStatRow(label = stringResource(R.string.bandwidth), value = "${estimatedBandwidthKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.min_throughput), value = "${stats.minThroughputKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.avg_throughput), value = "${stats.avgThroughputKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.latency), value = "${stats.worstLatencyMs} ms")
+                    ConnectionStatRow(label = stringResource(R.string.avg_frame), value = "${stats.avgFrameSizeBytes / 1024} KB")
+                    ConnectionStatRow(label = stringResource(R.string.clients), value = "${stats.activeClients}")
+                    ConnectionStatRow(label = stringResource(R.string.total_sent), value = formatBytes(stats.totalBytesSent))
 
                     if (stats.clientDetails.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Per-Client Stats",
+                            text = stringResource(R.string.per_client_stats),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White.copy(alpha = 0.6f)
@@ -2017,16 +2055,16 @@ private fun ConnectionQualityIndicator(
                         Spacer(modifier = Modifier.height(4.dp))
                         stats.clientDetails.forEach { (clientId, detail) ->
                             Text(
-                                text = "Client ${clientId.take(8)}:",
+                                text = stringResource(R.string.client_label, clientId.take(8)),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
                             )
-                            ConnectionStatRow(label = "  Frames", value = "${detail.framesSent}")
-                            ConnectionStatRow(label = "  Throughput", value = "${detail.avgThroughputKbps} kbps")
-                            ConnectionStatRow(label = "  Latency", value = "${detail.lastSendDurationMs} ms")
-                            ConnectionStatRow(label = "  Frame Size", value = "${detail.lastFrameSizeBytes / 1024} KB")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.frames)}", value = "${detail.framesSent}")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.throughput)}", value = "${detail.avgThroughputKbps} kbps")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.latency)}", value = "${detail.lastSendDurationMs} ms")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.frame_size)}", value = "${detail.lastFrameSizeBytes / 1024} KB")
                         }
                     }
                 }

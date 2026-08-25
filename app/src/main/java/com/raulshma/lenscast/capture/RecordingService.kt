@@ -26,6 +26,7 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
 import com.raulshma.lenscast.MainApplication
 import com.raulshma.lenscast.MainActivity
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.capture.model.RecordingConfig
 import com.raulshma.lenscast.capture.model.RecordingQuality
 import java.text.SimpleDateFormat
@@ -85,7 +86,7 @@ class RecordingService : Service() {
         val audioEnabled = shouldIncludeAudio && hasAudioPermission()
 
         val notification = buildNotification(
-            if (audioEnabled) "Recording video and audio..." else "Recording video..."
+            if (audioEnabled) getString(R.string.recording_video_and_audio) else getString(R.string.recording_video)
         )
         val cameraService = app.cameraService
         val fileName = "VID_${DATE_FORMAT.format(Date())}.mp4"
@@ -356,7 +357,7 @@ class RecordingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("LensCast Recording")
+            .setContentTitle(getString(R.string.recording_notification_title))
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(pendingIntent)
@@ -367,7 +368,7 @@ class RecordingService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Recording",
+                getString(R.string.recording_notification_channel),
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)

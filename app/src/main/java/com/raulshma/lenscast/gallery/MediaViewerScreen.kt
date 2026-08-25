@@ -66,6 +66,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -76,6 +77,7 @@ import coil3.request.crossfade
 import coil3.request.crossfade
 import com.raulshma.lenscast.capture.model.CaptureHistory
 import com.raulshma.lenscast.capture.model.CaptureType
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.ui.animation.LocalAnimatedVisibilityScope
 import com.raulshma.lenscast.ui.animation.LocalSharedTransitionScope
 
@@ -89,7 +91,7 @@ fun MediaViewerScreen(
 ) {
     if (allItems.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-            Text("Media not found", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+            Text(stringResource(R.string.media_not_found), style = MaterialTheme.typography.bodyLarge, color = Color.White)
         }
         return
     }
@@ -105,15 +107,15 @@ fun MediaViewerScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete") },
-            text = { Text("Delete \"${mediaItem.fileName}\"?") },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text(stringResource(R.string.delete_media_confirmation, mediaItem.fileName)) },
             confirmButton = {
                 TextButton(onClick = { showDeleteDialog = false; onDeleteCurrent() }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -147,24 +149,24 @@ fun MediaViewerScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
                     }
                     Column(modifier = Modifier.padding(end = 8.dp)) {
                         Text(mediaItem.fileName, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                        Text("${(currentIndex + 1).coerceAtLeast(1)} of ${allItems.size}", color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.media_position, (currentIndex + 1).coerceAtLeast(1), allItems.size), color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 IconButton(onClick = { detailsExpanded = !detailsExpanded }) {
-                    Icon(Icons.Default.Info, contentDescription = "Toggle details", tint = Color.White)
+                    Icon(Icons.Default.Info, contentDescription = stringResource(R.string.toggle_details), tint = Color.White)
                 }
                 IconButton(onClick = { shareGalleryMedia(context, listOf(mediaItem)) }) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
+                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share), tint = Color.White)
                 }
                 IconButton(onClick = { openMediaExternal(context, mediaItem) }) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open externally", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = stringResource(R.string.open_externally), tint = Color.White)
                 }
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = Color.White)
                 }
             }
         }
@@ -172,14 +174,14 @@ fun MediaViewerScreen(
         ViewerNavButton(
             visible = currentIndex > 0,
             icon = Icons.Default.ChevronLeft,
-            contentDescription = "Previous item",
+            contentDescription = stringResource(R.string.previous_item),
             modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
             onClick = { coroutineScope.launch { pagerState.animateScrollToPage(currentIndex - 1) } },
         )
         ViewerNavButton(
             visible = currentIndex < allItems.lastIndex,
             icon = Icons.Default.ChevronRight,
-            contentDescription = "Next item",
+            contentDescription = stringResource(R.string.next_item),
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
             onClick = { coroutineScope.launch { pagerState.animateScrollToPage(currentIndex + 1) } },
         )
@@ -200,8 +202,8 @@ fun MediaViewerScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(formatViewerDateTime(mediaItem.timestamp), color = Color.White, style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ViewerMetaChip(if (mediaItem.type == CaptureType.PHOTO) "Photo" else "Video")
-                        if (mediaItem.fileSizeBytes > 0) ViewerMetaChip(formatFileSize(mediaItem.fileSizeBytes))
+                        ViewerMetaChip(if (mediaItem.type == CaptureType.PHOTO) stringResource(R.string.photo) else stringResource(R.string.video))
+                        if (mediaItem.fileSizeBytes > 0) ViewerMetaChip(formatFileSize(context, mediaItem.fileSizeBytes))
                         if (mediaItem.type == CaptureType.VIDEO && mediaItem.durationMs > 0) ViewerMetaChip(formatDuration(mediaItem.durationMs))
                     }
                 }
@@ -276,7 +278,7 @@ private fun PhotoViewer(
                 contentScale = ContentScale.Fit,
             )
         } else {
-            ViewerUnavailable(icon = Icons.Default.PhotoCamera, label = "Image not available")
+            ViewerUnavailable(icon = Icons.Default.PhotoCamera, label = stringResource(R.string.image_not_available))
         }
     }
 }
@@ -315,7 +317,7 @@ private fun VideoViewer(filePath: String) {
                 },
             )
         } else {
-            ViewerUnavailable(icon = Icons.Default.Videocam, label = "Video not available")
+            ViewerUnavailable(icon = Icons.Default.Videocam, label = stringResource(R.string.video_not_available))
         }
     }
 }

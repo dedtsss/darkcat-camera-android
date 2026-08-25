@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.capture.PhotoCaptureHelper
 import com.raulshma.lenscast.camera.model.CameraLensInfo
 import com.raulshma.lenscast.camera.model.CameraSettings
@@ -382,7 +383,7 @@ class CameraViewModel(
 
     private fun startWebStreaming() {
         if (!streamingManager.isWebEnabled.value) {
-            Toast.makeText(context, "Web streaming is disabled in settings.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.web_streaming_disabled, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -390,7 +391,7 @@ class CameraViewModel(
         if (_streamAudioEnabled.value && !_hasAudioPermission.value) {
             Toast.makeText(
                 context,
-                "Microphone permission not granted. Streaming video without audio.",
+                R.string.microphone_permission_streaming,
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -407,7 +408,7 @@ class CameraViewModel(
             if (!wasLive && !streamingManager.isLiveStreaming()) {
                 endStreamingSession()
             }
-            Toast.makeText(context, "Failed to start web streaming.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.failed_start_web_streaming, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -421,7 +422,7 @@ class CameraViewModel(
 
     private fun startRtspStreaming() {
         if (!streamingManager.isRtspEnabled.value) {
-            Toast.makeText(context, "RTSP streaming is disabled in settings.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.rtsp_streaming_disabled, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -437,7 +438,7 @@ class CameraViewModel(
             if (!wasLive && !streamingManager.isLiveStreaming()) {
                 endStreamingSession()
             }
-            Toast.makeText(context, "Failed to start RTSP streaming.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.failed_start_rtsp_streaming, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -537,7 +538,7 @@ class CameraViewModel(
         } else {
             _streamStatus.value = _streamStatus.value.copy(
                 isServerRunning = false,
-                url = "Failed to start server",
+                url = context.getString(R.string.failed_start_server),
             )
         }
     }
@@ -575,7 +576,7 @@ class CameraViewModel(
         if (url.isNotEmpty()) {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("Stream URL", url))
-            Toast.makeText(context, "Stream URL copied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.stream_url_copied, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -584,7 +585,7 @@ class CameraViewModel(
         if (url.isNotEmpty()) {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("RTSP URL", url))
-            Toast.makeText(context, "RTSP URL copied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.rtsp_url_copied, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -623,7 +624,7 @@ class CameraViewModel(
             if (_recordingAudioEnabled.value && !_hasAudioPermission.value) {
                 Toast.makeText(
                     context,
-                    "Microphone permission not granted. Recording video without audio.",
+                    R.string.microphone_permission_recording,
                     Toast.LENGTH_SHORT
                 ).show()
             }

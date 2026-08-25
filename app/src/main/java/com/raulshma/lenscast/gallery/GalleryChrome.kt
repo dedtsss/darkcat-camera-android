@@ -41,8 +41,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.raulshma.lenscast.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,13 +60,13 @@ fun GallerySelectModeTopBar(
     TopAppBar(
         title = {
             Text(
-                text = "${selectedCount.coerceAtMost(allCount)} of $allCount selected",
+                text = stringResource(R.string.selected_of_total, selectedCount.coerceAtMost(allCount), allCount),
                 fontWeight = FontWeight.SemiBold,
             )
         },
         navigationIcon = {
             IconButton(onClick = onExitSelectMode) {
-                Icon(Icons.Default.Deselect, contentDescription = "Exit selection mode")
+                Icon(Icons.Default.Deselect, contentDescription = stringResource(R.string.exit_selection_mode))
             }
         },
         actions = {
@@ -73,7 +76,7 @@ fun GallerySelectModeTopBar(
             ) {
                 Icon(
                     imageVector = if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
-                    contentDescription = if (allSelected) "Deselect all" else "Select all",
+                    contentDescription = if (allSelected) stringResource(R.string.deselect_all) else stringResource(R.string.select_all),
                 )
             }
         },
@@ -109,20 +112,20 @@ fun GallerySelectModeBottomBar(
         ) {
             Column {
                 Text(
-                    text = "$selectedCount selected",
+                    text = stringResource(R.string.selected_count, selectedCount),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = if (selectedCount == 0) "Choose items to share or delete" else "Batch actions are ready",
+                    text = if (selectedCount == 0) stringResource(R.string.choose_items_to_share_or_delete) else stringResource(R.string.batch_actions_ready),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GalleryActionPill(
-                    label = "Share",
+                    label = stringResource(R.string.share),
                     icon = Icons.Default.Share,
                     enabled = selectedCount > 0,
                     destructive = false,
@@ -130,7 +133,7 @@ fun GallerySelectModeBottomBar(
                     onClick = onShareSelected,
                 )
                 GalleryActionPill(
-                    label = if (batchDeleting) "Deleting" else "Delete",
+                    label = if (batchDeleting) stringResource(R.string.deleting) else stringResource(R.string.delete),
                     icon = Icons.Default.Delete,
                     enabled = selectedCount > 0 && !batchDeleting,
                     destructive = true,
@@ -149,6 +152,7 @@ fun GalleryOverviewCard(
     visibleBytes: Long,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -160,34 +164,34 @@ fun GalleryOverviewCard(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Your LensCast library",
+                    text = stringResource(R.string.your_lenscast_library),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = if (overview.totalCount == 0) {
-                        "Captured photos and videos will appear here."
+                        stringResource(R.string.captured_media_will_appear)
                     } else {
-                        "Showing $visibleCount of ${overview.totalCount} items across ${overview.dayCount} day${if (overview.dayCount == 1) "" else "s"}."
+                        stringResource(R.string.gallery_overview, visibleCount, overview.totalCount, overview.dayCount)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            GalleryStatTile("Photos", overview.photoCount.toString(), Icons.Default.Image)
-            GalleryStatTile("Videos", overview.videoCount.toString(), Icons.Default.Movie)
+            GalleryStatTile(stringResource(R.string.photos), overview.photoCount.toString(), Icons.Default.Image)
+            GalleryStatTile(stringResource(R.string.videos), overview.videoCount.toString(), Icons.Default.Movie)
             GalleryStatTile(
-                title = "Visible",
+                title = stringResource(R.string.visible),
                 value = visibleCount.toString(),
                 icon = Icons.Default.PhotoLibrary,
-                supporting = formatFileSize(visibleBytes),
+                supporting = formatFileSize(context, visibleBytes),
             )
             GalleryStatTile(
-                title = "Storage",
-                value = formatFileSize(overview.totalBytes),
+                title = stringResource(R.string.storage),
+                value = formatFileSize(context, overview.totalBytes),
                 icon = Icons.Default.Folder,
-                supporting = "In app library",
+                supporting = stringResource(R.string.in_app_library),
             )
         }
     }
@@ -209,9 +213,9 @@ fun GalleryFilterRow(
     ) {
         GalleryFilter.entries.forEach { filter ->
             val label = when (filter) {
-                GalleryFilter.ALL -> "All (${overview.totalCount})"
-                GalleryFilter.PHOTOS -> "Photos (${overview.photoCount})"
-                GalleryFilter.VIDEOS -> "Videos (${overview.videoCount})"
+                GalleryFilter.ALL -> stringResource(R.string.all_media, overview.totalCount)
+                GalleryFilter.PHOTOS -> stringResource(R.string.photos_media, overview.photoCount)
+                GalleryFilter.VIDEOS -> stringResource(R.string.videos_media, overview.videoCount)
             }
             FilterChip(
                 selected = currentFilter == filter,

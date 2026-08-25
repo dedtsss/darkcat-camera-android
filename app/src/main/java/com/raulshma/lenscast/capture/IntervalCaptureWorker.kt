@@ -21,6 +21,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.raulshma.lenscast.MainActivity
 import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
 import com.raulshma.lenscast.capture.PhotoCaptureHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -140,12 +141,12 @@ class IntervalCaptureWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
         val contentText = if (totalCaptures > 0) {
-            "Capturing photo ${completedCaptures + 1} of $totalCaptures"
+            applicationContext.getString(R.string.interval_capture_progress, completedCaptures + 1, totalCaptures)
         } else {
-            "Capturing interval photo"
+            applicationContext.getString(R.string.interval_capture_in_progress)
         }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setContentTitle("LensCast Interval Capture")
+            .setContentTitle(applicationContext.getString(R.string.interval_capture_notification_title))
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(pendingIntent)
@@ -168,7 +169,7 @@ class IntervalCaptureWorker(
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Interval Capture",
+            applicationContext.getString(R.string.interval_capture_notification_channel),
             NotificationManager.IMPORTANCE_LOW
         )
         manager.createNotificationChannel(channel)
