@@ -111,7 +111,7 @@ jobs:
           jq -n --arg versionName "$version" --argjson versionCode "$((100000 + GITHUB_RUN_NUMBER))" \
             --arg gitSha "$GITHUB_SHA" --arg buildRunId "$GITHUB_RUN_ID" --arg channel "lenscast-test" \
             --arg apk "$APK_URL" --arg sha256 "$sha" \
-            '{versionName,versionCode,gitSha,buildRunId,channel,apk,sha256}' > app/build/outputs/apk/debug/latest.json
+            '{versionName: $versionName, versionCode: $versionCode, gitSha: $gitSha, buildRunId: $buildRunId, channel: $channel, apk: $apk, sha256: $sha256}' > app/build/outputs/apk/debug/latest.json
       - name: Publish isolated Bruce lenscast-test channel
         env:
           BRUCE_SFTP_HOST: ${{ secrets.BRUCE_SFTP_HOST }}
