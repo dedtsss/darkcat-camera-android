@@ -33,7 +33,7 @@ jobs:
           apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
           test -n "$apk"
           ! "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk" >/dev/null 2>&1
-      - name: Upload build diagnostics
+      - name: Upload build diagnostics and clean unsigned release artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -86,72 +86,4 @@ jobs:
             app/build/outputs/androidTest-results/**
             app/build/reports/androidTests/**
           if-no-files-found: ignore
-          retention-days: 3
-
-  publish-lenscast-test:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/agent/lenscast-adoption-baseline'
-    needs: [build, emulator-smoke]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Assemble unsigned publishable test APK
-        run: ./gradlew assembleRelease -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
-      - name: Fail closed until Bruce signs
-        run: |
-          test -z "${BRUCE_SIGNING_KEYSTORE:-}" || { echo 'Hosted signing is not supported by this workflow'; exit 1; }
-          apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
-          test -n "$apk"
-          ! "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk" >/dev/null 2>&1
-      - name: Create isolated publication manifest
-        env:
-          APK_URL: https://darkcat.bruce-group.net/lenscast-test/latest.apk
-        run: |
-          set -euo pipefail
-          apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
-          test -n "$apk"
-          cp "$apk" app/build/outputs/apk/release/latest.apk
-          sha=$(sha256sum app/build/outputs/apk/release/latest.apk | awk '{print $1}')
-          sha256sum app/build/outputs/apk/release/latest.apk > app/build/outputs/apk/release/SHA256SUMS
-          version="0.0.9-test.${GITHUB_RUN_NUMBER}"
-          jq -n --arg versionName "$version" --argjson versionCode "$((100000 + GITHUB_RUN_NUMBER))" \
-            --arg gitSha "$GITHUB_SHA" --arg buildRunId "$GITHUB_RUN_ID" --arg channel "lenscast-test" \
-            --arg apk "$APK_URL" --arg sha256 "$sha" \
-            '{versionName: $versionName, versionCode: $versionCode, gitSha: $gitSha, buildRunId: $buildRunId, channel: $channel, apk: $apk, sha256: $sha256}' > app/build/outputs/apk/release/latest.json
-      - name: Publish isolated Bruce lenscast-test channel
-        env:
-          BRUCE_SFTP_HOST: ${{ secrets.BRUCE_SFTP_HOST }}
-          BRUCE_SFTP_USER: ${{ secrets.BRUCE_SFTP_USER }}
-          BRUCE_SFTP_PATH: ${{ secrets.BRUCE_SFTP_PATH }}
-          BRUCE_SFTP_KEY: ${{ secrets.BRUCE_SFTP_KEY }}
-          BRUCE_SFTP_KNOWN_HOSTS: ${{ secrets.BRUCE_SFTP_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          key_file=$(mktemp)
-          known_hosts_file=$(mktemp)
-          trap 'rm -f "$key_file" "$known_hosts_file"' EXIT
-          umask 077
-          printf '%s\n' "$BRUCE_SFTP_KEY" > "$key_file"
-          printf '%s\n' "$BRUCE_SFTP_KNOWN_HOSTS" > "$known_hosts_file"
-          remote_dir="${BRUCE_SFTP_PATH%/}/lenscast-test"
-          ssh -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
-            "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST" "mkdir -p '$remote_dir'"
-          scp -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
-            app/build/outputs/apk/release/latest.apk app/build/outputs/apk/release/latest.json app/build/outputs/apk/release/SHA256SUMS \
-            "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST:$remote_dir/"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lenscast-test-publication-metadata-${{ github.run_id }}
-          path: |
-            app/build/outputs/apk/release/latest.json
-            app/build/outputs/apk/release/SHA256SUMS
           retention-days: 3
