@@ -29,7 +29,7 @@ grep -Fq "versionCode='$version_code'" <<<"$badging"
 name="darkcat-camera-${version_name}.apk"; release_dir=$publish_root/releases; mkdir -p "$release_dir"; destination=$release_dir/$name
 [[ ! -e "$destination" ]] || { echo 'immutable release already exists' >&2; exit 1; }
 sha=$(sha256sum "$signed" | awk '{print $1}'); manifest=$tmp/latest.json
-jq -n --arg versionName "$version_name" --argjson versionCode "$version_code" --arg gitSha "$git_sha" --arg buildRunId "$build_run_id" --arg channel lenscast-test --arg apk "https://darkcat.bruce-group.net/lenscast-test/releases/$name" --arg sha256 "$sha" '{versionName,versionCode,gitSha,buildRunId,channel,apk,sha256}' > "$manifest"
+jq -n --arg versionName "$version_name" --argjson versionCode "$version_code" --arg gitSha "$git_sha" --arg buildRunId "$build_run_id" --arg channel lenscast-test --arg apk "https://darkcat.bruce-group.net/lenscast-test/releases/$name" --arg sha256 "$sha" '{versionName:$versionName,versionCode:$versionCode,gitSha:$gitSha,buildRunId:$buildRunId,channel:$channel,apk:$apk,sha256:$sha256}' > "$manifest"
 cp -p "$signed" "$destination"
 printf '%s  %s\n' "$sha" "$name" > "$tmp/SHA256SUMS"; install -m 0644 "$tmp/SHA256SUMS" "$publish_root/SHA256SUMS"
 install -m 0644 "$manifest" "$publish_root/latest.json.tmp"; mv -f "$publish_root/latest.json.tmp" "$publish_root/latest.json"
