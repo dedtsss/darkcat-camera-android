@@ -119,16 +119,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            val releaseSigning = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigning.storeFile != null &&
-                !releaseSigning.storePassword.isNullOrEmpty() &&
-                !releaseSigning.keyAlias.isNullOrEmpty() &&
-                !releaseSigning.keyPassword.isNullOrEmpty()
-            ) {
-                releaseSigning
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Publishable artifacts are intentionally unsigned in CI. Bruce signs
+            // them with the permanent lenscast-test identity before publication.
+            // Never fall back to a machine-local debug signer.
+            signingConfig = null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

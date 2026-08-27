@@ -95,23 +95,29 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Assemble publishable test APK
-        run: ./gradlew assembleDebug -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
+      - name: Assemble unsigned publishable test APK
+        run: ./gradlew assembleRelease -PversionCode=$((100000 + GITHUB_RUN_NUMBER)) -PversionName=0.0.9-test.${GITHUB_RUN_NUMBER}
+      - name: Fail closed until Bruce signs
+        run: |
+          test -z "${BRUCE_SIGNING_KEYSTORE:-}" || { echo 'Hosted signing is not supported by this workflow'; exit 1; }
+          apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
+          test -n "$apk"
+          ! "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk" >/dev/null 2>&1
       - name: Create isolated publication manifest
         env:
           APK_URL: https://darkcat.bruce-group.net/lenscast-test/latest.apk
         run: |
           set -euo pipefail
-          apk=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)
+          apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
           test -n "$apk"
-          cp "$apk" app/build/outputs/apk/debug/latest.apk
-          sha=$(sha256sum app/build/outputs/apk/debug/latest.apk | awk '{print $1}')
-          sha256sum app/build/outputs/apk/debug/latest.apk > app/build/outputs/apk/debug/SHA256SUMS
+          cp "$apk" app/build/outputs/apk/release/latest.apk
+          sha=$(sha256sum app/build/outputs/apk/release/latest.apk | awk '{print $1}')
+          sha256sum app/build/outputs/apk/release/latest.apk > app/build/outputs/apk/release/SHA256SUMS
           version="0.0.9-test.${GITHUB_RUN_NUMBER}"
           jq -n --arg versionName "$version" --argjson versionCode "$((100000 + GITHUB_RUN_NUMBER))" \
             --arg gitSha "$GITHUB_SHA" --arg buildRunId "$GITHUB_RUN_ID" --arg channel "lenscast-test" \
             --arg apk "$APK_URL" --arg sha256 "$sha" \
-            '{versionName: $versionName, versionCode: $versionCode, gitSha: $gitSha, buildRunId: $buildRunId, channel: $channel, apk: $apk, sha256: $sha256}' > app/build/outputs/apk/debug/latest.json
+            '{versionName: $versionName, versionCode: $versionCode, gitSha: $gitSha, buildRunId: $buildRunId, channel: $channel, apk: $apk, sha256: $sha256}' > app/build/outputs/apk/release/latest.json
       - name: Publish isolated Bruce lenscast-test channel
         env:
           BRUCE_SFTP_HOST: ${{ secrets.BRUCE_SFTP_HOST }}
@@ -131,12 +137,12 @@ jobs:
           ssh -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
             "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST" "mkdir -p '$remote_dir'"
           scp -i "$key_file" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts_file" \
-            app/build/outputs/apk/debug/latest.apk app/build/outputs/apk/debug/latest.json app/build/outputs/apk/debug/SHA256SUMS \
+            app/build/outputs/apk/release/latest.apk app/build/outputs/apk/release/latest.json app/build/outputs/apk/release/SHA256SUMS \
             "$BRUCE_SFTP_USER@$BRUCE_SFTP_HOST:$remote_dir/"
       - uses: actions/upload-artifact@v4
         with:
           name: lenscast-test-publication-metadata-${{ github.run_id }}
           path: |
-            app/build/outputs/apk/debug/latest.json
-            app/build/outputs/apk/debug/SHA256SUMS
+            app/build/outputs/apk/release/latest.json
+            app/build/outputs/apk/release/SHA256SUMS
           retention-days: 3
