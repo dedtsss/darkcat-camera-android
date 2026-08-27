@@ -1036,7 +1036,7 @@ private fun HorizontalQuickSettingsBar(
             )
             QuickSettingPill(
                 icon = Icons.Default.Handyman,
-                label = if (settings.stabilization) "OIS" else "OFF",
+                label = if (settings.stabilization) "OIS" else stringResource(R.string.off),
                 isActive = activeSetting == QuickSettingType.STABILIZATION,
                 onClick = { onSettingTap(QuickSettingType.STABILIZATION) }
             )
@@ -1044,8 +1044,8 @@ private fun HorizontalQuickSettingsBar(
                 icon = Icons.Default.NightsStay,
                 label = when (settings.nightVisionMode) {
                     NightVisionMode.ON -> "IR"
-                    NightVisionMode.AUTO -> "AUTO"
-                    NightVisionMode.OFF -> "OFF"
+                    NightVisionMode.AUTO -> stringResource(R.string.auto)
+                    NightVisionMode.OFF -> stringResource(R.string.off)
                 },
                 isActive = activeSetting == QuickSettingType.NIGHT_VISION,
                 onClick = { onSettingTap(QuickSettingType.NIGHT_VISION) }
