@@ -16,6 +16,7 @@ import com.raulshma.lenscast.camera.model.CameraSettings
 import com.raulshma.lenscast.camera.model.FocusMode
 import com.raulshma.lenscast.camera.model.HdrMode
 import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
 import com.raulshma.lenscast.camera.model.MaskingType
 import com.raulshma.lenscast.camera.model.MaskingZone
 import com.raulshma.lenscast.camera.model.OverlayPosition
@@ -148,6 +149,7 @@ class SettingsDataStore(private val context: Context) {
         val ADAPTIVE_BITRATE_ENABLED = stringPreferencesKey("adaptive_bitrate_enabled")
         val MDNS_ENABLED = stringPreferencesKey("mdns_enabled")
         val NIGHT_VISION_MODE = stringPreferencesKey("night_vision_mode")
+        val PHOTO_FLASH_MODE = stringPreferencesKey("photo_flash_mode")
         val OVERLAY_ENABLED = stringPreferencesKey("overlay_enabled")
         val OVERLAY_SHOW_TIMESTAMP = stringPreferencesKey("overlay_show_timestamp")
         val OVERLAY_TIMESTAMP_FORMAT = stringPreferencesKey("overlay_timestamp_format")
@@ -207,6 +209,11 @@ class SettingsDataStore(private val context: Context) {
                 NightVisionMode.valueOf(prefs[Keys.NIGHT_VISION_MODE] ?: NightVisionMode.OFF.name)
             } catch (_: Exception) {
                 NightVisionMode.OFF
+            },
+            photoFlashMode = try {
+                PhotoFlashMode.valueOf(prefs[Keys.PHOTO_FLASH_MODE] ?: PhotoFlashMode.OFF.name)
+            } catch (_: Exception) {
+                PhotoFlashMode.OFF
             },
         )
     }
@@ -317,6 +324,7 @@ class SettingsDataStore(private val context: Context) {
                 prefs.remove(Keys.SCENE_MODE)
             }
             prefs[Keys.NIGHT_VISION_MODE] = settings.nightVisionMode.name
+            prefs[Keys.PHOTO_FLASH_MODE] = settings.photoFlashMode.name
         }
     }
 
@@ -571,9 +579,9 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun saveUpdateDismissedVersion(version: String) {
+    suspend fun clearLegacyUpdateDismissedVersion() {
         context.dataStore.edit { prefs ->
-            prefs[Keys.UPDATE_DISMISSED_VERSION] = version
+            prefs.remove(Keys.UPDATE_DISMISSED_VERSION)
         }
     }
 

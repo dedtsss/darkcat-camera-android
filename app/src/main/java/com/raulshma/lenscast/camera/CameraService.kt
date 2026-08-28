@@ -36,6 +36,7 @@ import com.raulshma.lenscast.camera.model.FocusMode
 import com.raulshma.lenscast.camera.model.WhiteBalance
 import com.raulshma.lenscast.camera.model.HdrMode
 import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,6 +96,9 @@ class CameraService(private val context: Context) {
 
     private val _isFrontCamera = MutableStateFlow(false)
     val isFrontCamera: StateFlow<Boolean> = _isFrontCamera.asStateFlow()
+
+    private val _hasFlashUnit = MutableStateFlow(false)
+    val hasFlashUnit: StateFlow<Boolean> = _hasFlashUnit.asStateFlow()
 
     private val _availableZoomRange = MutableStateFlow<ClosedFloatingPointRange<Float>>(1f..10f)
     val availableZoomRange: StateFlow<ClosedFloatingPointRange<Float>> = _availableZoomRange.asStateFlow()
@@ -557,6 +561,7 @@ class CameraService(private val context: Context) {
                 cam.cameraInfo.zoomState.value?.let { zoom ->
                     _availableZoomRange.value = 1f..zoom.maxZoomRatio.coerceAtMost(20f)
                 }
+                _hasFlashUnit.value = cam.cameraInfo.hasFlashUnit()
                 val expState = cam.cameraInfo.exposureState
                 _availableExposureRange.value = expState.exposureCompensationRange.lower..
                         expState.exposureCompensationRange.upper
@@ -641,6 +646,7 @@ class CameraService(private val context: Context) {
         imageCapture = null
         imageAnalysis = null
         camera = null
+        _hasFlashUnit.value = false
     }
 
     fun switchCamera(previewView: PreviewView) {
@@ -869,6 +875,18 @@ class CameraService(private val context: Context) {
     @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
     private fun applyCameraControls(settings: CameraSettings) {
         val cam = camera ?: return
+
+        imageCapture?.let { capture ->
+            capture.flashMode = if (!cam.cameraInfo.hasFlashUnit()) {
+                ImageCapture.FLASH_MODE_OFF
+            } else {
+                when (settings.photoFlashMode) {
+                    PhotoFlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+                    PhotoFlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+                    PhotoFlashMode.ON -> ImageCapture.FLASH_MODE_ON
+                }
+            }
+        }
 
         try {
             cam.cameraControl.setZoomRatio(settings.zoomRatio)

@@ -54,24 +54,19 @@ class UpdateViewModel(
             when (val result = updateChecker.checkForUpdate()) {
                 is UpdateCheckResult.UpdateAvailable -> {
                     val remoteVersion = result.release.tagName.trimStart('v')
-                    val dismissed = settingsDataStore.updateDismissedVersion.first()
+                    settingsDataStore.clearLegacyUpdateDismissedVersion()
                     settingsDataStore.saveUpdateLastCheckTime(System.currentTimeMillis())
                     _lastCheckTime.value = System.currentTimeMillis()
 
-                    if (dismissed == remoteVersion) {
-                        Log.d(TAG, "Update $remoteVersion dismissed by user")
-                        _updateState.value = UpdateState.UpToDate(remoteVersion)
-                    } else {
-                        Log.d(TAG, "Update available: $remoteVersion")
-                        _updateState.value = UpdateState.UpdateAvailable(
-                            version = remoteVersion,
-                            releaseNotes = result.release.body,
-                            downloadUrl = result.apkAsset.browserDownloadUrl,
-                            fileSizeBytes = result.apkAsset.size,
-                            fileName = result.apkAsset.name,
-                        )
-                        updateNotifier.showUpdateAvailable(remoteVersion)
-                    }
+                    Log.d(TAG, "Update available: $remoteVersion")
+                    _updateState.value = UpdateState.UpdateAvailable(
+                        version = remoteVersion,
+                        releaseNotes = result.release.body,
+                        downloadUrl = result.apkAsset.browserDownloadUrl,
+                        fileSizeBytes = result.apkAsset.size,
+                        fileName = result.apkAsset.name,
+                    )
+                    updateNotifier.showUpdateAvailable(remoteVersion)
                 }
                 is UpdateCheckResult.UpToDate -> {
                     Log.d(TAG, "App is up to date (local=${result.localVersion}, remote=${result.remoteVersion})")
@@ -123,10 +118,7 @@ class UpdateViewModel(
     }
 
     fun dismissUpdate() {
-        val state = _updateState.value as? UpdateState.UpdateAvailable ?: return
-        viewModelScope.launch {
-            settingsDataStore.saveUpdateDismissedVersion(state.version)
-        }
+        if (_updateState.value !is UpdateState.UpdateAvailable) return
         updateNotifier.cancel()
         _updateState.value = UpdateState.Idle
     }

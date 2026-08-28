@@ -114,6 +114,10 @@
     <string name="jpeg_quality">JPEG quality</string>
     <string name="capture_mode">Capture mode</string>
     <string name="flash_mode">Flash mode</string>
+    <string name="flash_off">Off</string>
+    <string name="flash_auto">Auto</string>
+    <string name="flash_on">On</string>
+    <string name="shot_confirmation">Photo captured</string>
     <string name="start_interval">Start interval</string>
     <string name="stop_interval">Stop interval</string>
     <string name="scheduled_recording">Scheduled recording</string>

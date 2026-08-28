@@ -114,6 +114,10 @@
     <string name="jpeg_quality">Качество JPEG</string>
     <string name="capture_mode">Режим съёмки</string>
     <string name="flash_mode">Режим вспышки</string>
+    <string name="flash_off">Выкл.</string>
+    <string name="flash_auto">Авто</string>
+    <string name="flash_on">Вкл.</string>
+    <string name="shot_confirmation">Фото снято</string>
     <string name="start_interval">Начать интервал</string>
     <string name="stop_interval">Остановить интервал</string>
     <string name="scheduled_recording">Запись по расписанию</string>

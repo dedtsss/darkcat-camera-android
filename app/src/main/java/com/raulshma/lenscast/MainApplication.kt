@@ -199,10 +199,8 @@ class MainApplication : Application(), SingletonImageLoader.Factory {
             when (val result = updateChecker.checkForUpdate()) {
                 is UpdateCheckResult.UpdateAvailable -> {
                     val remoteVersion = result.release.tagName.trimStart('v')
-                    val dismissed = settings.updateDismissedVersion.first()
-                    if (dismissed != remoteVersion) {
-                        updateNotifier.showUpdateAvailable(remoteVersion)
-                    }
+                    settings.clearLegacyUpdateDismissedVersion()
+                    updateNotifier.showUpdateAvailable(remoteVersion)
                     settings.saveUpdateLastCheckTime(System.currentTimeMillis())
                 }
                 is com.raulshma.lenscast.update.model.UpdateCheckResult.UpToDate -> {

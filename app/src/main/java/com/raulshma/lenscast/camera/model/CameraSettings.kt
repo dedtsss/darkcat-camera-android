@@ -22,6 +22,8 @@ enum class HdrMode { OFF, ON, AUTO }
 
 enum class NightVisionMode { OFF, AUTO, ON }
 
+enum class PhotoFlashMode { OFF, AUTO, ON }
+
 data class CameraSettings(
     val exposureCompensation: Int = 0,
     val iso: Int? = null,
@@ -37,4 +39,5 @@ data class CameraSettings(
     val stabilization: Boolean = true,
     val hdrMode: HdrMode = HdrMode.OFF,
     val nightVisionMode: NightVisionMode = NightVisionMode.OFF,
+    val photoFlashMode: PhotoFlashMode = PhotoFlashMode.OFF,
 )

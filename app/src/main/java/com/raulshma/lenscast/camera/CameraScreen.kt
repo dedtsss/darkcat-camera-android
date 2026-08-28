@@ -135,12 +135,15 @@ import com.raulshma.lenscast.camera.model.CameraState
 import com.raulshma.lenscast.camera.model.FocusMode
 import com.raulshma.lenscast.camera.model.HdrMode
 import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
 import com.raulshma.lenscast.camera.model.Resolution
 import com.raulshma.lenscast.camera.model.WhiteBalance
 import com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkQualityLevel
 import com.raulshma.lenscast.core.ThermalState
 import com.raulshma.lenscast.ui.theme.LensOrange
 import com.raulshma.lenscast.ui.theme.LensRed
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import kotlin.math.absoluteValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -151,7 +154,7 @@ private val TopGradientColor = Color(0x78000000)
 private val BottomGradientColor = Color(0x78000000)
 
 private enum class QuickSettingType {
-    EXPOSURE, ISO, WHITE_BALANCE, FOCUS, ZOOM, HDR, RESOLUTION, FRAME_RATE, STABILIZATION, NIGHT_VISION
+    FLASH, EXPOSURE, ISO, WHITE_BALANCE, FOCUS, ZOOM, HDR, RESOLUTION, FRAME_RATE, STABILIZATION, NIGHT_VISION
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -183,6 +186,8 @@ fun CameraScreen(
     val adaptiveBitrateState by viewModel.adaptiveBitrateState.collectAsState()
     val connectionQualityStats by viewModel.connectionQualityStats.collectAsState()
     val hasAudioPermission by viewModel.hasAudioPermission.collectAsState()
+    val hasFlashUnit by viewModel.hasFlashUnit.collectAsState()
+    val shotConfirmation by viewModel.shotConfirmation.collectAsState()
 
     val mediaPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -199,8 +204,9 @@ fun CameraScreen(
     }
 
     var shutterFeedbackSequence by remember { mutableIntStateOf(0) }
-    var shutterOutlineVisible by remember { mutableStateOf(false) }
     var shutterButtonPressed by remember { mutableStateOf(false) }
+    var capturedCardPath by remember { mutableStateOf<String?>(null) }
+    var capturedCardVisible by remember { mutableStateOf(false) }
 
     var quickSettingsExpanded by remember { mutableStateOf(false) }
     var activeSetting by remember { mutableStateOf<QuickSettingType?>(null) }
@@ -221,12 +227,19 @@ fun CameraScreen(
 
     LaunchedEffect(shutterFeedbackSequence) {
         if (shutterFeedbackSequence == 0) return@LaunchedEffect
-        shutterOutlineVisible = true
         shutterButtonPressed = true
         delay(100)
         shutterButtonPressed = false
-        delay(30)
-        shutterOutlineVisible = false
+    }
+
+    LaunchedEffect(shotConfirmation?.id) {
+        val shot = shotConfirmation ?: return@LaunchedEffect
+        capturedCardPath = shot.uriOrPath
+        capturedCardVisible = true
+        delay(450)
+        capturedCardVisible = false
+        delay(80)
+        capturedCardPath = null
     }
 
     when (cameraState) {
@@ -258,7 +271,9 @@ fun CameraScreen(
                 connectionQualityStats = connectionQualityStats,
                 quickSettingsExpanded = quickSettingsExpanded,
                 activeSetting = activeSetting,
-                shutterOutlineVisible = shutterOutlineVisible,
+                capturedCardPath = capturedCardPath,
+                capturedCardVisible = capturedCardVisible,
+                hasFlashUnit = hasFlashUnit,
                 shutterButtonPressed = shutterButtonPressed,
                 isPinching = isPinching,
                 pinchZoomRatio = pinchZoomRatio,
@@ -309,6 +324,7 @@ fun CameraScreen(
                     onUpdateResolution = { viewModel.updateResolution(it) },
                     onUpdateStabilization = { viewModel.updateStabilization(it) },
                     onUpdateNightVisionMode = { viewModel.updateNightVisionMode(it) },
+                    onUpdatePhotoFlashMode = { viewModel.updatePhotoFlashMode(it) },
                 )
             }
         }
@@ -332,7 +348,9 @@ private fun ImmersiveCameraView(
     connectionQualityStats: com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkStatsSnapshot?,
     quickSettingsExpanded: Boolean,
     activeSetting: QuickSettingType?,
-    shutterOutlineVisible: Boolean,
+    capturedCardPath: String?,
+    capturedCardVisible: Boolean,
+    hasFlashUnit: Boolean,
     shutterButtonPressed: Boolean,
     isPinching: Boolean,
     pinchZoomRatio: Float,
@@ -386,11 +404,20 @@ private fun ImmersiveCameraView(
             }
         }
 
-        if (shutterOutlineVisible) {
-            Box(
+        AnimatedVisibility(
+            visible = capturedCardVisible && capturedCardPath != null,
+            modifier = Modifier.align(Alignment.Center),
+            enter = fadeIn(tween(90)) + scaleIn(initialScale = 0.90f, animationSpec = tween(140)),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.96f, animationSpec = tween(180)),
+        ) {
+            AsyncImage(
+                model = capturedCardPath,
+                contentDescription = stringResource(R.string.shot_confirmation),
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .border(2.dp, Color.White.copy(alpha = 0.78f))
+                    .fillMaxSize(0.93f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.90f), RoundedCornerShape(12.dp)),
             )
         }
 
@@ -475,6 +502,7 @@ private fun ImmersiveCameraView(
             availableLenses = availableLenses,
             selectedLensIndex = selectedLensIndex,
             settings = settings,
+            hasFlashUnit = hasFlashUnit,
             quickSettingsExpanded = quickSettingsExpanded,
             activeSetting = activeSetting,
             isRecording = isRecording,
@@ -701,6 +729,7 @@ private fun CameraBottomOverlay(
     availableLenses: List<CameraLensInfo>,
     selectedLensIndex: Int,
     settings: CameraSettings,
+    hasFlashUnit: Boolean,
     quickSettingsExpanded: Boolean,
     activeSetting: QuickSettingType?,
     isRecording: Boolean,
@@ -731,6 +760,7 @@ private fun CameraBottomOverlay(
         ) {
             HorizontalQuickSettingsBar(
                 settings = settings,
+                hasFlashUnit = hasFlashUnit,
                 activeSetting = activeSetting,
                 onSettingTap = onQuickSettingTap,
             )
@@ -960,6 +990,7 @@ private fun ShutterButton(
 @Composable
 private fun HorizontalQuickSettingsBar(
     settings: CameraSettings,
+    hasFlashUnit: Boolean,
     activeSetting: QuickSettingType?,
     onSettingTap: (QuickSettingType) -> Unit,
 ) {
@@ -976,6 +1007,17 @@ private fun HorizontalQuickSettingsBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            QuickSettingPill(
+                icon = Icons.Default.Bolt,
+                label = when (settings.photoFlashMode) {
+                    PhotoFlashMode.OFF -> stringResource(R.string.flash_off)
+                    PhotoFlashMode.AUTO -> stringResource(R.string.flash_auto)
+                    PhotoFlashMode.ON -> stringResource(R.string.flash_on)
+                },
+                isActive = activeSetting == QuickSettingType.FLASH,
+                enabled = hasFlashUnit,
+                onClick = { onSettingTap(QuickSettingType.FLASH) }
+            )
             QuickSettingPill(
                 icon = Icons.Default.Exposure,
                 label = "${settings.exposureCompensation}",
@@ -1059,6 +1101,7 @@ private fun QuickSettingPill(
     icon: ImageVector,
     label: String,
     isActive: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val scale = remember { Animatable(1f) }
@@ -1078,7 +1121,8 @@ private fun QuickSettingPill(
                 scale.animateTo(1f, spring(stiffness = Spring.StiffnessHigh))
             }
             onClick()
-        }
+        },
+        enabled = enabled,
     ) {
         Row(
             modifier = Modifier
@@ -1135,6 +1179,7 @@ private fun QuickSettingSheet(
     onUpdateResolution: (String) -> Unit,
     onUpdateStabilization: (Boolean) -> Unit,
     onUpdateNightVisionMode: (String) -> Unit,
+    onUpdatePhotoFlashMode: (String) -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -1156,6 +1201,7 @@ private fun QuickSettingSheet(
         ) {
             Text(
                 text = when (type) {
+                    QuickSettingType.FLASH -> stringResource(R.string.flash_mode)
                     QuickSettingType.EXPOSURE -> stringResource(R.string.quick_setting_exposure)
                     QuickSettingType.ISO -> "ISO"
                     QuickSettingType.WHITE_BALANCE -> stringResource(R.string.quick_setting_white_balance)
@@ -1174,6 +1220,11 @@ private fun QuickSettingSheet(
             Spacer(modifier = Modifier.height(20.dp))
 
             when (type) {
+                QuickSettingType.FLASH -> ProChipSelector(
+                    options = PhotoFlashMode.entries.map { it.name },
+                    selected = settings.photoFlashMode.name,
+                    onSelect = onUpdatePhotoFlashMode
+                )
                 QuickSettingType.EXPOSURE -> ProSliderControl(
                     value = settings.exposureCompensation.toFloat(),
                     range = -12f..12f,

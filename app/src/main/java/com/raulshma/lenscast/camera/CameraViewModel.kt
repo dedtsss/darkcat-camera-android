@@ -23,6 +23,7 @@ import com.raulshma.lenscast.camera.model.CameraState
 import com.raulshma.lenscast.camera.model.FocusMode
 import com.raulshma.lenscast.camera.model.HdrMode
 import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
 import com.raulshma.lenscast.camera.model.Resolution
 import com.raulshma.lenscast.camera.model.StreamStatus
 import com.raulshma.lenscast.camera.model.WhiteBalance
@@ -87,6 +88,10 @@ class CameraViewModel(
     val availableLenses: StateFlow<List<CameraLensInfo>> = cameraService.availableLenses
     val selectedLensIndex: StateFlow<Int> = cameraService.selectedLensIndex
     val availableIsoRange: StateFlow<ClosedRange<Int>> = cameraService.availableIsoRange
+    val hasFlashUnit: StateFlow<Boolean> = cameraService.hasFlashUnit
+
+    private val _shotConfirmation = MutableStateFlow<ShotConfirmation?>(null)
+    val shotConfirmation: StateFlow<ShotConfirmation?> = _shotConfirmation.asStateFlow()
 
     private var currentPreviewView: PreviewView? = null
     private var batteryMonitorJob: Job? = null
@@ -353,6 +358,10 @@ class CameraViewModel(
         updateSettings { it.copy(nightVisionMode = NightVisionMode.valueOf(mode)) }
     }
 
+    fun updatePhotoFlashMode(mode: String) {
+        updateSettings { it.copy(photoFlashMode = PhotoFlashMode.valueOf(mode)) }
+    }
+
     fun togglePreview() {
         _showPreview.value = !_showPreview.value
         viewModelScope.launch {
@@ -604,6 +613,9 @@ class CameraViewModel(
                     fileSizeBytes = fileSizeBytes,
                 )
                 app.captureHistoryStore.add(entry)
+                if (filePath.isNotBlank()) {
+                    _shotConfirmation.value = ShotConfirmation(System.nanoTime(), filePath)
+                }
             },
             onError = { exception ->
                 Log.e(TAG, "Capture failed", exception)
@@ -659,6 +671,8 @@ class CameraViewModel(
         powerManager.releaseWakeLock()
         thermalMonitor.stopMonitoring()
     }
+
+    data class ShotConfirmation(val id: Long, val uriOrPath: String)
 
     class Factory(
         private val context: Context,
