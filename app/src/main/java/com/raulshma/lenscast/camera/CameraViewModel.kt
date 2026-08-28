@@ -590,7 +590,10 @@ class CameraViewModel(
     }
 
     fun capturePhoto() {
-        val imageCapture = cameraService.acquirePhotoCapture() ?: return
+        // The normal camera screen already owns a bound ImageCapture. Acquiring a
+        // keep-alive session here would switch lifecycle owners and rebind all
+        // CameraX use cases, interrupting Preview before and after every photo.
+        val imageCapture = cameraService.getImageCapture() ?: return
         val fileName = PhotoCaptureHelper.generateFileName()
         PhotoCaptureHelper.takePhoto(
             context, imageCapture, fileName,
@@ -601,11 +604,9 @@ class CameraViewModel(
                     fileSizeBytes = fileSizeBytes,
                 )
                 app.captureHistoryStore.add(entry)
-                cameraService.releasePhotoCapture()
             },
             onError = { exception ->
                 Log.e(TAG, "Capture failed", exception)
-                cameraService.releasePhotoCapture()
             },
         )
     }
