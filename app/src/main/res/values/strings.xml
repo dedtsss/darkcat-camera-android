@@ -64,6 +64,7 @@
     <string name="resolution_qhd_1440p">QHD 1440p</string>
     <string name="resolution_uhd_4k">UHD 4K</string>
     <string name="camera_back">Back</string>
+    <string name="camera_main">Main</string>
     <string name="camera_front">Front</string>
     <string name="camera_named">Camera %1$s</string>
     <string name="camera_ultrawide">Ultrawide</string>

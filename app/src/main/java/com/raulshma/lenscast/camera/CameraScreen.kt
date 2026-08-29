@@ -30,6 +30,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.positionChange
@@ -115,6 +116,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -188,6 +191,7 @@ fun CameraScreen(
     val hasAudioPermission by viewModel.hasAudioPermission.collectAsState()
     val hasFlashUnit by viewModel.hasFlashUnit.collectAsState()
     val shotConfirmation by viewModel.shotConfirmation.collectAsState()
+    val availableZoomRange by viewModel.availableZoomRange.collectAsState()
 
     val mediaPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -236,7 +240,7 @@ fun CameraScreen(
         val shot = shotConfirmation ?: return@LaunchedEffect
         capturedCardPath = shot.uriOrPath
         capturedCardVisible = true
-        delay(450)
+        delay(250)
         capturedCardVisible = false
         delay(80)
         capturedCardPath = null
@@ -277,6 +281,7 @@ fun CameraScreen(
                 shutterButtonPressed = shutterButtonPressed,
                 isPinching = isPinching,
                 pinchZoomRatio = pinchZoomRatio,
+                availableZoomRange = availableZoomRange,
                 onPinchStateChange = { pinching, ratio ->
                     isPinching = pinching
                     pinchZoomRatio = ratio
@@ -354,6 +359,7 @@ private fun ImmersiveCameraView(
     shutterButtonPressed: Boolean,
     isPinching: Boolean,
     pinchZoomRatio: Float,
+    availableZoomRange: ClosedFloatingPointRange<Float>,
     onToggleQuickSettings: () -> Unit,
     onQuickSettingTap: (QuickSettingType) -> Unit,
     onCapture: () -> Unit,
@@ -378,6 +384,8 @@ private fun ImmersiveCameraView(
                 modifier = Modifier.fillMaxSize(),
                 isPinching = isPinching,
                 pinchZoomRatio = pinchZoomRatio,
+                availableZoomRange = availableZoomRange,
+                onTapToFocus = viewModel::tapToFocus,
                 onPinchStateChange = onPinchStateChange
             )
         } else {
@@ -1517,6 +1525,8 @@ private fun CameraPreview(
     modifier: Modifier = Modifier,
     isPinching: Boolean = false,
     pinchZoomRatio: Float = 1f,
+    availableZoomRange: ClosedFloatingPointRange<Float> = 1f..10f,
+    onTapToFocus: (Float, Float) -> Unit = { _, _ -> },
     onPinchStateChange: (Boolean, Float) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
@@ -1526,6 +1536,7 @@ private fun CameraPreview(
         }
     }
     val settings by viewModel.settings.collectAsState()
+    var focusPoint by remember { mutableStateOf<Pair<Float, Float>?>(null) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(previewView, lifecycleOwner) {
@@ -1543,10 +1554,20 @@ private fun CameraPreview(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val x = offset.x / size.width.toFloat().coerceAtLeast(1f)
+                        val y = offset.y / size.height.toFloat().coerceAtLeast(1f)
+                        onTapToFocus(x, y)
+                        focusPoint = x to y
+                    }
+                }
+                .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
                         if (zoom != 1f) {
                             val currentZoom = settings.zoomRatio
-                            val newZoom = (currentZoom * zoom).coerceIn(0.5f, 10f)
+                            val newZoom = (currentZoom * zoom).coerceIn(
+                                availableZoomRange.start, availableZoomRange.endInclusive
+                            )
                             if ((newZoom - currentZoom).absoluteValue > 0.01f) {
                                 viewModel.updateZoom(newZoom)
                                 onPinchStateChange(true, newZoom)
@@ -1557,10 +1578,28 @@ private fun CameraPreview(
         )
     }
 
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        focusPoint?.let { (x, y) ->
+            drawCircle(
+                color = Color.White,
+                radius = 34.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(x * size.width, y * size.height),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    }
+
     LaunchedEffect(isPinching) {
         if (!isPinching) {
             delay(800)
             onPinchStateChange(false, settings.zoomRatio)
+        }
+    }
+
+    LaunchedEffect(focusPoint) {
+        if (focusPoint != null) {
+            delay(900)
+            focusPoint = null
         }
     }
 }

@@ -89,6 +89,7 @@ class CameraViewModel(
     val selectedLensIndex: StateFlow<Int> = cameraService.selectedLensIndex
     val availableIsoRange: StateFlow<ClosedRange<Int>> = cameraService.availableIsoRange
     val hasFlashUnit: StateFlow<Boolean> = cameraService.hasFlashUnit
+    val availableZoomRange: StateFlow<ClosedFloatingPointRange<Float>> = cameraService.availableZoomRange
 
     private val _shotConfirmation = MutableStateFlow<ShotConfirmation?>(null)
     val shotConfirmation: StateFlow<ShotConfirmation?> = _shotConfirmation.asStateFlow()
@@ -97,6 +98,7 @@ class CameraViewModel(
     private var batteryMonitorJob: Job? = null
     private var thermalMonitorJob: Job? = null
     private var settingsJob: Job? = null
+    private var zoomPersistenceJob: Job? = null
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
@@ -335,7 +337,19 @@ class CameraViewModel(
     }
 
     fun updateZoom(ratio: Float) {
-        updateSettings { it.copy(zoomRatio = ratio) }
+        val range = cameraService.availableZoomRange.value
+        val bounded = ratio.coerceIn(range.start, range.endInclusive)
+        _settings.value = _settings.value.copy(zoomRatio = bounded)
+        cameraService.setZoomRatioTransient(bounded)
+        zoomPersistenceJob?.cancel()
+        zoomPersistenceJob = viewModelScope.launch {
+            delay(180)
+            settingsDataStore.saveSettings(_settings.value)
+        }
+    }
+
+    fun tapToFocus(x: Float, y: Float) {
+        currentPreviewView?.let { cameraService.tapToFocus(it, x, y) }
     }
 
     fun updateHdrMode(mode: String) {

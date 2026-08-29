@@ -157,24 +157,38 @@ class CameraService(private val context: Context) {
 
     fun getCurrentCameraSelector(): CameraSelector = currentCameraSelector
 
-    fun tapToFocus(x: Float, y: Float) {
+    fun tapToFocus(previewView: PreviewView, x: Float, y: Float) {
         val cam = camera ?: run {
             Log.w(TAG, "tapToFocus: camera not available")
             return
         }
         try {
-            val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
-            val point = factory.createPoint(x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
+            // PreviewView accounts for FILL_CENTER crop, rotation, and display transforms.
+            val point = previewView.meteringPointFactory.createPoint(x, y)
             cam.cameraControl.startFocusAndMetering(
                 FocusMeteringAction.Builder(point)
                     .setAutoCancelDuration(5, TimeUnit.SECONDS)
                     .build()
             )
-            Log.d(TAG, "tapToFocus: x=$x, y=$y")
+            Log.d(TAG, "tapToFocus: x=$x, y=$y, camera=${selectedCameraId()}")
         } catch (e: Exception) {
             Log.w(TAG, "tapToFocus failed", e)
         }
     }
+
+    /** Compatibility path for the web API, whose coordinates are already normalized. */
+    fun tapToFocus(x: Float, y: Float) {
+        currentPreviewView?.let { tapToFocus(it, x, y); return }
+        val cam = camera ?: return
+        runCatching {
+            val point = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                .createPoint(x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
+            cam.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(point).build())
+        }.onFailure { Log.w(TAG, "normalized tapToFocus failed", it) }
+    }
+
+    private fun selectedCameraId(): String = _availableLenses.value
+        .getOrNull(_selectedLensIndex.value)?.id ?: "unknown"
 
     fun setFrameListener(listener: ((ByteArray, Int, Int, Int) -> Unit)?) {
         frameListener = listener
@@ -247,7 +261,7 @@ class CameraService(private val context: Context) {
 
                     // Always add the logical camera FIRST
                     val logicalFocalLength = getFocalLength(camera2Info)
-                    val logicalLabel = buildCameraLabel(lensFacing, logicalFocalLength, cameraId)
+            val logicalLabel = buildCameraLabel(lensFacing, logicalFocalLength, cameraId, physical = false)
                     val logicalSelector = buildCameraSelector(info)
 
                     val logicalCamInfo = CameraLensInfo(
@@ -269,7 +283,7 @@ class CameraService(private val context: Context) {
                             if (physId == cameraId) continue
 
                             val focalLength = getFocalLength(physCamera2Info)
-                            val label = buildCameraLabel(lensFacing, focalLength, physId)
+                            val label = buildCameraLabel(lensFacing, focalLength, physId, physical = true)
                             val selector = CameraSelector.Builder()
                                 .requireLensFacing(lensFacing)
                                 .setPhysicalCameraId(physId)
@@ -352,19 +366,17 @@ class CameraService(private val context: Context) {
         }
     }
 
-    private fun buildCameraLabel(lensFacing: Int, focalLength: Float, cameraId: String): String {
+    private fun buildCameraLabel(lensFacing: Int, focalLength: Float, cameraId: String, physical: Boolean): String {
         if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
             return context.getString(R.string.camera_front)
         }
-        // Back camera label based on focal length ranges
+        if (!physical) return context.getString(R.string.camera_main)
+        // Physical lenses without reliable calibration get descriptive labels; never invent zoom ratios.
         return when {
             focalLength <= 0f -> context.getString(R.string.camera_named, cameraId)
             focalLength < 2.5f -> context.getString(R.string.camera_ultrawide)
             focalLength < 5f -> context.getString(R.string.camera_wide)
-            focalLength < 8f -> "2x"
-            focalLength < 15f -> "3x"
-            focalLength < 25f -> "5x"
-            else -> "${focalLength.toInt()}mm"
+            else -> context.getString(R.string.camera_named, cameraId)
         }
     }
 
@@ -393,6 +405,10 @@ class CameraService(private val context: Context) {
             return
         }
         val lens = lenses[index]
+        if (index == _selectedLensIndex.value) {
+            Log.d(TAG, "selectLens: selected lens $index is already active; no-op")
+            return
+        }
         Log.d(TAG, "selectLens: switching to lens $index: ${lens.label}, provider=${cameraProvider != null}, previewView=${currentPreviewView != null}")
         
         _selectedLensIndex.value = index
@@ -559,7 +575,7 @@ class CameraService(private val context: Context) {
 
             camera?.let { cam ->
                 cam.cameraInfo.zoomState.value?.let { zoom ->
-                    _availableZoomRange.value = 1f..zoom.maxZoomRatio.coerceAtMost(20f)
+                    _availableZoomRange.value = zoom.minZoomRatio..zoom.maxZoomRatio.coerceAtMost(20f)
                 }
                 _hasFlashUnit.value = cam.cameraInfo.hasFlashUnit()
                 val expState = cam.cameraInfo.exposureState
@@ -876,17 +892,20 @@ class CameraService(private val context: Context) {
     private fun applyCameraControls(settings: CameraSettings) {
         val cam = camera ?: return
 
+        val manualExposure = settings.iso != null || settings.exposureTime != null
+        val effectiveFlashMode = if (manualExposure) PhotoFlashMode.OFF else settings.photoFlashMode
         imageCapture?.let { capture ->
             capture.flashMode = if (!cam.cameraInfo.hasFlashUnit()) {
                 ImageCapture.FLASH_MODE_OFF
             } else {
-                when (settings.photoFlashMode) {
+                when (effectiveFlashMode) {
                     PhotoFlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
                     PhotoFlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
                     PhotoFlashMode.ON -> ImageCapture.FLASH_MODE_ON
                 }
             }
         }
+        Log.d(TAG, "photo controls: camera=${selectedCameraId()}, flashAvailable=${cam.cameraInfo.hasFlashUnit()}, requestedFlash=${settings.photoFlashMode}, effectiveFlash=$effectiveFlashMode, manualExposure=$manualExposure")
 
         try {
             cam.cameraControl.setZoomRatio(settings.zoomRatio)
@@ -948,9 +967,7 @@ class CameraService(private val context: Context) {
                 else -> { }
             }
 
-            val hasManualExposure = settings.iso != null || settings.exposureTime != null
-
-            if (hasManualExposure) {
+            if (manualExposure) {
                 builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
                 settings.iso?.let { iso ->
                     val clampedIso = iso.coerceIn(_availableIsoRange.value)
@@ -962,8 +979,6 @@ class CameraService(private val context: Context) {
                     defaultNs.coerceIn(sensorExposureTimeRange.first, sensorExposureTimeRange.last)
                 }
                 builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureTime)
-            } else {
-                builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
             }
             
             when (settings.whiteBalance) {
@@ -991,7 +1006,7 @@ class CameraService(private val context: Context) {
             when (settings.nightVisionMode) {
                 NightVisionMode.ON -> {
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT)
-                    if (!hasManualExposure) {
+                    if (!manualExposure) {
                         builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                     }
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
@@ -1001,7 +1016,7 @@ class CameraService(private val context: Context) {
                 }
                 NightVisionMode.AUTO -> {
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT_PORTRAIT)
-                    if (!hasManualExposure) {
+                    if (!manualExposure) {
                         builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH)
                     }
                     Log.d(TAG, "Night vision AUTO: scene=NIGHT_PORTRAIT, auto flash")
@@ -1012,7 +1027,7 @@ class CameraService(private val context: Context) {
                     if (settings.hdrMode != HdrMode.ON && settings.sceneMode == null) {
                         builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
                     }
-                    if (!hasManualExposure) {
+                    if (!manualExposure) {
                         builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                     }
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
@@ -1051,6 +1066,13 @@ class CameraService(private val context: Context) {
     fun isPreviewAvailable(): Boolean = isActivityForeground
 
     fun getImageCapture(): ImageCapture? = imageCapture
+
+    fun setZoomRatioTransient(ratio: Float) {
+        val cam = camera ?: return
+        val zoom = cam.cameraInfo.zoomState.value ?: return
+        val bounded = ratio.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
+        cam.cameraControl.setZoomRatio(bounded)
+    }
     fun getCamera(): Camera? = camera
     fun getCameraProvider(): ProcessCameraProvider? = cameraProvider
     fun getPreview(): Preview? = preview
