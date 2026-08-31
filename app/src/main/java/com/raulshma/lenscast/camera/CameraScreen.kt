@@ -1,0 +1,2261 @@
+package com.raulshma.lenscast.camera
+
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.InfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Exposure
+import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material.icons.filled.HdrOn
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Iso
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
+import com.raulshma.lenscast.camera.model.CameraLensInfo
+import com.raulshma.lenscast.camera.model.CameraSettings
+import com.raulshma.lenscast.camera.model.CameraState
+import com.raulshma.lenscast.camera.model.FocusMode
+import com.raulshma.lenscast.camera.model.HdrMode
+import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
+import com.raulshma.lenscast.camera.model.Resolution
+import com.raulshma.lenscast.camera.model.WhiteBalance
+import com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkQualityLevel
+import com.raulshma.lenscast.core.ThermalState
+import com.raulshma.lenscast.ui.theme.LensOrange
+import com.raulshma.lenscast.ui.theme.LensRed
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import kotlin.math.absoluteValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private val OverlayScrim = Color(0xB3000000)
+private val OverlayLight = Color(0x80000000)
+private val TopGradientColor = Color(0x78000000)
+private val BottomGradientColor = Color(0x78000000)
+
+private enum class QuickSettingType {
+    FLASH, EXPOSURE, ISO, WHITE_BALANCE, FOCUS, ZOOM, HDR, RESOLUTION, FRAME_RATE, STABILIZATION, NIGHT_VISION
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CameraScreen(
+    onNavigateToSettings: () -> Unit,
+    onNavigateToCapture: () -> Unit,
+    onNavigateToGallery: () -> Unit,
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as MainApplication
+    val viewModel: CameraViewModel = viewModel(
+        factory = CameraViewModel.Factory(
+            context, app.cameraService, app.streamingManager,
+            app.powerManager, app.thermalMonitor, app.settingsDataStore
+        )
+    )
+
+    val cameraState by viewModel.cameraState.collectAsState()
+    val streamStatus by viewModel.streamStatus.collectAsState()
+    val thermalState by viewModel.thermalState.collectAsState()
+    val isRecording by viewModel.isRecording.collectAsState()
+    val recordingElapsedSeconds by viewModel.recordingElapsedSeconds.collectAsState()
+    val wifiConnected by viewModel.wifiConnected.collectAsState()
+    val availableLenses by viewModel.availableLenses.collectAsState()
+    val selectedLensIndex by viewModel.selectedLensIndex.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val showPreview by viewModel.showPreview.collectAsState()
+    val adaptiveBitrateState by viewModel.adaptiveBitrateState.collectAsState()
+    val connectionQualityStats by viewModel.connectionQualityStats.collectAsState()
+    val hasAudioPermission by viewModel.hasAudioPermission.collectAsState()
+    val hasFlashUnit by viewModel.hasFlashUnit.collectAsState()
+    val shotConfirmation by viewModel.shotConfirmation.collectAsState()
+    val availableZoomRange by viewModel.availableZoomRange.collectAsState()
+
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        viewModel.onPermissionResult(
+            cameraGranted = results[Manifest.permission.CAMERA] == true,
+            audioGranted = results[Manifest.permission.RECORD_AUDIO] == true,
+        )
+    }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.onAudioPermissionResult(granted)
+    }
+
+    var shutterFeedbackSequence by remember { mutableIntStateOf(0) }
+    var shutterButtonPressed by remember { mutableStateOf(false) }
+    var capturedCardPath by remember { mutableStateOf<String?>(null) }
+    var capturedCardVisible by remember { mutableStateOf(false) }
+
+    var quickSettingsExpanded by remember { mutableStateOf(false) }
+    var activeSetting by remember { mutableStateOf<QuickSettingType?>(null) }
+    var isPinching by remember { mutableStateOf(false) }
+    var pinchZoomRatio by remember { mutableFloatStateOf(1f) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var requestedMissingAudioPermission by remember { mutableStateOf(false) }
+
+    LaunchedEffect(cameraState, hasAudioPermission) {
+        if (cameraState is CameraState.Ready &&
+            !hasAudioPermission &&
+            !requestedMissingAudioPermission
+        ) {
+            requestedMissingAudioPermission = true
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(shutterFeedbackSequence) {
+        if (shutterFeedbackSequence == 0) return@LaunchedEffect
+        shutterButtonPressed = true
+        delay(100)
+        shutterButtonPressed = false
+    }
+
+    LaunchedEffect(shotConfirmation?.id) {
+        val shot = shotConfirmation ?: return@LaunchedEffect
+        capturedCardPath = shot.uriOrPath
+        capturedCardVisible = true
+        delay(250)
+        capturedCardVisible = false
+        delay(80)
+        capturedCardPath = null
+    }
+
+    when (cameraState) {
+        is CameraState.RequestPermission -> CameraPermissionRequest(
+            onRequestPermission = {
+                mediaPermissionLauncher.launch(
+                    arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                )
+            }
+        )
+        is CameraState.Initializing -> CameraInitializingScreen()
+        is CameraState.Error -> ErrorDisplay(
+            message = (cameraState as CameraState.Error).message,
+            onRetry = { viewModel.retryCameraInit() }
+        )
+        is CameraState.Ready -> {
+            ImmersiveCameraView(
+                viewModel = viewModel,
+                streamStatus = streamStatus,
+                thermalState = thermalState,
+                isRecording = isRecording,
+                recordingElapsedSeconds = recordingElapsedSeconds,
+                wifiConnected = wifiConnected,
+                availableLenses = availableLenses,
+                selectedLensIndex = selectedLensIndex,
+                settings = settings,
+                showPreview = showPreview,
+                adaptiveBitrateState = adaptiveBitrateState,
+                connectionQualityStats = connectionQualityStats,
+                quickSettingsExpanded = quickSettingsExpanded,
+                activeSetting = activeSetting,
+                capturedCardPath = capturedCardPath,
+                capturedCardVisible = capturedCardVisible,
+                hasFlashUnit = hasFlashUnit,
+                shutterButtonPressed = shutterButtonPressed,
+                isPinching = isPinching,
+                pinchZoomRatio = pinchZoomRatio,
+                availableZoomRange = availableZoomRange,
+                onPinchStateChange = { pinching, ratio ->
+                    isPinching = pinching
+                    pinchZoomRatio = ratio
+                },
+                onToggleQuickSettings = {
+                    quickSettingsExpanded = !quickSettingsExpanded
+                    if (!quickSettingsExpanded) activeSetting = null
+                },
+                onQuickSettingTap = { type ->
+                    activeSetting = if (activeSetting == type) null else type
+                },
+                onCapture = {
+                    viewModel.capturePhoto()
+                    shutterFeedbackSequence++
+                },
+                onWebStreamToggle = { viewModel.toggleWebStreaming() },
+                onRtspStreamToggle = { viewModel.toggleRtspStreaming() },
+                onRecord = { viewModel.toggleRecording() },
+                onSwitchCamera = { viewModel.switchCamera() },
+                onTogglePreview = { viewModel.togglePreview() },
+                onNavigateToGallery = onNavigateToGallery,
+                onNavigateToCapture = onNavigateToCapture,
+                onNavigateToSettings = onNavigateToSettings,
+                onCopyStreamUrl = { viewModel.copyStreamUrl() },
+                onCopyRtspUrl = { viewModel.copyRtspUrl() },
+                onToggleServer = { viewModel.toggleServer() },
+                onSelectLens = { viewModel.selectLens(it) },
+            )
+
+            if (activeSetting != null) {
+                val isoRange by viewModel.availableIsoRange.collectAsState()
+                QuickSettingSheet(
+                    type = activeSetting!!,
+                    settings = settings,
+                    isoOptions = buildIsoOptions(isoRange),
+                    sheetState = sheetState,
+                    onDismiss = { activeSetting = null },
+                    onUpdateExposure = { viewModel.updateExposure(it) },
+                    onUpdateIso = { viewModel.updateIso(it) },
+                    onUpdateFocusMode = { viewModel.updateFocusMode(it) },
+                    onUpdateWhiteBalance = { viewModel.updateWhiteBalance(it) },
+                    onUpdateZoom = { viewModel.updateZoom(it) },
+                    onUpdateHdrMode = { viewModel.updateHdrMode(it) },
+                    onUpdateFrameRate = { viewModel.updateFrameRate(it) },
+                    onUpdateResolution = { viewModel.updateResolution(it) },
+                    onUpdateStabilization = { viewModel.updateStabilization(it) },
+                    onUpdateNightVisionMode = { viewModel.updateNightVisionMode(it) },
+                    onUpdatePhotoFlashMode = { viewModel.updatePhotoFlashMode(it) },
+                )
+            }
+        }
+        is CameraState.Idle -> {}
+    }
+}
+
+@Composable
+private fun ImmersiveCameraView(
+    viewModel: CameraViewModel,
+    streamStatus: com.raulshma.lenscast.camera.model.StreamStatus,
+    thermalState: ThermalState,
+    isRecording: Boolean,
+    recordingElapsedSeconds: Int,
+    wifiConnected: Boolean,
+    availableLenses: List<CameraLensInfo>,
+    selectedLensIndex: Int,
+    settings: CameraSettings,
+    showPreview: Boolean,
+    adaptiveBitrateState: com.raulshma.lenscast.streaming.AdaptiveBitrateController.AdaptiveState,
+    connectionQualityStats: com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkStatsSnapshot?,
+    quickSettingsExpanded: Boolean,
+    activeSetting: QuickSettingType?,
+    capturedCardPath: String?,
+    capturedCardVisible: Boolean,
+    hasFlashUnit: Boolean,
+    shutterButtonPressed: Boolean,
+    isPinching: Boolean,
+    pinchZoomRatio: Float,
+    availableZoomRange: ClosedFloatingPointRange<Float>,
+    onToggleQuickSettings: () -> Unit,
+    onQuickSettingTap: (QuickSettingType) -> Unit,
+    onCapture: () -> Unit,
+    onWebStreamToggle: () -> Unit,
+    onRtspStreamToggle: () -> Unit,
+    onRecord: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onTogglePreview: () -> Unit,
+    onNavigateToGallery: () -> Unit,
+    onNavigateToCapture: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onCopyStreamUrl: () -> Unit,
+    onCopyRtspUrl: () -> Unit,
+    onToggleServer: () -> Unit,
+    onSelectLens: (Int) -> Unit,
+    onPinchStateChange: (Boolean, Float) -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showPreview) {
+            CameraPreview(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize(),
+                isPinching = isPinching,
+                pinchZoomRatio = pinchZoomRatio,
+                availableZoomRange = availableZoomRange,
+                onTapToFocus = viewModel::tapToFocus,
+                onPinchStateChange = onPinchStateChange
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0A0A0A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.VisibilityOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.White.copy(alpha = 0.35f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.preview_hidden),
+                        color = Color.White.copy(alpha = 0.35f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = capturedCardVisible && capturedCardPath != null,
+            modifier = Modifier.align(Alignment.Center),
+            enter = fadeIn(tween(90)) + scaleIn(initialScale = 0.90f, animationSpec = tween(140)),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.96f, animationSpec = tween(180)),
+        ) {
+            AsyncImage(
+                model = capturedCardPath,
+                contentDescription = stringResource(R.string.shot_confirmation),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize(0.93f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.90f), RoundedCornerShape(12.dp)),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(TopGradientColor, Color.Transparent)
+                    )
+                )
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, BottomGradientColor)
+                    )
+                )
+        )
+
+        CameraTopOverlay(
+            streamStatus = streamStatus,
+            isRecording = isRecording,
+            recordingElapsedSeconds = recordingElapsedSeconds,
+            showPreview = showPreview,
+            onSwitchCamera = onSwitchCamera,
+            onTogglePreview = onTogglePreview,
+            onNavigateToGallery = onNavigateToGallery,
+            onNavigateToCapture = onNavigateToCapture,
+            onNavigateToSettings = onNavigateToSettings,
+            onToggleQuickSettings = onToggleQuickSettings,
+            onCopyStreamUrl = onCopyStreamUrl,
+            onCopyRtspUrl = onCopyRtspUrl,
+            onToggleServer = onToggleServer,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+        )
+
+        if (!wifiConnected && streamStatus.isServerRunning) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 56.dp),
+                color = LensOrange.copy(alpha = 0.92f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Wifi,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(
+                            if (streamStatus.isActive) R.string.not_on_wifi else R.string.not_on_wifi_server
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
+        CameraBottomOverlay(
+            streamStatus = streamStatus,
+            availableLenses = availableLenses,
+            selectedLensIndex = selectedLensIndex,
+            settings = settings,
+            hasFlashUnit = hasFlashUnit,
+            quickSettingsExpanded = quickSettingsExpanded,
+            activeSetting = activeSetting,
+            isRecording = isRecording,
+            shutterButtonPressed = shutterButtonPressed,
+            onWebStreamToggle = onWebStreamToggle,
+            onRtspStreamToggle = onRtspStreamToggle,
+            onCapture = onCapture,
+            onRecord = onRecord,
+            onSelectLens = onSelectLens,
+            onToggleQuickSettings = onToggleQuickSettings,
+            onQuickSettingTap = onQuickSettingTap,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+        )
+
+        if (thermalState != ThermalState.NORMAL && thermalState != ThermalState.LIGHT) {
+            ThermalWarningOverlay(
+                thermalState = thermalState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 200.dp)
+            )
+        }
+
+        if (streamStatus.isActive && adaptiveBitrateState.enabled) {
+            ConnectionQualityIndicator(
+                qualityLevel = adaptiveBitrateState.qualityLevel,
+                currentQuality = adaptiveBitrateState.currentQuality,
+                currentFps = adaptiveBitrateState.currentFps,
+                activeClients = adaptiveBitrateState.activeClients,
+                minThroughputKbps = adaptiveBitrateState.minClientThroughputKbps,
+                estimatedBandwidthKbps = adaptiveBitrateState.estimatedBandwidthKbps,
+                stats = connectionQualityStats,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 56.dp, end = 8.dp)
+            )
+        }
+
+        if (isPinching) {
+            ZoomIndicator(
+                zoomRatio = pinchZoomRatio,
+                modifier = Modifier
+                    .align(Alignment.Center)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CameraTopOverlay(
+    streamStatus: com.raulshma.lenscast.camera.model.StreamStatus,
+    isRecording: Boolean,
+    recordingElapsedSeconds: Int,
+    showPreview: Boolean,
+    onSwitchCamera: () -> Unit,
+    onTogglePreview: () -> Unit,
+    onNavigateToGallery: () -> Unit,
+    onNavigateToCapture: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onToggleQuickSettings: () -> Unit,
+    onCopyStreamUrl: () -> Unit,
+    onCopyRtspUrl: () -> Unit,
+    onToggleServer: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CameraControlButton(
+                icon = Icons.Default.Cameraswitch,
+                contentDescription = stringResource(R.string.switch_camera),
+                onClick = onSwitchCamera
+            )
+            if (streamStatus.isActive) {
+                StreamIndicator(streamStatus = streamStatus)
+            }
+            if (isRecording) {
+                RecordingIndicator(elapsedSeconds = recordingElapsedSeconds)
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ServerStatusButton(
+                streamStatus = streamStatus,
+                onCopyUrl = onCopyStreamUrl,
+                onCopyRtspUrl = onCopyRtspUrl,
+                onToggleServer = onToggleServer,
+            )
+            CameraControlButton(
+                icon = if (showPreview) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                contentDescription = stringResource(if (showPreview) R.string.hide_preview else R.string.show_preview),
+                onClick = onTogglePreview
+            )
+            CameraControlButton(
+                icon = Icons.Default.Collections,
+                contentDescription = stringResource(R.string.gallery),
+                onClick = onNavigateToGallery
+            )
+            Box {
+                CameraControlButton(
+                    icon = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.more_options),
+                    onClick = { menuExpanded = true }
+                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    stringResource(R.string.camera_controls),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onToggleQuickSettings()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    stringResource(R.string.capture_tools),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onNavigateToCapture()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    stringResource(R.string.settings),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onNavigateToSettings()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CameraControlButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+) {
+    Surface(
+        modifier = modifier.size(40.dp),
+        color = OverlayScrim,
+        shape = CircleShape,
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraBottomOverlay(
+    streamStatus: com.raulshma.lenscast.camera.model.StreamStatus,
+    availableLenses: List<CameraLensInfo>,
+    selectedLensIndex: Int,
+    settings: CameraSettings,
+    hasFlashUnit: Boolean,
+    quickSettingsExpanded: Boolean,
+    activeSetting: QuickSettingType?,
+    isRecording: Boolean,
+    shutterButtonPressed: Boolean,
+    onWebStreamToggle: () -> Unit,
+    onRtspStreamToggle: () -> Unit,
+    onCapture: () -> Unit,
+    onRecord: () -> Unit,
+    onSelectLens: (Int) -> Unit,
+    onToggleQuickSettings: () -> Unit,
+    onQuickSettingTap: (QuickSettingType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.navigationBarsPadding(),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        AnimatedVisibility(
+            visible = quickSettingsExpanded,
+            enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(
+                expandFrom = Alignment.Bottom,
+                animationSpec = spring(stiffness = Spring.StiffnessMedium)
+            ),
+            exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(
+                shrinkTowards = Alignment.Bottom,
+                animationSpec = tween(150)
+            )
+        ) {
+            HorizontalQuickSettingsBar(
+                settings = settings,
+                hasFlashUnit = hasFlashUnit,
+                activeSetting = activeSetting,
+                onSettingTap = onQuickSettingTap,
+            )
+        }
+
+        if (availableLenses.size > 1) {
+            LensSelectorRow(
+                lenses = availableLenses,
+                selectedIndex = selectedLensIndex,
+                onLensSelected = onSelectLens
+            )
+        }
+
+            ShutterRow(
+            isWebStreaming = streamStatus.isWebActive,
+            isRtspStreaming = streamStatus.isRtspActive,
+            isWebEnabled = streamStatus.isWebEnabled,
+            isRtspEnabled = streamStatus.isRtspEnabled,
+                isRecording = isRecording,
+                shutterButtonPressed = shutterButtonPressed,
+            quickSettingsExpanded = quickSettingsExpanded,
+            onWebStreamToggle = onWebStreamToggle,
+            onRtspStreamToggle = onRtspStreamToggle,
+            onCapture = onCapture,
+            onRecord = onRecord,
+            onToggleQuickSettings = onToggleQuickSettings,
+        )
+    }
+}
+
+@Composable
+private fun ShutterRow(
+    isWebStreaming: Boolean,
+    isRtspStreaming: Boolean,
+    isWebEnabled: Boolean,
+    isRtspEnabled: Boolean,
+    isRecording: Boolean,
+    shutterButtonPressed: Boolean,
+    quickSettingsExpanded: Boolean,
+    onWebStreamToggle: () -> Unit,
+    onRtspStreamToggle: () -> Unit,
+    onCapture: () -> Unit,
+    onRecord: () -> Unit,
+    onToggleQuickSettings: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        color = OverlayScrim.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(30.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(52.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !quickSettingsExpanded,
+                    enter = fadeIn(tween(200)) + scaleIn(
+                        initialScale = 0.8f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                    ),
+                    exit = fadeOut(tween(100)) + scaleOut(
+                        targetScale = 0.8f,
+                        animationSpec = tween(100)
+                    )
+                ) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        color = if (isWebStreaming) Color(0xFFD32F2F)
+                        else if (isWebEnabled) OverlayLight
+                        else OverlayLight.copy(alpha = 0.45f),
+                        shape = CircleShape,
+                        onClick = {
+                            if (isWebEnabled) {
+                                onWebStreamToggle()
+                            }
+                        }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isWebStreaming) Icons.Default.Stop else Icons.Default.Wifi,
+                                contentDescription = stringResource(if (isWebStreaming) R.string.stop_web_stream else R.string.start_web_stream),
+                                tint = if (isWebEnabled || isWebStreaming) Color.White else Color.White.copy(alpha = 0.35f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = quickSettingsExpanded,
+                    enter = fadeIn(tween(150)),
+                    exit = fadeOut(tween(100))
+                ) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        color = OverlayLight,
+                        shape = CircleShape,
+                        onClick = onToggleQuickSettings
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Flip,
+                                contentDescription = stringResource(R.string.collapse_quick_settings),
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier.size(52.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !quickSettingsExpanded,
+                    enter = fadeIn(tween(200)) + scaleIn(
+                        initialScale = 0.8f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                    ),
+                    exit = fadeOut(tween(100)) + scaleOut(
+                        targetScale = 0.8f,
+                        animationSpec = tween(100)
+                    )
+                ) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        color = if (isRtspStreaming) Color(0xFFD32F2F)
+                        else if (isRtspEnabled) OverlayLight
+                        else OverlayLight.copy(alpha = 0.45f),
+                        shape = CircleShape,
+                        onClick = {
+                            if (isRtspEnabled) {
+                                onRtspStreamToggle()
+                            }
+                        }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isRtspStreaming) Icons.Default.Stop else Icons.Default.Videocam,
+                                contentDescription = stringResource(if (isRtspStreaming) R.string.stop_rtsp_stream else R.string.start_rtsp_stream),
+                                tint = if (isRtspEnabled || isRtspStreaming) Color.White else Color.White.copy(alpha = 0.35f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.size(52.dp),
+                color = if (isRecording) Color(0xFFD32F2F) else OverlayLight,
+                shape = CircleShape,
+                onClick = onRecord
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.FiberManualRecord,
+                        contentDescription = stringResource(if (isRecording) R.string.stop_recording else R.string.record_video),
+                        tint = if (isRecording) Color.White else Color(0xFFD32F2F),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier.size(70.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ShutterButton(isPressed = shutterButtonPressed, onClick = onCapture)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShutterButton(
+    isPressed: Boolean,
+    onClick: () -> Unit,
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = tween(100),
+        label = "shutter_button_press",
+    )
+
+    Box(
+        modifier = Modifier
+            .size(70.dp)
+            .border(3.dp, Color.White.copy(alpha = 0.95f), CircleShape)
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .size(56.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            color = Color.White,
+            shape = CircleShape,
+            onClick = onClick
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Camera,
+                    contentDescription = stringResource(R.string.capture_photo),
+                    tint = Color(0xFF1A1A1A),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HorizontalQuickSettingsBar(
+    settings: CameraSettings,
+    hasFlashUnit: Boolean,
+    activeSetting: QuickSettingType?,
+    onSettingTap: (QuickSettingType) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = OverlayScrim,
+        shape = RoundedCornerShape(0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QuickSettingPill(
+                icon = Icons.Default.Bolt,
+                label = when (settings.photoFlashMode) {
+                    PhotoFlashMode.OFF -> stringResource(R.string.flash_off)
+                    PhotoFlashMode.AUTO -> stringResource(R.string.flash_auto)
+                    PhotoFlashMode.ON -> stringResource(R.string.flash_on)
+                },
+                isActive = activeSetting == QuickSettingType.FLASH,
+                enabled = hasFlashUnit,
+                onClick = { onSettingTap(QuickSettingType.FLASH) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Exposure,
+                label = "${settings.exposureCompensation}",
+                isActive = activeSetting == QuickSettingType.EXPOSURE,
+                onClick = { onSettingTap(QuickSettingType.EXPOSURE) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Iso,
+                label = settings.iso?.toString() ?: "A",
+                isActive = activeSetting == QuickSettingType.ISO,
+                onClick = { onSettingTap(QuickSettingType.ISO) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.WbSunny,
+                label = when (settings.whiteBalance) {
+                    WhiteBalance.AUTO -> "AWB"
+                    WhiteBalance.MANUAL -> "${settings.colorTemperature ?: 5500}K"
+                    else -> localizedQuickSettingOption(settings.whiteBalance.name).take(3)
+                },
+                isActive = activeSetting == QuickSettingType.WHITE_BALANCE,
+                onClick = { onSettingTap(QuickSettingType.WHITE_BALANCE) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Bolt,
+                label = localizedQuickSettingOption(settings.focusMode.name).take(3),
+                isActive = activeSetting == QuickSettingType.FOCUS,
+                onClick = { onSettingTap(QuickSettingType.FOCUS) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.ZoomIn,
+                label = "${String.format("%.1f", settings.zoomRatio)}x",
+                isActive = activeSetting == QuickSettingType.ZOOM,
+                onClick = { onSettingTap(QuickSettingType.ZOOM) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.HdrOn,
+                label = localizedQuickSettingOption(settings.hdrMode.name),
+                isActive = activeSetting == QuickSettingType.HDR,
+                onClick = { onSettingTap(QuickSettingType.HDR) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Image,
+                label = when (settings.resolution) {
+                    Resolution.SD_480P -> "480p"
+                    Resolution.HD_720P -> "720p"
+                    Resolution.FHD_1080P -> "1080p"
+                    Resolution.QHD_1440P -> "1440p"
+                    Resolution.UHD_4K -> "4K"
+                },
+                isActive = activeSetting == QuickSettingType.RESOLUTION,
+                onClick = { onSettingTap(QuickSettingType.RESOLUTION) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Speed,
+                label = "${settings.frameRate}",
+                isActive = activeSetting == QuickSettingType.FRAME_RATE,
+                onClick = { onSettingTap(QuickSettingType.FRAME_RATE) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.Handyman,
+                label = if (settings.stabilization) "OIS" else stringResource(R.string.off),
+                isActive = activeSetting == QuickSettingType.STABILIZATION,
+                onClick = { onSettingTap(QuickSettingType.STABILIZATION) }
+            )
+            QuickSettingPill(
+                icon = Icons.Default.NightsStay,
+                label = when (settings.nightVisionMode) {
+                    NightVisionMode.ON -> "IR"
+                    NightVisionMode.AUTO -> stringResource(R.string.auto)
+                    NightVisionMode.OFF -> stringResource(R.string.off)
+                },
+                isActive = activeSetting == QuickSettingType.NIGHT_VISION,
+                onClick = { onSettingTap(QuickSettingType.NIGHT_VISION) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickSettingPill(
+    icon: ImageVector,
+    label: String,
+    isActive: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val scale = remember { Animatable(1f) }
+    val coroutineScope = rememberCoroutineScope()
+    val bgColor by animateColorAsState(
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+        else OverlayLight,
+        animationSpec = tween(200)
+    )
+
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(16.dp),
+        onClick = {
+            coroutineScope.launch {
+                scale.snapTo(0.92f)
+                scale.animateTo(1f, spring(stiffness = Spring.StiffnessHigh))
+            }
+            onClick()
+        },
+        enabled = enabled,
+    ) {
+        Row(
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = if (isActive) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.9f)
+            )
+            Text(
+                text = label,
+                color = if (isActive) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+private fun buildIsoOptions(isoRange: ClosedRange<Int>): List<String> {
+    val stops = mutableListOf("Auto")
+    var value = 100
+    while (value <= isoRange.endInclusive) {
+        if (value >= isoRange.start) stops.add(value.toString())
+        value *= 2
+    }
+    return stops
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickSettingSheet(
+    type: QuickSettingType,
+    settings: CameraSettings,
+    isoOptions: List<String>,
+    sheetState: androidx.compose.material3.SheetState,
+    onDismiss: () -> Unit,
+    onUpdateExposure: (Int) -> Unit,
+    onUpdateIso: (String) -> Unit,
+    onUpdateFocusMode: (String) -> Unit,
+    onUpdateWhiteBalance: (String) -> Unit,
+    onUpdateZoom: (Float) -> Unit,
+    onUpdateHdrMode: (String) -> Unit,
+    onUpdateFrameRate: (Int) -> Unit,
+    onUpdateResolution: (String) -> Unit,
+    onUpdateStabilization: (Boolean) -> Unit,
+    onUpdateNightVisionMode: (String) -> Unit,
+    onUpdatePhotoFlashMode: (String) -> Unit,
+) {
+    val coroutineScope = rememberCoroutineScope()
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                onDismiss()
+            }
+        },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = when (type) {
+                    QuickSettingType.FLASH -> stringResource(R.string.flash_mode)
+                    QuickSettingType.EXPOSURE -> stringResource(R.string.quick_setting_exposure)
+                    QuickSettingType.ISO -> "ISO"
+                    QuickSettingType.WHITE_BALANCE -> stringResource(R.string.quick_setting_white_balance)
+                    QuickSettingType.FOCUS -> stringResource(R.string.quick_setting_focus)
+                    QuickSettingType.ZOOM -> stringResource(R.string.zoom)
+                    QuickSettingType.HDR -> "HDR"
+                    QuickSettingType.RESOLUTION -> stringResource(R.string.quick_setting_resolution)
+                    QuickSettingType.FRAME_RATE -> stringResource(R.string.quick_setting_frame_rate)
+                    QuickSettingType.STABILIZATION -> stringResource(R.string.quick_setting_stabilization)
+                    QuickSettingType.NIGHT_VISION -> stringResource(R.string.night_vision_ir)
+                },
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            when (type) {
+                QuickSettingType.FLASH -> ProChipSelector(
+                    options = PhotoFlashMode.entries.map { it.name },
+                    selected = settings.photoFlashMode.name,
+                    onSelect = onUpdatePhotoFlashMode
+                )
+                QuickSettingType.EXPOSURE -> ProSliderControl(
+                    value = settings.exposureCompensation.toFloat(),
+                    range = -12f..12f,
+                    label = "${settings.exposureCompensation}",
+                    onValueChange = { onUpdateExposure(it.toInt()) }
+                )
+                QuickSettingType.ISO -> ProChipSelector(
+                    options = isoOptions,
+                    selected = settings.iso?.toString() ?: "Auto",
+                    onSelect = onUpdateIso
+                )
+                QuickSettingType.WHITE_BALANCE -> ProChipSelector(
+                    options = WhiteBalance.entries.map { it.name },
+                    selected = settings.whiteBalance.name,
+                    onSelect = onUpdateWhiteBalance
+                )
+                QuickSettingType.FOCUS -> ProChipSelector(
+                    options = FocusMode.entries.map { it.name },
+                    selected = settings.focusMode.name,
+                    onSelect = onUpdateFocusMode
+                )
+                QuickSettingType.ZOOM -> ProSliderControl(
+                    value = settings.zoomRatio,
+                    range = 0.5f..10f,
+                    label = "${String.format("%.1f", settings.zoomRatio)}x",
+                    onValueChange = onUpdateZoom
+                )
+                QuickSettingType.HDR -> ProChipSelector(
+                    options = HdrMode.entries.map { it.name },
+                    selected = settings.hdrMode.name,
+                    onSelect = onUpdateHdrMode
+                )
+                QuickSettingType.RESOLUTION -> ProChipSelector(
+                    options = Resolution.entries.map { it.name },
+                    selected = settings.resolution.name,
+                    onSelect = onUpdateResolution
+                )
+                QuickSettingType.FRAME_RATE -> ProSliderControl(
+                    value = settings.frameRate.toFloat(),
+                    range = 15f..60f,
+                    label = "${settings.frameRate} fps",
+                    onValueChange = { onUpdateFrameRate(it.toInt()) }
+                )
+                QuickSettingType.STABILIZATION -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.image_stabilization),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Switch(
+                            checked = settings.stabilization,
+                            onCheckedChange = onUpdateStabilization,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+                QuickSettingType.NIGHT_VISION -> {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = stringResource(R.string.mode),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            NightVisionMode.entries.forEach { mode ->
+                                FilterChip(
+                                    selected = settings.nightVisionMode == mode,
+                                    onClick = { onUpdateNightVisionMode(mode.name) },
+                                    label = {
+                                        Text(
+                                            text = when (mode) {
+                                                NightVisionMode.ON -> stringResource(R.string.night_vision_on)
+                                                NightVisionMode.AUTO -> stringResource(R.string.auto)
+                                                NightVisionMode.OFF -> stringResource(R.string.off)
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = when (settings.nightVisionMode) {
+                                NightVisionMode.ON -> stringResource(R.string.night_vision_on_description)
+                                NightVisionMode.AUTO -> stringResource(R.string.night_vision_auto_description)
+                                NightVisionMode.OFF -> stringResource(R.string.night_vision_off_description)
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProSliderControl(
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    label: String,
+    onValueChange: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                thumbColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "${range.start}".let { if (it.endsWith(".0")) it.dropLast(2) else it },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Text(
+                text = "${range.endInclusive}".let { if (it.endsWith(".0")) it.dropLast(2) else it },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProChipSelector(
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = option == selected
+            val bgColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+                animationSpec = tween(200)
+            )
+            val textColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface,
+                animationSpec = tween(200)
+            )
+
+            Surface(
+                onClick = { onSelect(option) },
+                color = bgColor,
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Text(
+                    text = localizedQuickSettingOption(option),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    color = textColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun localizedQuickSettingOption(option: String): String = when (option) {
+    "Auto", "AUTO" -> stringResource(R.string.auto)
+    "MANUAL" -> stringResource(R.string.manual)
+    "MACRO" -> stringResource(R.string.macro)
+    "CONTINUOUS_PICTURE" -> stringResource(R.string.continuous_picture)
+    "CONTINUOUS_VIDEO" -> stringResource(R.string.continuous_video)
+    "DAYLIGHT" -> stringResource(R.string.daylight)
+    "CLOUDY" -> stringResource(R.string.cloudy)
+    "INDOOR" -> stringResource(R.string.indoor)
+    "FLUORESCENT" -> stringResource(R.string.fluorescent)
+    "SD_480P" -> stringResource(R.string.resolution_sd_480p)
+    "HD_720P" -> stringResource(R.string.resolution_hd_720p)
+    "FHD_1080P" -> stringResource(R.string.resolution_fhd_1080p)
+    "QHD_1440P" -> stringResource(R.string.resolution_qhd_1440p)
+    "UHD_4K" -> stringResource(R.string.resolution_uhd_4k)
+    "MINIMIZE_LATENCY" -> stringResource(R.string.minimize_latency)
+    "MAXIMIZE_QUALITY" -> stringResource(R.string.maximize_quality)
+    "HIGH" -> stringResource(R.string.high)
+    "MEDIUM" -> stringResource(R.string.medium)
+    "LOW" -> stringResource(R.string.low)
+    "FACE_DETECTION" -> stringResource(R.string.face_detection)
+    "NIGHT" -> stringResource(R.string.night)
+    "SUNSET" -> stringResource(R.string.sunset)
+    "FIREWORKS" -> stringResource(R.string.fireworks)
+    "ON" -> stringResource(R.string.on)
+    "OFF" -> stringResource(R.string.off)
+    else -> option.replace("_", " ")
+}
+
+@Composable
+private fun CameraPermissionRequest(
+    onRequestPermission: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                modifier = Modifier.size(80.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.camera_access_required),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.camera_permission_explanation),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(
+                onClick = onRequestPermission,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.grant_permission),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CameraPreview(
+    viewModel: CameraViewModel,
+    modifier: Modifier = Modifier,
+    isPinching: Boolean = false,
+    pinchZoomRatio: Float = 1f,
+    availableZoomRange: ClosedFloatingPointRange<Float> = 1f..10f,
+    onTapToFocus: (Float, Float) -> Unit = { _, _ -> },
+    onPinchStateChange: (Boolean, Float) -> Unit = { _, _ -> },
+) {
+    val context = LocalContext.current
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+    }
+    val settings by viewModel.settings.collectAsState()
+    var focusPoint by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(previewView, lifecycleOwner) {
+        viewModel.startPreview(previewView, lifecycleOwner)
+        onDispose { viewModel.stopPreview() }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val tap = TapFocusCoordinates.fromPreview(
+                            offset.x, offset.y, size.width.toFloat(), size.height.toFloat()
+                        )
+                        onTapToFocus(tap.xPx, tap.yPx)
+                        focusPoint = tap.normalizedX to tap.normalizedY
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        if (zoom != 1f) {
+                            val currentZoom = settings.zoomRatio
+                            val newZoom = (currentZoom * zoom).coerceIn(
+                                availableZoomRange.start, availableZoomRange.endInclusive
+                            )
+                            if ((newZoom - currentZoom).absoluteValue > 0.01f) {
+                                viewModel.updateZoom(newZoom)
+                                onPinchStateChange(true, newZoom)
+                            }
+                        }
+                    }
+                }
+        )
+    }
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        focusPoint?.let { (x, y) ->
+            drawCircle(
+                color = Color.White,
+                radius = 34.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(x * size.width, y * size.height),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    }
+
+    LaunchedEffect(isPinching) {
+        if (!isPinching) {
+            delay(800)
+            onPinchStateChange(false, settings.zoomRatio)
+        }
+    }
+
+    LaunchedEffect(focusPoint) {
+        if (focusPoint != null) {
+            delay(900)
+            focusPoint = null
+        }
+    }
+}
+
+@Composable
+private fun CameraInitializingScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.initializing_camera),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorDisplay(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = CircleShape
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "!",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.camera_error),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onRetry,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(stringResource(R.string.retry))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreamIndicator(
+    streamStatus: com.raulshma.lenscast.camera.model.StreamStatus,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = Color(0xFFD32F2F).copy(alpha = 0.9f),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(8.dp),
+                    shape = CircleShape,
+                    color = Color.White
+                ) {}
+                Spacer(modifier = Modifier.size(6.dp))
+                Text(
+                    text = "LIVE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = Color.White
+                )
+            }
+        }
+
+        if (streamStatus.isWebActive) {
+            StreamBadge(icon = Icons.Default.Wifi, label = "WEB")
+        }
+        if (streamStatus.isRtspActive) {
+            StreamBadge(icon = Icons.Default.Videocam, label = "RTSP")
+        }
+    }
+}
+
+@Composable
+private fun StreamBadge(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = OverlayScrim,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = Color.White.copy(alpha = 0.8f)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 10.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecordingIndicator(
+    elapsedSeconds: Int,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "recDot")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween<Float>(durationMillis = 750),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotPulse"
+    )
+    val h = elapsedSeconds / 3600
+    val m = (elapsedSeconds % 3600) / 60
+    val s = elapsedSeconds % 60
+    val timeText = if (h > 0) {
+        String.format("%d:%02d:%02d", h, m, s)
+    } else {
+        String.format("%02d:%02d", m, s)
+    }
+
+    Surface(
+        modifier = modifier,
+        color = OverlayScrim,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(10.dp),
+                shape = CircleShape,
+                color = Color(0xFFD32F2F).copy(alpha = dotAlpha)
+            ) {}
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun ServerStatusButton(
+    streamStatus: com.raulshma.lenscast.camera.model.StreamStatus,
+    onCopyUrl: () -> Unit,
+    onCopyRtspUrl: () -> Unit,
+    onToggleServer: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val iconTint by animateColorAsState(
+        targetValue = when {
+            streamStatus.isActive -> Color(0xFF4CAF50)
+            streamStatus.isServerRunning -> MaterialTheme.colorScheme.primary
+            else -> Color.White.copy(alpha = 0.4f)
+        },
+        animationSpec = tween(300),
+        label = "server_status_tint"
+    )
+
+    Box(modifier = modifier) {
+        CameraControlButton(
+            icon = Icons.Default.Wifi,
+            contentDescription = stringResource(R.string.web_server_status),
+            onClick = { expanded = true },
+            tint = iconTint,
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Column {
+                        Text(
+                            stringResource(R.string.web_server),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (streamStatus.url.isNotBlank()) {
+                            Text(
+                                streamStatus.url,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                maxLines = 1,
+                            )
+                        } else {
+                            Text(
+                                stringResource(R.string.server_offline),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            when {
+                                streamStatus.clientCount > 0 -> stringResource(R.string.viewers_connected, streamStatus.clientCount)
+                                streamStatus.isActive -> stringResource(R.string.live_stream_active)
+                                streamStatus.isServerRunning -> stringResource(R.string.server_ready)
+                                else -> stringResource(R.string.offline)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                    }
+                },
+                onClick = { expanded = false },
+                enabled = false,
+            )
+            if (streamStatus.url.isNotBlank()) {
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(stringResource(R.string.copy_url), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onCopyUrl()
+                    },
+                )
+            }
+            if (streamStatus.rtspUrl.isNotBlank()) {
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                "RTSP Stream",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                streamStatus.rtspUrl,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                maxLines = 1,
+                            )
+                        }
+                    },
+                    onClick = { expanded = false },
+                    enabled = false,
+                )
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(stringResource(R.string.copy_rtsp_url), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onCopyRtspUrl()
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (streamStatus.isServerRunning) Icons.Default.Wifi else Icons.Default.WifiOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                stringResource(if (streamStatus.isServerRunning) R.string.turn_off_server else R.string.turn_on_server),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Switch(
+                            checked = streamStatus.isServerRunning,
+                            onCheckedChange = null,
+                            thumbContent = if (streamStatus.isServerRunning) {
+                                { Icon(Icons.Default.Check, null, Modifier.size(12.dp)) }
+                            } else null,
+                        )
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onToggleServer()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThermalWarningOverlay(
+    thermalState: ThermalState,
+    modifier: Modifier = Modifier,
+) {
+    val (color, label) = when (thermalState) {
+        ThermalState.MODERATE -> LensOrange to stringResource(R.string.thermal_moderate)
+        ThermalState.SEVERE -> LensRed to stringResource(R.string.thermal_severe)
+        ThermalState.CRITICAL -> MaterialTheme.colorScheme.error to stringResource(R.string.thermal_critical)
+        else -> LensOrange to stringResource(R.string.thermal_warm)
+    }
+    Surface(
+        modifier = modifier,
+        color = color.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+private fun ZoomIndicator(
+    zoomRatio: Float,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = OverlayScrim.copy(alpha = 0.85f),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.ZoomIn,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${String.format("%.1f", zoomRatio)}x",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionQualityIndicator(
+    qualityLevel: NetworkQualityLevel,
+    currentQuality: Int,
+    currentFps: Int,
+    activeClients: Int,
+    minThroughputKbps: Int,
+    estimatedBandwidthKbps: Int,
+    stats: com.raulshma.lenscast.core.NetworkQualityMonitor.NetworkStatsSnapshot?,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val (dotColor, label) = when (qualityLevel) {
+        NetworkQualityLevel.EXCELLENT -> Color(0xFF4CAF50) to "EXC"
+        NetworkQualityLevel.GOOD -> Color(0xFF8BC34A) to "GOOD"
+        NetworkQualityLevel.FAIR -> Color(0xFFFFC107) to "FAIR"
+        NetworkQualityLevel.POOR -> Color(0xFFFF9800) to "POOR"
+        NetworkQualityLevel.CRITICAL -> Color(0xFFF44336) to "CRIT"
+    }
+
+    Box(modifier = modifier) {
+        Surface(
+            modifier = Modifier.clickable { expanded = !expanded },
+            color = OverlayScrim,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(8.dp),
+                        shape = CircleShape,
+                        color = dotColor
+                    ) {}
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        color = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${currentQuality}q ${currentFps}fps",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                )
+                if (activeClients > 0) {
+                    Text(
+                    text = stringResource(R.string.active_clients_throughput, activeClients, minThroughputKbps),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+        }
+
+        if (expanded && stats != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(top = 40.dp)
+                    .width(220.dp),
+                color = Color(0xDD1C1C1E),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.connection_quality),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    ConnectionStatRow(label = stringResource(R.string.quality), value = label, valueColor = dotColor)
+                    ConnectionStatRow(label = stringResource(R.string.bandwidth), value = "${estimatedBandwidthKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.min_throughput), value = "${stats.minThroughputKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.avg_throughput), value = "${stats.avgThroughputKbps} kbps")
+                    ConnectionStatRow(label = stringResource(R.string.latency), value = "${stats.worstLatencyMs} ms")
+                    ConnectionStatRow(label = stringResource(R.string.avg_frame), value = "${stats.avgFrameSizeBytes / 1024} KB")
+                    ConnectionStatRow(label = stringResource(R.string.clients), value = "${stats.activeClients}")
+                    ConnectionStatRow(label = stringResource(R.string.total_sent), value = formatBytes(stats.totalBytesSent))
+
+                    if (stats.clientDetails.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(R.string.per_client_stats),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        stats.clientDetails.forEach { (clientId, detail) ->
+                            Text(
+                                text = stringResource(R.string.client_label, clientId.take(8)),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                            )
+                            ConnectionStatRow(label = "  ${stringResource(R.string.frames)}", value = "${detail.framesSent}")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.throughput)}", value = "${detail.avgThroughputKbps} kbps")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.latency)}", value = "${detail.lastSendDurationMs} ms")
+                            ConnectionStatRow(label = "  ${stringResource(R.string.frame_size)}", value = "${detail.lastFrameSizeBytes / 1024} KB")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionStatRow(label: String, value: String, valueColor: Color = Color.White) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color.White.copy(alpha = 0.5f)
+            )
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = valueColor
+            )
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "${bytes} B"
+        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+        bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+        else -> "${bytes / (1024 * 1024 * 1024)} GB"
+    }
+}
+
+@Composable
+private fun LensSelectorRow(
+    lenses: List<CameraLensInfo>,
+    selectedIndex: Int,
+    onLensSelected: (Int) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = OverlayScrim.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            lenses.forEachIndexed { index, lens ->
+                if (index > 0) Spacer(modifier = Modifier.width(6.dp))
+                val isSelected = index == selectedIndex
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onLensSelected(index) },
+                    label = {
+                        Text(
+                            text = lens.label,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            ),
+                            textAlign = TextAlign.Center,
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color.White.copy(alpha = 0.25f),
+                        selectedLabelColor = Color.White,
+                        containerColor = Color.White.copy(alpha = 0.08f),
+                        labelColor = Color.White.copy(alpha = 0.7f),
+                    ),
+                    border = null,
+                    shape = RoundedCornerShape(50),
+                )
+            }
+        }
+    }
+}

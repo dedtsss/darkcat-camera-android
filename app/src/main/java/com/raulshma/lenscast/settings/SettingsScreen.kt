@@ -1,0 +1,396 @@
+package com.raulshma.lenscast.settings
+
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.raulshma.lenscast.MainApplication
+import com.raulshma.lenscast.R
+import com.raulshma.lenscast.camera.model.FocusMode
+import com.raulshma.lenscast.camera.model.HdrMode
+import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.Resolution
+import com.raulshma.lenscast.camera.model.WhiteBalance
+import com.raulshma.lenscast.ui.components.LensCastSectionCard
+import com.raulshma.lenscast.ui.components.LensCastTopBar
+
+@Composable
+fun CameraSettingsScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateToAppSettings: () -> Unit = {},
+) {
+    val context = LocalContext.current
+    val activity = context as ComponentActivity
+    val app = context.applicationContext as MainApplication
+    val viewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModel.Factory(
+            app.cameraService, app.settingsDataStore, app.streamingManager, app.powerManager
+        )
+    )
+
+    LaunchedEffect(activity) {
+        viewModel.activityRef = activity
+        viewModel.refreshBatteryOptimizationStatus()
+    }
+
+    val settings by viewModel.settings.collectAsState()
+    val zoomRange by viewModel.availableZoomRange.collectAsState()
+    val exposureRange by viewModel.availableExposureRange.collectAsState()
+    val isoRange by viewModel.availableIsoRange.collectAsState()
+    val isoOptions = remember(isoRange) {
+        val stops = mutableListOf("Auto")
+        var value = 100
+        while (value <= isoRange.endInclusive) {
+            if (value >= isoRange.start) stops.add(value.toString())
+            value *= 2
+        }
+        stops
+    }
+    val showPreview by viewModel.showPreview.collectAsState()
+
+    Scaffold(
+        topBar = {
+            LensCastTopBar(
+                title = stringResource(R.string.camera_settings),
+                onNavigateBack = onNavigateBack,
+                actions = {
+                    TextButton(onClick = onNavigateToAppSettings) {
+                        Text(stringResource(R.string.app_settings))
+                    }
+                    TextButton(onClick = { viewModel.resetToDefaults() }) {
+                        Text(stringResource(R.string.reset), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                SettingsSection(title = stringResource(R.string.display)) {
+                    SwitchSetting(
+                        title = stringResource(R.string.show_camera_preview),
+                        checked = showPreview,
+                        onCheckedChange = { viewModel.updateShowPreview(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.exposure)) {
+                    SliderSetting(
+                        title = stringResource(R.string.quick_setting_exposure),
+                        value = settings.exposureCompensation.toFloat(),
+                        range = exposureRange.start.toFloat()..exposureRange.endInclusive.toFloat(),
+                        onValueChange = { viewModel.updateExposure(it.toInt()) }
+                    )
+                    DropdownSetting(
+                        title = "ISO",
+                        options = isoOptions,
+                        selected = settings.iso?.toString() ?: "Auto",
+                        onSelect = { viewModel.updateIso(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.focus)) {
+                    DropdownSetting(
+                        title = stringResource(R.string.quick_setting_focus),
+                        options = FocusMode.entries.map { it.name },
+                        selected = settings.focusMode.name,
+                        onSelect = { viewModel.updateFocusMode(it) }
+                    )
+                    if (settings.focusMode == FocusMode.MANUAL) {
+                        SliderSetting(
+                            title = stringResource(R.string.focus_distance),
+                            value = settings.focusDistance ?: 0f,
+                            range = 0f..10f,
+                            onValueChange = { viewModel.updateFocusDistance(it) }
+                        )
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.quick_setting_white_balance)) {
+                    DropdownSetting(
+                        title = stringResource(R.string.quick_setting_white_balance),
+                        options = WhiteBalance.entries.map { it.name },
+                        selected = settings.whiteBalance.name,
+                        onSelect = { viewModel.updateWhiteBalance(it) }
+                    )
+                    if (settings.whiteBalance == WhiteBalance.MANUAL) {
+                        SliderSetting(
+                            title = stringResource(R.string.color_temperature),
+                            value = (settings.colorTemperature ?: 5500).toFloat(),
+                            range = 2000f..9000f,
+                            onValueChange = { viewModel.updateColorTemperature(it.toInt()) }
+                        )
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.lens)) {
+                    SliderSetting(
+                        title = stringResource(R.string.zoom),
+                        value = settings.zoomRatio,
+                        range = zoomRange,
+                        onValueChange = { viewModel.updateZoom(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.capture)) {
+                    DropdownSetting(
+                        title = stringResource(R.string.quick_setting_resolution),
+                        options = Resolution.entries.map { it.name },
+                        selected = settings.resolution.name,
+                        onSelect = { viewModel.updateResolution(it) }
+                    )
+                    SliderSetting(
+                        title = stringResource(R.string.quick_setting_frame_rate),
+                        value = settings.frameRate.toFloat(),
+                        range = 15f..60f,
+                        onValueChange = { viewModel.updateFrameRate(it.toInt()) }
+                    )
+                    DropdownSetting(
+                        title = "HDR",
+                        options = HdrMode.entries.map { it.name },
+                        selected = settings.hdrMode.name,
+                        onSelect = { viewModel.updateHdrMode(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.video)) {
+                    SwitchSetting(
+                        title = stringResource(R.string.image_stabilization),
+                        checked = settings.stabilization,
+                        onCheckedChange = { viewModel.updateStabilization(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.night_vision_ir)) {
+                    DropdownSetting(
+                        title = stringResource(R.string.mode),
+                        options = NightVisionMode.entries.map { it.name },
+                        selected = settings.nightVisionMode.name,
+                        onSelect = { viewModel.updateNightVisionMode(it) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = when (settings.nightVisionMode) {
+                            NightVisionMode.ON -> stringResource(R.string.night_vision_on_description)
+                            NightVisionMode.AUTO -> stringResource(R.string.night_vision_auto_description)
+                            NightVisionMode.OFF -> stringResource(R.string.night_vision_off_description)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.scene)) {
+                    DropdownSetting(
+                        title = stringResource(R.string.scene_mode),
+                        options = listOf("OFF", "FACE_DETECTION", "NIGHT", "HDR", "SUNSET", "FIREWORKS"),
+                        selected = settings.sceneMode ?: "OFF",
+                        onSelect = { viewModel.updateSceneMode(it) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsSection(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    LensCastSectionCard(title = title) {
+        content()
+    }
+}
+
+@Composable
+fun SliderSetting(
+    title: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (value == value.toInt().toFloat()) "${value.toInt()}" else String.format("%.1f", value),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            )
+        )
+    }
+}
+
+@Composable
+fun DropdownSetting(
+    title: String,
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { option ->
+                FilterChip(
+                    label = localizedSettingOption(option),
+                    selected = option == selected,
+                    onClick = { onSelect(option) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun localizedSettingOption(option: String): String = when (option) {
+    "Auto", "AUTO" -> stringResource(R.string.auto)
+    "ON" -> stringResource(R.string.on)
+    "OFF" -> stringResource(R.string.off)
+    "Mono" -> stringResource(R.string.mono)
+    "Stereo" -> stringResource(R.string.stereo)
+    "MANUAL" -> stringResource(R.string.manual)
+    "MACRO" -> stringResource(R.string.macro)
+    "CONTINUOUS_PICTURE" -> stringResource(R.string.continuous_picture)
+    "CONTINUOUS_VIDEO" -> stringResource(R.string.continuous_video)
+    "DAYLIGHT" -> stringResource(R.string.daylight)
+    "CLOUDY" -> stringResource(R.string.cloudy)
+    "INDOOR" -> stringResource(R.string.indoor)
+    "FLUORESCENT" -> stringResource(R.string.fluorescent)
+    "SD_480P" -> stringResource(R.string.resolution_sd_480p)
+    "HD_720P" -> stringResource(R.string.resolution_hd_720p)
+    "FHD_1080P" -> stringResource(R.string.resolution_fhd_1080p)
+    "QHD_1440P" -> stringResource(R.string.resolution_qhd_1440p)
+    "UHD_4K" -> stringResource(R.string.resolution_uhd_4k)
+    "MINIMIZE_LATENCY" -> stringResource(R.string.minimize_latency)
+    "MAXIMIZE_QUALITY" -> stringResource(R.string.maximize_quality)
+    "HIGH" -> stringResource(R.string.high)
+    "MEDIUM" -> stringResource(R.string.medium)
+    "LOW" -> stringResource(R.string.low)
+    "FACE_DETECTION" -> stringResource(R.string.face_detection)
+    "NIGHT" -> stringResource(R.string.night)
+    "SUNSET" -> stringResource(R.string.sunset)
+    "FIREWORKS" -> stringResource(R.string.fireworks)
+    else -> option.replace("_", " ")
+}
+
+@Composable
+fun SwitchSetting(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+fun FilterChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}

@@ -1,0 +1,1097 @@
+package com.raulshma.lenscast.camera
+
+
+import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
+import android.util.Log
+import android.util.Size
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfo
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import android.hardware.camera2.CaptureRequest
+import android.util.Range
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.core.UseCase
+import com.raulshma.lenscast.R
+import com.raulshma.lenscast.camera.model.CameraLensInfo
+import com.raulshma.lenscast.camera.model.CameraSettings
+import com.raulshma.lenscast.camera.model.CameraState
+import com.raulshma.lenscast.camera.model.FocusMode
+import com.raulshma.lenscast.camera.model.WhiteBalance
+import com.raulshma.lenscast.camera.model.HdrMode
+import com.raulshma.lenscast.camera.model.NightVisionMode
+import com.raulshma.lenscast.camera.model.PhotoFlashMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.max
+import java.util.concurrent.TimeUnit
+
+class CameraService(private val context: Context) {
+
+    private class KeepAliveLifecycle : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle get() = registry
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+        init {
+            runOnMainThread { registry.currentState = Lifecycle.State.CREATED }
+        }
+
+        fun activate() {
+            runOnMainThread { registry.currentState = Lifecycle.State.STARTED }
+        }
+
+        fun deactivate() {
+            runOnMainThread { registry.currentState = Lifecycle.State.CREATED }
+        }
+
+        private fun runOnMainThread(action: () -> Unit) {
+            if (android.os.Looper.getMainLooper().isCurrentThread) {
+                action()
+            } else {
+                mainHandler.post(action)
+            }
+        }
+    }
+
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var preview: Preview? = null
+    private var imageCapture: ImageCapture? = null
+    private var imageAnalysis: ImageAnalysis? = null
+    private var camera: Camera? = null
+    private var lifecycleOwner: LifecycleOwner? = null
+    private var frameListener: ((ByteArray, Int, Int, Int) -> Unit)? = null
+    private var currentCameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private var previewRequested = false
+    private var exclusiveSessionRefCount = 0
+    private var currentPreviewView: PreviewView? = null
+    private var activeSettings = CameraSettings()
+
+    private val keepAliveLifecycle = KeepAliveLifecycle()
+    private var keepAliveRefCount = 0
+
+    private val _cameraState = MutableStateFlow<CameraState>(CameraState.Idle)
+    val cameraState: StateFlow<CameraState> = _cameraState.asStateFlow()
+
+    private val _isFrontCamera = MutableStateFlow(false)
+    val isFrontCamera: StateFlow<Boolean> = _isFrontCamera.asStateFlow()
+
+    private val _hasFlashUnit = MutableStateFlow(false)
+    val hasFlashUnit: StateFlow<Boolean> = _hasFlashUnit.asStateFlow()
+
+    private val _availableZoomRange = MutableStateFlow<ClosedFloatingPointRange<Float>>(1f..10f)
+    val availableZoomRange: StateFlow<ClosedFloatingPointRange<Float>> = _availableZoomRange.asStateFlow()
+
+    private val _availableExposureRange = MutableStateFlow<ClosedRange<Int>>(-12..12)
+    val availableExposureRange: StateFlow<ClosedRange<Int>> = _availableExposureRange.asStateFlow()
+
+    private val _availableIsoRange = MutableStateFlow<ClosedRange<Int>>(100..3200)
+    val availableIsoRange: StateFlow<ClosedRange<Int>> = _availableIsoRange.asStateFlow()
+
+    private var sensorExposureTimeRange: LongRange = 1L..1_000_000_000L
+
+    private val _availableLenses = MutableStateFlow<List<CameraLensInfo>>(emptyList())
+    val availableLenses: StateFlow<List<CameraLensInfo>> = _availableLenses.asStateFlow()
+
+    private val _selectedLensIndex = MutableStateFlow(0)
+    val selectedLensIndex: StateFlow<Int> = _selectedLensIndex.asStateFlow()
+
+    fun setLifecycleOwner(owner: LifecycleOwner) {
+        lifecycleOwner = owner
+    }
+
+    fun acquireKeepAlive() {
+        keepAliveRefCount++
+        if (keepAliveRefCount == 1) {
+            keepAliveLifecycle.activate()
+            Log.d(TAG, "Keep-alive lifecycle activated")
+        }
+        Log.d(TAG, "Keep-alive ref count: $keepAliveRefCount")
+    }
+
+    fun releaseKeepAlive() {
+        keepAliveRefCount = max(0, keepAliveRefCount - 1)
+        if (keepAliveRefCount == 0) {
+            keepAliveLifecycle.deactivate()
+            Log.d(TAG, "Keep-alive lifecycle deactivated")
+        }
+        Log.d(TAG, "Keep-alive ref count: $keepAliveRefCount")
+    }
+
+    fun isKeepAliveActive(): Boolean = keepAliveRefCount > 0
+
+    fun beginExclusiveSession() {
+        exclusiveSessionRefCount++
+        Log.d(TAG, "Exclusive camera session started (count=$exclusiveSessionRefCount)")
+    }
+
+    fun endExclusiveSession() {
+        exclusiveSessionRefCount = max(0, exclusiveSessionRefCount - 1)
+        Log.d(TAG, "Exclusive camera session ended (count=$exclusiveSessionRefCount)")
+    }
+
+    fun getEffectiveLifecycleOwner(): LifecycleOwner? {
+        return if (keepAliveRefCount > 0) keepAliveLifecycle else lifecycleOwner
+    }
+
+    fun getCurrentCameraSelector(): CameraSelector = currentCameraSelector
+
+    /** x/y are pixels in previewView's coordinate space, as required by its metering factory. */
+    fun tapToFocus(previewView: PreviewView, x: Float, y: Float) {
+        val cam = camera ?: run {
+            Log.w(TAG, "tapToFocus: camera not available")
+            return
+        }
+        try {
+            // PreviewView accounts for FILL_CENTER crop, rotation, and display transforms.
+            val point = previewView.meteringPointFactory.createPoint(x, y)
+            cam.cameraControl.startFocusAndMetering(
+                FocusMeteringAction.Builder(point)
+                    .setAutoCancelDuration(5, TimeUnit.SECONDS)
+                    .build()
+            )
+            Log.d(TAG, "tapToFocus: x=$x, y=$y, camera=${selectedCameraId()}")
+        } catch (e: Exception) {
+            Log.w(TAG, "tapToFocus failed", e)
+        }
+    }
+
+    /** Web/API adapter: coordinates are normalized and must not be passed to PreviewView directly. */
+    fun tapToFocusNormalized(x: Float, y: Float) {
+        currentPreviewView?.let { previewView ->
+            tapToFocus(previewView, x * previewView.width, y * previewView.height)
+            return
+        }
+        val cam = camera ?: return
+        runCatching {
+            val point = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                .createPoint(x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
+            cam.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(point).build())
+        }.onFailure { Log.w(TAG, "normalized tapToFocus failed", it) }
+    }
+
+    private fun selectedCameraId(): String = _availableLenses.value
+        .getOrNull(_selectedLensIndex.value)?.id ?: "unknown"
+
+    fun setFrameListener(listener: ((ByteArray, Int, Int, Int) -> Unit)?) {
+        frameListener = listener
+    }
+
+    suspend fun initialize(): Result<Unit> = withContext(Dispatchers.Main) {
+        try {
+            Log.d(TAG, "Starting camera initialization...")
+            _cameraState.value = CameraState.Initializing
+            val future = ProcessCameraProvider.getInstance(context)
+            val provider = withTimeoutOrNull(10_000L) {
+                future.await()
+            } ?: throw Exception("Camera initialization timed out")
+            cameraProvider = provider
+            enumerateCameras(provider)
+            _cameraState.value = CameraState.Ready
+            Log.d(TAG, "Camera initialized successfully")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Camera initialization failed", e)
+            _cameraState.value = CameraState.Error(e.message ?: "Camera initialization failed")
+            Result.failure(e)
+        }
+    }
+
+    private fun ensureCameraProviderAvailable(): ProcessCameraProvider? {
+        cameraProvider?.let { return it }
+
+        return try {
+            Log.d(TAG, "ensureCameraProviderAvailable: initializing camera provider")
+            _cameraState.value = CameraState.Initializing
+            val provider = ProcessCameraProvider.getInstance(context).get(10, TimeUnit.SECONDS)
+            cameraProvider = provider
+            enumerateCameras(provider)
+            _cameraState.value = CameraState.Ready
+            provider
+        } catch (e: Exception) {
+            Log.e(TAG, "ensureCameraProviderAvailable: failed", e)
+            _cameraState.value = CameraState.Error(e.message ?: "Camera initialization failed")
+            null
+        }
+    }
+
+    private fun hasActiveCameraDemand(): Boolean = previewRequested || keepAliveRefCount > 0
+
+    private fun shouldAttachPreview(): Boolean {
+        return previewRequested && currentPreviewView != null && isActivityForeground
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun enumerateCameras(provider: ProcessCameraProvider) {
+        try {
+            val cameraInfos = provider.availableCameraInfos
+            Log.d(TAG, "Found ${cameraInfos.size} cameras")
+
+            val lenses = mutableListOf<CameraLensInfo>()
+
+            for (info in cameraInfos) {
+                try {
+                    val camera2Info = Camera2CameraInfo.from(info)
+                    val cameraId = camera2Info.cameraId
+                    val lensFacing = info.lensFacing
+
+                    // Catch any potential exceptions from experimental API calls
+                    val physicalCameras = try {
+                        info.physicalCameraInfos
+                    } catch (e: Exception) {
+                        emptySet()
+                    }
+
+                    // Always add the logical camera FIRST
+                    val logicalFocalLength = getFocalLength(camera2Info)
+            val logicalLabel = buildCameraLabel(lensFacing, logicalFocalLength, cameraId, physical = false)
+                    val logicalSelector = buildCameraSelector(info)
+
+                    val logicalCamInfo = CameraLensInfo(
+                        id = cameraId,
+                        label = logicalLabel,
+                        lensFacing = lensFacing,
+                        focalLength = logicalFocalLength,
+                        cameraSelector = logicalSelector,
+                        physicalCameraId = null,
+                    )
+                    lenses.add(logicalCamInfo)
+
+                    // Then add physical cameras if available
+                    if (physicalCameras.isNotEmpty() && physicalCameras.size > 1) {
+                        for (physInfo in physicalCameras) {
+                            val physCamera2Info = Camera2CameraInfo.from(physInfo)
+                            val physId = physCamera2Info.cameraId
+                            // Skip if physical ID matches logical ID to avoid duplicates
+                            if (physId == cameraId) continue
+
+                            val focalLength = getFocalLength(physCamera2Info)
+                            val label = buildCameraLabel(lensFacing, focalLength, physId, physical = true)
+                            val selector = CameraSelector.Builder()
+                                .requireLensFacing(lensFacing)
+                                .setPhysicalCameraId(physId)
+                                .build()
+
+                            lenses.add(
+                                CameraLensInfo(
+                                    id = physId,
+                                    label = label,
+                                    lensFacing = lensFacing,
+                                    focalLength = focalLength,
+                                    cameraSelector = selector,
+                                    physicalCameraId = physId,
+                                )
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to enumerate camera", e)
+                }
+            }
+
+            // Remove duplicated lenses that share the same focal length and facing (OEMs often duplicate them)
+            val distinctLenses = lenses.distinctBy { Pair(it.lensFacing, it.focalLength) }
+
+            // Sort: back cameras sorted by focal length (ascending), then front cameras
+            val sorted = distinctLenses.sortedWith(
+                compareBy<CameraLensInfo> { it.lensFacing != CameraSelector.LENS_FACING_BACK }
+                    .thenBy { it.focalLength }
+            )
+
+            _availableLenses.value = sorted
+
+            // We MUST default to the MAIN logical back camera. Direct binding to physical
+            // cameras on start causes black screen on many OEM drivers.
+            val logicalBackIndex = CameraLensSelection.defaultBackIndex(sorted)
+            
+            _selectedLensIndex.value = logicalBackIndex
+
+            if (sorted.isNotEmpty()) {
+                currentCameraSelector = sorted[logicalBackIndex].cameraSelector
+                _isFrontCamera.value = sorted[logicalBackIndex].lensFacing == CameraSelector.LENS_FACING_FRONT
+            }
+
+            Log.d(TAG, "Enumerated ${sorted.size} cameras, default index=$logicalBackIndex")
+        } catch (e: Exception) {
+            Log.e(TAG, "Camera enumeration failed, falling back to default", e)
+            // Fallback — create basic entries
+            _availableLenses.value = listOf(
+                CameraLensInfo(
+                    id = "0",
+                    label = context.getString(R.string.camera_back),
+                    lensFacing = CameraSelector.LENS_FACING_BACK,
+                    focalLength = 0f,
+                    cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
+                ),
+                CameraLensInfo(
+                    id = "1",
+                    label = context.getString(R.string.camera_front),
+                    lensFacing = CameraSelector.LENS_FACING_FRONT,
+                    focalLength = 0f,
+                    cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA,
+                )
+            )
+            _selectedLensIndex.value = 0
+        }
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun getFocalLength(camera2Info: Camera2CameraInfo): Float {
+        return try {
+            val focalLengths = camera2Info.getCameraCharacteristic(
+                CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
+            )
+            focalLengths?.firstOrNull() ?: 0f
+        } catch (e: Exception) {
+            0f
+        }
+    }
+
+    private fun buildCameraLabel(lensFacing: Int, focalLength: Float, cameraId: String, physical: Boolean): String {
+        if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+            return context.getString(R.string.camera_front)
+        }
+        if (!physical) return context.getString(R.string.camera_main)
+        // Physical lenses without reliable calibration get descriptive labels; never invent zoom ratios.
+        return when {
+            focalLength <= 0f -> context.getString(R.string.camera_named, cameraId)
+            focalLength < 2.5f -> context.getString(R.string.camera_ultrawide)
+            focalLength < 5f -> context.getString(R.string.camera_wide)
+            else -> context.getString(R.string.camera_named, cameraId)
+        }
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun buildCameraSelector(info: CameraInfo): CameraSelector {
+        val camera2Info = Camera2CameraInfo.from(info)
+        val cameraId = camera2Info.cameraId
+        return CameraSelector.Builder()
+            .requireLensFacing(info.lensFacing)
+            .addCameraFilter { cameraInfos ->
+                cameraInfos.filter { cameraInfo ->
+                    try {
+                        Camera2CameraInfo.from(cameraInfo).cameraId == cameraId
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+            }
+            .build()
+    }
+
+    fun selectLens(index: Int) {
+        val lenses = _availableLenses.value
+        if (index < 0 || index >= lenses.size) {
+            Log.w(TAG, "selectLens: index $index out of bounds (size ${lenses.size})")
+            return
+        }
+        val lens = lenses[index]
+        if (index == _selectedLensIndex.value) {
+            Log.d(TAG, "selectLens: selected lens $index is already active; no-op")
+            return
+        }
+        Log.d(TAG, "selectLens: switching to lens $index: ${lens.label}, provider=${cameraProvider != null}, previewView=${currentPreviewView != null}")
+        
+        _selectedLensIndex.value = index
+        currentCameraSelector = lens.cameraSelector
+        _isFrontCamera.value = lens.lensFacing == CameraSelector.LENS_FACING_FRONT
+
+        if (hasActiveCameraDemand() && exclusiveSessionRefCount == 0) {
+            rebindUseCases()
+        } else {
+            Log.d(TAG, "selectLens: selector updated; camera will switch on next active session")
+        }
+    }
+
+    fun rebindUseCases() {
+        if (exclusiveSessionRefCount > 0) {
+            Log.d(TAG, "rebindUseCases: skipped while an exclusive session is active")
+            return
+        }
+
+        val provider = ensureCameraProviderAvailable()
+        Log.d(TAG, "rebindUseCases: provider=${provider != null}, refCount=$keepAliveRefCount, previewRequested=$previewRequested, lifecycleOwner=${lifecycleOwner != null}")
+        
+        if (provider == null) {
+            Log.w(TAG, "rebindUseCases: cameraProvider is null, cannot rebind")
+            return
+        }
+
+        if (!hasActiveCameraDemand()) {
+            provider.unbindAll()
+            clearBoundUseCases()
+            Log.d(TAG, "rebindUseCases: unbound camera because there is no active demand")
+            return
+        }
+        
+        val owner = if (keepAliveRefCount > 0) keepAliveLifecycle else lifecycleOwner
+        if (owner == null) {
+            Log.w(TAG, "rebindUseCases: no lifecycle owner available and no keep-alive, cannot rebind")
+            return
+        }
+
+        bindUseCases(provider, owner)
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    fun startPreview(previewView: PreviewView) {
+        val provider = ensureCameraProviderAvailable()
+        if (provider == null) {
+            Log.e(TAG, "startPreview: camera provider is unavailable")
+            return
+        }
+
+        currentPreviewView = previewView
+        previewRequested = true
+        Log.d(TAG, "startPreview: requested with selector=$currentCameraSelector, resolution=$currentResolution")
+
+        val owner = if (keepAliveRefCount > 0) keepAliveLifecycle else lifecycleOwner
+        if (owner == null) {
+            Log.e(TAG, "startPreview: no lifecycle owner available")
+            return
+        }
+
+        bindUseCases(provider, owner)
+    }
+
+    fun stopPreview() {
+        previewRequested = false
+        preview?.surfaceProvider = null
+        currentPreviewView = null
+
+        if (exclusiveSessionRefCount > 0) {
+            Log.d(TAG, "stopPreview: preview released while exclusive session remains active")
+            return
+        }
+
+        rebindUseCases()
+    }
+
+    fun acquirePhotoCapture(): ImageCapture? {
+        acquireKeepAlive()
+        rebindUseCases()
+        return imageCapture ?: run {
+            releaseKeepAlive()
+            rebindUseCases()
+            null
+        }
+    }
+
+    fun releasePhotoCapture() {
+        releaseKeepAlive()
+        rebindUseCases()
+    }
+
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
+    private fun bindUseCases(
+        provider: ProcessCameraProvider,
+        owner: LifecycleOwner,
+    ) {
+        Log.d(TAG, "bindUseCases: selector=$currentCameraSelector, resolution=$currentResolution, attachPreview=${shouldAttachPreview()}")
+
+        val captureResolutionSelector = ResolutionSelector.Builder()
+            .setResolutionStrategy(
+                ResolutionStrategy(
+                    currentResolution,
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                )
+            )
+            .build()
+        val analysisResolutionSelector = ResolutionSelector.Builder()
+            .setResolutionStrategy(
+                ResolutionStrategy(
+                    getStreamingAnalysisResolution(currentResolution),
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                )
+            )
+            .build()
+
+        // Intentionally DO NOT bind ResolutionSelector to Preview. 
+        // Let CameraX decide the best display aspect ratio natively to prevent surface bind failures.
+        val previewBuilder = Preview.Builder()
+        val captureBuilder = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setResolutionSelector(captureResolutionSelector)
+        val analysisBuilder = ImageAnalysis.Builder()
+            .setResolutionSelector(analysisResolutionSelector)
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+
+        val selectedLens = _availableLenses.value.getOrNull(_selectedLensIndex.value)
+        if (selectedLens?.physicalCameraId != null) {
+            val physId = selectedLens.physicalCameraId
+            Camera2Interop.Extender(previewBuilder).setPhysicalCameraId(physId)
+            Camera2Interop.Extender(captureBuilder).setPhysicalCameraId(physId)
+            Camera2Interop.Extender(analysisBuilder).setPhysicalCameraId(physId)
+            Log.d(TAG, "bindUseCases: applied physicalCameraId $physId to all use cases")
+        }
+
+        val previewView = currentPreviewView
+        preview = if (shouldAttachPreview() && previewView != null) {
+            previewBuilder.build().also {
+                Log.d(TAG, "bindUseCases: setting surfaceProvider")
+                it.surfaceProvider = previewView.surfaceProvider
+            }
+        } else {
+            null
+        }
+
+        imageCapture = captureBuilder.build()
+
+        imageAnalysis = analysisBuilder.build()
+            .also { analysis ->
+                analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                    processFrame(imageProxy)
+                }
+            }
+
+        try {
+            provider.unbindAll()
+            try {
+                camera = bindBestAvailableCombination(provider, owner)
+            } catch (e: Exception) {
+                Log.e(TAG, "bindUseCases: failed to bind camera", e)
+                _cameraState.value = CameraState.Error("Failed to start camera: ${e.message}")
+                return
+            }
+
+            camera?.let { cam ->
+                cam.cameraInfo.zoomState.value?.let { zoom ->
+                    _availableZoomRange.value = zoom.minZoomRatio..zoom.maxZoomRatio.coerceAtMost(20f)
+                }
+                _hasFlashUnit.value = cam.cameraInfo.hasFlashUnit()
+                val expState = cam.cameraInfo.exposureState
+                _availableExposureRange.value = expState.exposureCompensationRange.lower..
+                        expState.exposureCompensationRange.upper
+
+                // Query sensor ISO and exposure time ranges for the selected lens
+                try {
+                    val cameraId = selectedLens?.physicalCameraId
+                        ?: Camera2CameraInfo.from(cam.cameraInfo).cameraId
+                    val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+                    val chars = cameraManager.getCameraCharacteristics(cameraId)
+                    chars.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)?.let { range ->
+                        _availableIsoRange.value = range.lower..range.upper
+                    }
+                    chars.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)?.let { range ->
+                        sensorExposureTimeRange = range.lower..range.upper
+                    }
+                    Log.d(TAG, "Sensor ranges for camera $cameraId: ISO=${_availableIsoRange.value}, exposure=${sensorExposureTimeRange}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to query sensor ranges", e)
+                }
+            }
+
+            applyCameraControls(activeSettings)
+        } catch (e: Exception) {
+            Log.e(TAG, "bindUseCases: failed to bind camera", e)
+            _cameraState.value = CameraState.Error("Failed to start camera: ${e.message}")
+        }
+    }
+
+    private fun bindBestAvailableCombination(
+        provider: ProcessCameraProvider,
+        owner: LifecycleOwner,
+    ): Camera {
+        val preferredCombinations = buildList<List<UseCase>> {
+            if (preview != null && imageCapture != null && imageAnalysis != null) {
+                add(listOf(preview!!, imageCapture!!, imageAnalysis!!))
+                add(listOf(preview!!, imageCapture!!))
+                add(listOf(preview!!, imageAnalysis!!))
+            }
+            if (imageCapture != null && imageAnalysis != null) {
+                add(listOf(imageCapture!!, imageAnalysis!!))
+            }
+            imageCapture?.let { add(listOf(it)) }
+            imageAnalysis?.let { add(listOf(it)) }
+        }
+
+        var lastError: Exception? = null
+        preferredCombinations.forEach { useCases ->
+            try {
+                provider.unbindAll()
+                val boundCamera = provider.bindToLifecycle(
+                    owner,
+                    currentCameraSelector,
+                    *useCases.toTypedArray()
+                )
+
+                preview = useCases.filterIsInstance<Preview>().firstOrNull()
+                imageCapture = useCases.filterIsInstance<ImageCapture>().firstOrNull()
+                imageAnalysis = useCases.filterIsInstance<ImageAnalysis>().firstOrNull()
+
+                Log.d(
+                    TAG,
+                    "bindBestAvailableCombination: bound ${useCases.joinToString { it.javaClass.simpleName }}"
+                )
+                return boundCamera
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(
+                    TAG,
+                    "bindBestAvailableCombination: failed for ${useCases.joinToString { it.javaClass.simpleName }}",
+                    e
+                )
+            }
+        }
+
+        throw lastError ?: IllegalStateException("No compatible camera use case combination found")
+    }
+
+    private fun clearBoundUseCases() {
+        preview?.surfaceProvider = null
+        preview = null
+        imageCapture = null
+        imageAnalysis = null
+        camera = null
+        _hasFlashUnit.value = false
+    }
+
+    fun switchCamera(previewView: PreviewView) {
+        val lenses = _availableLenses.value
+        if (lenses.isEmpty()) {
+            // Fallback to simple front/back toggle
+            currentCameraSelector = if (_isFrontCamera.value) {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            } else {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            }
+            _isFrontCamera.value = !_isFrontCamera.value
+            startPreview(previewView)
+            return
+        }
+
+        // Cycle to next lens
+        val currentIndex = _selectedLensIndex.value
+        val nextIndex = (currentIndex + 1) % lenses.size
+        selectLens(nextIndex)
+    }
+
+    private val analysisExecutor by lazy {
+        java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "FrameAnalysis").apply { isDaemon = true; priority = Thread.NORM_PRIORITY + 1 }
+        }
+    }
+
+    private var consecutiveFrameErrors = 0
+    private var lastFrameErrorTime = 0L
+
+    private fun processFrame(imageProxy: ImageProxy) {
+        try {
+            val cropRect = imageProxy.cropRect
+            val width = cropRect.width()
+            val height = cropRect.height()
+            val rotation = imageProxy.imageInfo.rotationDegrees
+            val yuvData = yuvToNv21(imageProxy)
+            if (yuvData != null) {
+                consecutiveFrameErrors = 0
+                frameListener?.invoke(yuvData, width, height, rotation)
+            }
+        } catch (e: Exception) {
+            val now = System.currentTimeMillis()
+            if (now - lastFrameErrorTime > 5000) {
+                consecutiveFrameErrors = 0
+            }
+            consecutiveFrameErrors++
+            lastFrameErrorTime = now
+            Log.e(TAG, "Frame processing error #${consecutiveFrameErrors}", e)
+            if (consecutiveFrameErrors >= MAX_CONSECUTIVE_FRAME_ERRORS) {
+                Log.w(TAG, "Too many frame errors, attempting recovery")
+                consecutiveFrameErrors = 0
+                triggerAutoRecovery()
+            }
+        } finally {
+            imageProxy.close()
+        }
+    }
+
+    private fun triggerAutoRecovery() {
+        try {
+            if (hasActiveCameraDemand() && exclusiveSessionRefCount == 0) {
+                rebindUseCases()
+                Log.d(TAG, "Auto-recovery: rebind use cases attempted")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Auto-recovery: rebind failed", e)
+            _cameraState.value = CameraState.Error("Camera error, please restart the app")
+        }
+    }
+
+    private fun yuvToNv21(image: ImageProxy): ByteArray? {
+        val planes = image.planes
+        if (planes.size < 3) return null
+
+        val yPlane = planes[0]
+        val uPlane = planes[1]
+        val vPlane = planes[2]
+
+        val crop = image.cropRect
+        val width = crop.width()
+        val height = crop.height()
+        if (width <= 0 || height <= 0) return null
+
+        val ySize = width * height
+        val uvSize = ySize / 2
+        val nv21 = ByteArray(ySize + uvSize)
+
+        // Copy Y plane — use bulk get when pixelStride==1 for ~4x speedup
+        val yBuffer = yPlane.buffer.duplicate()
+        val yRowStride = yPlane.rowStride
+        val yPixelStride = yPlane.pixelStride
+        val yCropTop = crop.top
+        val yCropLeft = crop.left
+
+        if (yPixelStride == 1) {
+            // Fast path: bulk copy each row
+            var yOut = 0
+            for (row in 0 until height) {
+                yBuffer.position((row + yCropTop) * yRowStride + yCropLeft)
+                yBuffer.get(nv21, yOut, width)
+                yOut += width
+            }
+        } else {
+            // Slow path: per-pixel copy
+            var yOut = 0
+            for (row in 0 until height) {
+                var srcIndex = (row + yCropTop) * yRowStride + yCropLeft * yPixelStride
+                for (col in 0 until width) {
+                    nv21[yOut++] = yBuffer.get(srcIndex)
+                    srcIndex += yPixelStride
+                }
+            }
+        }
+
+        // Copy UV planes interleaved as VU (NV21)
+        val uBuffer = uPlane.buffer.duplicate()
+        val vBuffer = vPlane.buffer.duplicate()
+        val uRowStride = uPlane.rowStride
+        val vRowStride = vPlane.rowStride
+        val uPixelStride = uPlane.pixelStride
+        val vPixelStride = vPlane.pixelStride
+        val uvWidth = width / 2
+        val uvHeight = height / 2
+        val uvCropTop = crop.top / 2
+        val uvCropLeft = crop.left / 2
+        var uvPos = ySize
+
+        // Fast path: interleaved NV12/NV21 with pixelStride==2 and contiguous VU layout
+        if (vPixelStride == 2 && uPixelStride == 2 && vRowStride == uRowStride
+            && vBuffer.capacity() > 0
+        ) {
+            // Check if V and U planes are interleaved (common on modern devices)
+            val vStart = vPlane.buffer.position()
+            val uStart = uPlane.buffer.position()
+            // NV21: VU interleaved, V plane starts 1 byte before U
+            if (uStart - vStart == 1) {
+                // Fast path: the raw buffer IS NV21 interleaved, bulk copy per row
+                for (row in 0 until uvHeight) {
+                    val rowOffset = (row + uvCropTop) * vRowStride + uvCropLeft * vPixelStride
+                    vBuffer.position(rowOffset)
+                    vBuffer.get(nv21, uvPos, uvWidth * 2)
+                    uvPos += uvWidth * 2
+                }
+            } else {
+                // Per-pixel interleave
+                for (row in 0 until uvHeight) {
+                    var uIndex = (row + uvCropTop) * uRowStride + uvCropLeft * uPixelStride
+                    var vIndex = (row + uvCropTop) * vRowStride + uvCropLeft * vPixelStride
+                    for (col in 0 until uvWidth) {
+                        nv21[uvPos++] = vBuffer.get(vIndex)
+                        nv21[uvPos++] = uBuffer.get(uIndex)
+                        uIndex += uPixelStride
+                        vIndex += vPixelStride
+                    }
+                }
+            }
+        } else {
+            // Generic slow path
+            for (row in 0 until uvHeight) {
+                var uIndex = (row + uvCropTop) * uRowStride + uvCropLeft * uPixelStride
+                var vIndex = (row + uvCropTop) * vRowStride + uvCropLeft * vPixelStride
+                for (col in 0 until uvWidth) {
+                    nv21[uvPos++] = vBuffer.get(vIndex)
+                    nv21[uvPos++] = uBuffer.get(uIndex)
+                    uIndex += uPixelStride
+                    vIndex += vPixelStride
+                }
+            }
+        }
+
+        return nv21
+    }
+
+    private fun getStreamingAnalysisResolution(captureResolution: Size): Size {
+        if (captureResolution.width <= MAX_ANALYSIS_WIDTH &&
+            captureResolution.height <= MAX_ANALYSIS_HEIGHT
+        ) {
+            return captureResolution
+        }
+
+        val isFourThree = captureResolution.width * 3 >= captureResolution.height * 4 - 8 &&
+            captureResolution.width * 3 <= captureResolution.height * 4 + 8
+
+        return if (isFourThree) {
+            Size(960, 720)
+        } else {
+            Size(MAX_ANALYSIS_WIDTH, MAX_ANALYSIS_HEIGHT)
+        }
+    }
+
+    private var pendingResolution: Size? = null
+    private var currentResolution: Size = Size(1920, 1080)
+
+    @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
+    suspend fun applySettings(settings: CameraSettings) {
+        activeSettings = settings
+        if (settings.resolution.size != currentResolution) {
+            currentResolution = settings.resolution.size
+            if (hasActiveCameraDemand() && exclusiveSessionRefCount == 0) {
+                withContext(Dispatchers.Main) {
+                    rebindUseCases()
+                }
+                applyCameraControls(settings)
+                return
+            } else {
+                pendingResolution = settings.resolution.size
+                Log.d(TAG, "applySettings: deferring resolution change until next active session")
+            }
+        }
+
+        applyCameraControls(settings)
+    }
+
+    fun applyPendingResolution() {
+        val res = pendingResolution ?: return
+        pendingResolution = null
+        currentResolution = res
+        if (hasActiveCameraDemand() && exclusiveSessionRefCount == 0) {
+            rebindUseCases()
+        }
+        Log.d(TAG, "applyPendingResolution: applied deferred resolution $res")
+    }
+
+    @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
+    private fun applyCameraControls(settings: CameraSettings) {
+        val cam = camera ?: return
+
+        val manualExposure = settings.iso != null || settings.exposureTime != null
+        // CameraX ImageCapture owns normal-photo flash. Manual sensor exposure cannot be
+        // combined with CameraX flash, so manual exposure has an explicit flash-off precedence.
+        val effectiveFlashMode = if (manualExposure) PhotoFlashMode.OFF else settings.photoFlashMode
+        imageCapture?.let { capture ->
+            capture.flashMode = if (!cam.cameraInfo.hasFlashUnit()) {
+                ImageCapture.FLASH_MODE_OFF
+            } else {
+                when (effectiveFlashMode) {
+                    PhotoFlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+                    PhotoFlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+                    PhotoFlashMode.ON -> ImageCapture.FLASH_MODE_ON
+                }
+            }
+        }
+        Log.d(TAG, "photo controls: camera=${selectedCameraId()}, flashAvailable=${cam.cameraInfo.hasFlashUnit()}, requestedFlash=${settings.photoFlashMode}, effectiveFlash=$effectiveFlashMode, manualExposure=$manualExposure")
+
+        try {
+            cam.cameraControl.setZoomRatio(settings.zoomRatio)
+        } catch (e: Exception) {
+            Log.w(TAG, "Zoom failed", e)
+        }
+
+        try {
+            val expState = cam.cameraInfo.exposureState
+            val lower = expState.exposureCompensationRange.lower
+            val upper = expState.exposureCompensationRange.upper
+            val value = settings.exposureCompensation.coerceIn(lower, upper)
+            if (value != expState.exposureCompensationIndex) {
+                cam.cameraControl.setExposureCompensationIndex(value)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Exposure compensation failed", e)
+        }
+
+        try {
+            val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+            val center = factory.createPoint(0.5f, 0.5f)
+            when (settings.focusMode) {
+                FocusMode.CONTINUOUS_PICTURE, FocusMode.CONTINUOUS_VIDEO -> {
+                    cam.cameraControl.startFocusAndMetering(
+                        FocusMeteringAction.Builder(center)
+                            .setAutoCancelDuration(5, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                    )
+                }
+                FocusMode.MANUAL -> { }
+                else -> {
+                    cam.cameraControl.startFocusAndMetering(
+                        FocusMeteringAction.Builder(center).build()
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Focus failed", e)
+        }
+
+        try {
+            val camera2Control = Camera2CameraControl.from(cam.cameraControl)
+            val builder = CaptureRequestOptions.Builder()
+            
+            val fpsRange = Range(settings.frameRate, settings.frameRate)
+            builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+            
+            if (settings.stabilization) {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON)
+                builder.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
+            } else {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+                builder.setCaptureRequestOption(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF)
+            }
+
+            when (settings.hdrMode) {
+                HdrMode.ON -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_HDR)
+                else -> { }
+            }
+
+            if (manualExposure) {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                settings.iso?.let { iso ->
+                    val clampedIso = iso.coerceIn(_availableIsoRange.value)
+                    builder.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, clampedIso)
+                }
+                val exposureTime = settings.exposureTime ?: run {
+                    // Default to 1/frameRate when ISO is set without explicit exposure time
+                    val defaultNs = 1_000_000_000L / settings.frameRate.coerceAtLeast(1)
+                    defaultNs.coerceIn(sensorExposureTimeRange.first, sensorExposureTimeRange.last)
+                }
+                builder.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureTime)
+            }
+            
+            when (settings.whiteBalance) {
+               WhiteBalance.AUTO -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+               WhiteBalance.DAYLIGHT -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT)
+               WhiteBalance.CLOUDY -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT)
+               WhiteBalance.INDOOR -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT)
+               WhiteBalance.FLUORESCENT -> builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT)
+               WhiteBalance.MANUAL -> {
+                   builder.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
+               }
+            }
+            
+            if (settings.focusMode == FocusMode.MANUAL) {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                settings.focusDistance?.let {
+                    builder.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, it)
+                }
+            }
+            
+            settings.sceneMode?.toIntOrNull()?.let {
+                builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, it)
+            }
+
+            when (settings.nightVisionMode) {
+                NightVisionMode.ON -> {
+                    builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT)
+                    builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+                    val nightFpsRange = Range(10, settings.frameRate.coerceAtMost(15))
+                    builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, nightFpsRange)
+                    Log.d(TAG, "Night vision ON: scene=NIGHT, fps=$nightFpsRange")
+                }
+                NightVisionMode.AUTO -> {
+                    builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT_PORTRAIT)
+                    Log.d(TAG, "Night vision AUTO: scene=NIGHT_PORTRAIT, auto flash")
+                }
+                NightVisionMode.OFF -> {
+                    // Reset scene mode when disabling night vision
+                    // (only if not overridden by HDR or manual scene mode)
+                    if (settings.hdrMode != HdrMode.ON && settings.sceneMode == null) {
+                        builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+                    }
+                    builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
+                }
+            }
+            
+            camera2Control.setCaptureRequestOptions(builder.build())
+            
+        } catch (e: Exception) {
+            Log.w(TAG, "Advanced settings failed", e)
+        }
+    }
+
+    private var isActivityForeground = true
+
+    fun onActivityResume() {
+        isActivityForeground = true
+        if (previewRequested && exclusiveSessionRefCount == 0) {
+            if (pendingResolution != null) {
+                applyPendingResolution()
+            } else {
+                rebindUseCases()
+            }
+            Log.d(TAG, "onActivityResume: restored preview")
+        }
+    }
+
+    fun onActivityStop() {
+        isActivityForeground = false
+        if (currentPreviewView != null) {
+            preview?.surfaceProvider = null
+            Log.d(TAG, "onActivityStop: detached preview surface for background operation")
+        }
+    }
+
+    fun isPreviewAvailable(): Boolean = isActivityForeground
+
+    fun getImageCapture(): ImageCapture? = imageCapture
+
+    fun setZoomRatioTransient(ratio: Float) {
+        val cam = camera ?: return
+        val zoom = cam.cameraInfo.zoomState.value ?: return
+        val bounded = ratio.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
+        cam.cameraControl.setZoomRatio(bounded)
+    }
+    fun getCamera(): Camera? = camera
+    fun getCameraProvider(): ProcessCameraProvider? = cameraProvider
+    fun getPreview(): Preview? = preview
+    fun getImageAnalysis(): ImageAnalysis? = imageAnalysis
+    fun getLifecycleOwner(): LifecycleOwner? = lifecycleOwner
+
+    fun release() {
+        cameraProvider?.unbindAll()
+        cameraProvider = null
+        clearBoundUseCases()
+        _cameraState.value = CameraState.Idle
+        previewRequested = false
+        exclusiveSessionRefCount = 0
+        currentPreviewView = null
+        try {
+            analysisExecutor.shutdown()
+        } catch (_: Exception) {
+        }
+    }
+
+    companion object {
+        private const val TAG = "CameraService"
+        private const val MAX_ANALYSIS_WIDTH = 1280
+        private const val MAX_ANALYSIS_HEIGHT = 720
+        private const val MAX_CONSECUTIVE_FRAME_ERRORS = 10
+    }
+}
