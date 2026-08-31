@@ -905,7 +905,7 @@ class WebApiController(private val context: Context) {
 
             runBlocking {
                 withContext(Dispatchers.Main) {
-                    app.cameraService.tapToFocus(x, y)
+                    app.cameraService.tapToFocusNormalized(x, y)
                 }
             }
 

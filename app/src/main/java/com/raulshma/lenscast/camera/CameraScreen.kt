@@ -1555,10 +1555,11 @@ private fun CameraPreview(
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
-                        val x = offset.x / size.width.toFloat().coerceAtLeast(1f)
-                        val y = offset.y / size.height.toFloat().coerceAtLeast(1f)
-                        onTapToFocus(x, y)
-                        focusPoint = x to y
+                        val tap = TapFocusCoordinates.fromPreview(
+                            offset.x, offset.y, size.width.toFloat(), size.height.toFloat()
+                        )
+                        onTapToFocus(tap.xPx, tap.yPx)
+                        focusPoint = tap.normalizedX to tap.normalizedY
                     }
                 }
                 .pointerInput(Unit) {

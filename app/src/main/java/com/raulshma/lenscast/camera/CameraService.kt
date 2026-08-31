@@ -157,6 +157,7 @@ class CameraService(private val context: Context) {
 
     fun getCurrentCameraSelector(): CameraSelector = currentCameraSelector
 
+    /** x/y are pixels in previewView's coordinate space, as required by its metering factory. */
     fun tapToFocus(previewView: PreviewView, x: Float, y: Float) {
         val cam = camera ?: run {
             Log.w(TAG, "tapToFocus: camera not available")
@@ -176,9 +177,12 @@ class CameraService(private val context: Context) {
         }
     }
 
-    /** Compatibility path for the web API, whose coordinates are already normalized. */
-    fun tapToFocus(x: Float, y: Float) {
-        currentPreviewView?.let { tapToFocus(it, x, y); return }
+    /** Web/API adapter: coordinates are normalized and must not be passed to PreviewView directly. */
+    fun tapToFocusNormalized(x: Float, y: Float) {
+        currentPreviewView?.let { previewView ->
+            tapToFocus(previewView, x * previewView.width, y * previewView.height)
+            return
+        }
         val cam = camera ?: return
         runCatching {
             val point = SurfaceOrientedMeteringPointFactory(1f, 1f)
@@ -319,9 +323,7 @@ class CameraService(private val context: Context) {
 
             // We MUST default to the MAIN logical back camera. Direct binding to physical
             // cameras on start causes black screen on many OEM drivers.
-            val logicalBackIndex = sorted.indexOfFirst {
-                it.lensFacing == CameraSelector.LENS_FACING_BACK && sorted.firstOrNull { l -> l.lensFacing == CameraSelector.LENS_FACING_BACK }?.id == it.id
-            }.coerceAtLeast(0)
+            val logicalBackIndex = CameraLensSelection.defaultBackIndex(sorted)
             
             _selectedLensIndex.value = logicalBackIndex
 
@@ -893,6 +895,8 @@ class CameraService(private val context: Context) {
         val cam = camera ?: return
 
         val manualExposure = settings.iso != null || settings.exposureTime != null
+        // CameraX ImageCapture owns normal-photo flash. Manual sensor exposure cannot be
+        // combined with CameraX flash, so manual exposure has an explicit flash-off precedence.
         val effectiveFlashMode = if (manualExposure) PhotoFlashMode.OFF else settings.photoFlashMode
         imageCapture?.let { capture ->
             capture.flashMode = if (!cam.cameraInfo.hasFlashUnit()) {
@@ -1006,9 +1010,6 @@ class CameraService(private val context: Context) {
             when (settings.nightVisionMode) {
                 NightVisionMode.ON -> {
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT)
-                    if (!manualExposure) {
-                        builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                    }
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
                     val nightFpsRange = Range(10, settings.frameRate.coerceAtMost(15))
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, nightFpsRange)
@@ -1016,9 +1017,6 @@ class CameraService(private val context: Context) {
                 }
                 NightVisionMode.AUTO -> {
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_NIGHT_PORTRAIT)
-                    if (!manualExposure) {
-                        builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH)
-                    }
                     Log.d(TAG, "Night vision AUTO: scene=NIGHT_PORTRAIT, auto flash")
                 }
                 NightVisionMode.OFF -> {
@@ -1026,9 +1024,6 @@ class CameraService(private val context: Context) {
                     // (only if not overridden by HDR or manual scene mode)
                     if (settings.hdrMode != HdrMode.ON && settings.sceneMode == null) {
                         builder.setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
-                    }
-                    if (!manualExposure) {
-                        builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                     }
                     builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, false)
                 }
